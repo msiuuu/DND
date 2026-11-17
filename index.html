@@ -70,6 +70,10 @@ main{flex:1;min-height:0;overflow:auto}
 .mem.bad{color:#ffb6a6;border-color:var(--danger)}
 .mem:hover{border-color:var(--ember)}
 #memout,#testout{font-size:13px;min-height:18px}
+#linkout{font-size:13px;color:var(--muted);line-height:1.5}
+#linkout .qr{background:#fff;border-radius:12px;padding:8px;width:max-content;max-width:100%;margin:10px auto}
+#linkout .qr svg{display:block;width:min(240px,100%);height:auto}
+#linkout input{margin-top:6px}
 ::-webkit-scrollbar{width:10px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.13);border-radius:8px}
 
 /* home + forms */
@@ -847,7 +851,7 @@ async function summarize(c){
 
 /* ============ memory: cloud sync to a secret GitHub gist ============ */
 const GH = 'https://api.github.com', MEMFILE = 'emberglade-memory.json';
-let syncT = 0, syncing = false, syncAgain = false, memState = '', memErr = '';
+let syncT = 0, syncing = false, syncAgain = false, memState = '', memErr = '', lastTry = 0;
 function memLabel(){
   const s = store.settings, el = $('#mem'); if(!el) return;
   el.textContent = !s.memToken?'Saved on this device':memState==='sync'?'Syncing…':memState==='err'?'Memory sync failed':s.lastSync?'Memory synced '+new Date(s.lastSync).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'Memory connected';
@@ -861,9 +865,10 @@ async function gh(path,opt={}){
   if(!r.ok){ const e = new Error(r.status===401?'GitHub rejected the token. Make a new one with the gist permission.':r.status===403?'GitHub refused (403). The token needs the gist permission.':'GitHub answered '+r.status+'.'); e.status = r.status; throw e; }
   return r.json();
 }
-const memCore = o => JSON.stringify([o.last||null,o.deleted||{},o.campaigns||{}]);
+const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','useCheck','temperature','maxTokens','stream'];
+const memCore = o => JSON.stringify([o.last||null,o.deleted||{},o.campaigns||{},o.prefs||null,o.prefsAt||0]);
 function memData(){ const campaigns = {}; for(const [id,c] of Object.entries(store.campaigns)){ const {_summing,...rest} = c; campaigns[id] = rest; }
-  return {app:'emberglade',version:1,savedAt:Date.now(),last:store.last||null,deleted:store.deleted,campaigns}; }
+  return {app:'emberglade',version:1,savedAt:Date.now(),last:store.last||null,deleted:store.deleted,campaigns,prefs:Object.fromEntries(PREFS.map(k=>[k,store.settings[k]])),prefsAt:store.prefsAt||0}; }
 function mergeRemote(r){
   let changed = false;
   for(const [id,ts] of Object.entries(r.deleted||{})) if(typeof ts==='number'&&!(store.deleted[id]>=ts)) store.deleted[id] = ts;
@@ -877,13 +882,14 @@ function mergeRemote(r){
   }
   for(const id of Object.keys(store.campaigns)) if(store.deleted[id]>=(store.campaigns[id].updated||0)&&!(cur&&cur.id===id)){ delete store.campaigns[id]; changed = true; }
   if(r.last&&!store.last&&store.campaigns[r.last]){ store.last = r.last; changed = true; }
+  if(r.prefs&&typeof r.prefs==='object'&&(r.prefsAt||0)>(store.prefsAt||0)){ for(const k of PREFS) if(k in r.prefs&&typeof r.prefs[k]===typeof DEFAULTS[k]) store.settings[k] = r.prefs[k]; store.prefsAt = r.prefsAt; changed = true; }
   return changed;
 }
 function scheduleSync(){ if(!store.settings.memToken) return; clearTimeout(syncT); syncT = setTimeout(sync,4000); }
 async function sync(){
   const s = store.settings; if(!s.memToken) return;
   if(syncing){ syncAgain = true; return; }
-  clearTimeout(syncT); syncing = true; memState = 'sync'; memLabel();
+  clearTimeout(syncT); syncing = true; lastTry = Date.now(); memState = 'sync'; memLabel();
   try{
     if(!s.gistId){ const list = await gh('/gists?per_page=100'); const g = list.find(x=>x.files&&x.files[MEMFILE]); if(g) s.gistId = g.id; }
     if(s.gistId){
@@ -901,6 +907,26 @@ async function sync(){
   }catch(e){ memState = 'err'; memErr = e.message||'Sync failed.'; }
   syncing = false; saveLocal(); memLabel();
   if(syncAgain){ syncAgain = false; scheduleSync(); }
+}
+
+// Keep devices in step while the game is open: check again when you come back to the tab, and every so often while it is visible.
+document.addEventListener('visibilitychange',()=>{ if(!store.settings.memToken) return; if(document.hidden){ if(syncT){ clearTimeout(syncT); sync(); } } else if(Date.now()-lastTry>8000) sync(); });
+setInterval(()=>{ if(store.settings.memToken&&!document.hidden&&!busy&&!rolling&&Date.now()-lastTry>40000) sync(); },10000);
+
+/* ============ linking another device ============ */
+const b64u = {enc:o=>btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
+  dec:t=>JSON.parse(decodeURIComponent(escape(atob(t.replace(/-/g,'+').replace(/_/g,'/')))))};
+const loadScript = src => new Promise((ok,no)=>{ if(document.querySelector(`script[src="${src}"]`)) return ok(); const e = document.createElement('script'); e.src = src; e.onload = ok; e.onerror = no; document.head.appendChild(e); });
+function linkUrl(){ const s = store.settings; return location.href.split('#')[0]+'#link='+b64u.enc({t:s.memToken,k:s.apiKey,u:s.baseUrl}); }
+let pendingLink = null;
+(function(){ const m = /^#link=([\w-]+)$/.exec(location.hash); if(!m) return;
+  try{ const j = b64u.dec(m[1]); if(typeof j.t==='string'&&/^[\w-]{20,255}$/.test(j.t)) pendingLink = j; }catch(e){}
+  history.replaceState(null,'',location.pathname+location.search); })();
+function askLink(){
+  const j = pendingLink; if(!j) return; let host = ''; try{ host = new URL(j.u).host; }catch(e){}
+  $('#modalRoot').innerHTML = `<div class="modal"><div class="box" role="dialog" aria-modal="true" aria-label="Link this device">
+    <h3>Link this device?</h3><div class="hint" style="font-size:14px">This link came from another device. Linking will connect this one to that device's memory, so your tales and settings appear here and stay in step.${j.k?` It also brings the narrator's API key${host?' for '+esc(host):''}.`:''}<br><br>Only accept this if you made the link yourself.</div>
+    <div class="actions" style="margin-top:18px"><button class="btn ghost" data-act="linkNo">Ignore</button><button class="btn primary" data-act="linkYes">Link this device</button></div></div></div>`;
 }
 
 /* ============ which check does an action call for? ============ */
@@ -1151,11 +1177,11 @@ function openSettings(msg){
       <div class="hint">Your key is kept in this browser's local storage and sent only to the URL above.</div>
       <div id="testout"></div>
       <h3 style="font-size:23px;margin-top:6px">Memory</h3>
-      <div class="hint">Tales always save in this browser. To keep them in the cloud and pick them up on any device, connect a GitHub token that has only the <b>gist</b> permission. Saves go into one secret gist on your account. Your API key is never put there.</div>
+      <div class="hint">Tales always save in this browser. To keep them in step across devices, connect a GitHub token that has only the <b>gist</b> permission on one device, then use <b>Link another device</b> to bring the rest in with a QR code. Tales and model settings go into one secret gist on your account. Your API key is never put there.</div>
       <label class="f">GitHub token for memory<input class="inp" name="memToken" type="password" value="${esc(s.memToken)}" placeholder="ghp_…" autocomplete="off"></label>
       <div class="actions" style="justify-content:flex-start"><a class="btn small ghost" href="https://github.com/settings/tokens/new?scopes=gist&description=Emberglade%20memory" target="_blank" rel="noopener">Create a token</a>
-        <button type="button" class="btn small" data-act="memConnect">Connect and sync</button><button type="button" class="btn small danger" data-act="memOff">Disconnect</button></div>
-      <div id="memout"></div>
+        <button type="button" class="btn small" data-act="memConnect">Connect and sync</button><button type="button" class="btn small" data-act="memLink">Link another device</button><button type="button" class="btn small danger" data-act="memOff">Disconnect</button></div>
+      <div id="memout"></div><div id="linkout"></div>
       <div class="actions"><button type="button" class="btn ghost" data-act="test">Test connection</button><button type="button" class="btn ghost" data-act="closeModal">Cancel</button><button class="btn primary">Save</button></div>
     </form></div></div>`;
   $('#setForm input').focus(); memLabel();
@@ -1206,6 +1232,22 @@ document.addEventListener('click',async ev=>{
     case 'memConnect': { readSettings(); saveLocal(); const out = $('#memout');
       if(!store.settings.memToken){ out.textContent = 'Paste a GitHub token first. "Create a token" opens the right page; keep only the gist box ticked.'; out.style.color = 'var(--danger)'; memLabel(); break; }
       await sync(); break; }
+    case 'memLink': { readSettings(); saveLocal(); const out = $('#linkout');
+      if(!store.settings.memToken||!store.settings.gistId){ out.textContent = 'Connect and sync on this device first, then you can link others to it.'; break; }
+      const url = linkUrl(); let qr = '';
+      try{ await loadScript('lib/qrcode.js'); const q = qrcode(0,'M'); q.addData(url); q.make(); qr = `<div class="qr">${q.createSvgTag(4,2)}</div>`; }catch(e){}
+      out.innerHTML = `${qr?'Scan this with the other device\'s camera, or open the link below on it.':'Open this link on the other device.'}${qr}
+        <input class="inp" id="linkField" readonly value="${esc(url)}" aria-label="Link for another device"><div class="actions" style="justify-content:flex-start;margin-top:8px"><button type="button" class="btn small" data-act="copyLink">Copy link</button><button type="button" class="btn small ghost" data-act="hideLink">Hide</button></div>
+        <div style="margin-top:8px">This code carries your memory token${store.settings.apiKey?' and your API key':''}. Treat it like a password: only show it to your own devices.</div>`;
+      clearTimeout(out._t); out._t = setTimeout(()=>{ out.innerHTML = ''; },180000); out.scrollIntoView({block:'nearest'}); break; }
+    case 'hideLink': $('#linkout').innerHTML = ''; break;
+    case 'copyLink': { const f = $('#linkField'); try{ await navigator.clipboard.writeText(f.value); el.textContent = 'Copied'; }catch(e){ f.select(); el.textContent = 'Select and copy'; } break; }
+    case 'linkNo': pendingLink = null; closeModal(); break;
+    case 'linkYes': { const j = pendingLink; pendingLink = null; closeModal(); if(!j) break;
+      Object.assign(store.settings,{memToken:j.t,gistId:'',lastSync:0}); if(typeof j.k==='string'&&j.k) store.settings.apiKey = j.k;
+      try{ if(/^https?:$/.test(new URL(j.u).protocol)) store.settings.baseUrl = j.u; }catch(e){}
+      store.prefsAt = 0; saveLocal(); memLabel(); toast('…','Linking and fetching your tales…'); await sync();
+      toast(memState==='err'?'!':'✓',memState==='err'?memErr:`Linked. ${Object.keys(store.campaigns).length} tale(s) on this device now.`); if(!cur) renderHome(); break; }
     case 'memOff': { Object.assign(store.settings,{memToken:'',gistId:'',lastSync:0}); memState = ''; saveLocal(); const f = $('#setForm'); if(f) f.memToken.value = '';
       memLabel(); const out = $('#memout'); if(out){ out.textContent = 'Disconnected. Tales stay in this browser, and the gist stays on your GitHub until you delete it.'; out.style.color = 'var(--muted)'; } break; }
     case 'loadModels': { readSettings(); const out = $('#testout'); out.textContent = 'Fetching models…'; out.style.color = 'var(--muted)';
@@ -1221,7 +1263,7 @@ document.addEventListener('click',async ev=>{
 document.addEventListener('submit',ev=>{
   ev.preventDefault(); const f = ev.target;
   if(f.id==='sendForm'){ const t = $('#say').value.trim(); if(t&&!busy){ $('#say').value = ''; playerAct(t); } }
-  else if(f.id==='setForm'){ readSettings(); save(); closeModal(); if(!cur) renderHome(); else if(!cur.log.length&&!busy) takeTurn(null); }
+  else if(f.id==='setForm'){ readSettings(); store.prefsAt = Date.now(); save(); closeModal(); if(!cur) renderHome(); else if(!cur.log.length&&!busy) takeTurn(null); }
   else if(f.id==='addItem'){ const v = f.item.value.trim(); if(v){ cur.character.inventory.push({name:v,qty:1}); save(); renderSide(); } }
   else if(f.id==='createForm'){
     const boons = picked(f,'boons'), flaws = picked(f,'flaws');
@@ -1259,7 +1301,7 @@ matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ 
 /* fireflies */
 (function(){ const f = $('#flies'); for(let i=0;i<16;i++){ const s = document.createElement('i'); s.style.left = Math.random()*100+'%'; s.style.top = 25+Math.random()*75+'%';
   s.style.animationDelay = (-Math.random()*14)+'s'; s.style.animationDuration = 10+Math.random()*10+'s'; f.appendChild(s); } })();
-go(); memLabel(); if(store.settings.memToken) sync();
+go(); memLabel(); if(pendingLink) askLink(); else if(store.settings.memToken) sync();
 </script>
 </body>
 </html>
