@@ -529,6 +529,7 @@ const TONES = {classic:'Classic heroic fantasy: wonder, danger, and earnest adve
 const KEY = 'calis-tavern.v1';
 const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',forgeModel:'',useCheck:true,useGuard:true,announce:true,encumb:true,diff:'standard',len:'adaptive',memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
+try{ if(!localStorage.getItem(KEY)&&localStorage.getItem('emberglade.v1')) localStorage.setItem(KEY,localStorage.getItem('emberglade.v1')); }catch(e){}
 try{ const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(s){ store = s; store.settings = {...DEFAULTS,...s.settings}; store.campaigns = s.campaigns||{}; } }catch(e){}
 if(store.settings.maxTokens===1000) store.settings.maxTokens = 4000;
 if(!store.lenSet&&store.settings.len==='medium') store.settings.len = 'adaptive'; store.lenSet = true;
@@ -1223,7 +1224,7 @@ async function summarize(c){
 }
 
 /* ============ memory: cloud sync to a secret GitHub gist ============ */
-const GH = 'https://api.github.com', MEMFILE = 'calis-tavern-memory.json';
+const GH = 'https://api.github.com', MEMFILE = 'calis-tavern-memory.json', OLDFILE = 'emberglade-memory.json';
 let syncT = 0, syncing = false, syncAgain = false, memState = '', memErr = '', lastTry = 0;
 function memLabel(){
   const s = store.settings, el = $('#mem'); if(!el) return;
@@ -1264,11 +1265,11 @@ async function sync(){
   if(syncing){ syncAgain = true; return; }
   clearTimeout(syncT); syncing = true; lastTry = Date.now(); memState = 'sync'; memLabel();
   try{
-    if(!s.gistId){ const list = await gh('/gists?per_page=100'); const g = list.find(x=>x.files&&x.files[MEMFILE]); if(g) s.gistId = g.id; }
+    if(!s.gistId){ const list = await gh('/gists?per_page=100'); const g = list.find(x=>x.files&&x.files[MEMFILE])||list.find(x=>x.files&&x.files[OLDFILE]); if(g) s.gistId = g.id; }
     if(s.gistId){
       let g = null; try{ g = await gh('/gists/'+s.gistId); }catch(e){ if(e.status!==404) throw e; s.gistId = ''; }
       if(g){
-        const f = g.files&&g.files[MEMFILE]; let txt = f?f.content:''; if(f&&f.truncated) txt = await (await fetch(f.raw_url)).text();
+        const f = g.files&&(g.files[MEMFILE]||g.files[OLDFILE]); let txt = f?f.content:''; if(f&&f.truncated) txt = await (await fetch(f.raw_url)).text();
         let remote = null; try{ remote = JSON.parse(txt); }catch(e){}
         if(remote&&mergeRemote(remote)){ saveLocal(); if(!cur&&!$('#createForm')) renderHome(); }
         const mine = memData();
@@ -1421,8 +1422,23 @@ function renderHome(){
   </div>`;
 }
 let draft = null, forging = false;
-const STEPS = ['Who you are','Attributes','Boons','Flaws','Story','Review'];
-function newDraft(){ const d = {step:0,seen:0,wish:'',name:'',race:'Human',cls:'Fighter',background:'Outlander',cBg:'',alignment:'True Neutral',appearance:'',backstory:'',abilities:null,abTouched:false,boons:[],flaws:[],msg:'',
+const STEPS = ['Who you are','Attributes','Boons','Flaws','Story','Campaign','Review'];
+const SURPRISE = 'Invent an original premise for this campaign, different from anything generic, and build it around this particular character: their race, class, background, backstory, boons, and flaws. Do not explain the premise up front; reveal it through the opening scene.';
+const CAMPAIGNS = [
+  {id:'surprise',title:'Surprise me',text:'The DM invents a campaign around the character you just made. You find out what it is when you open your eyes.'},
+  {id:'lantern',title:'The Lantern Road',text:'You signed on to guard a caravan through the old forest. The road is lined with ever-burning lanterns, and tonight they are going out, one by one, behind you.'},
+  {id:'well',title:'Hollow Under Thistlewick',text:'The village well ran dry a week ago. Since then, on quiet nights, something at the bottom has been singing the names of the villagers.'},
+  {id:'stag',title:"The Stag King's Debt",text:'You wake in a moonlit clearing with an antler-shaped brand on your palm and no memory of the bargain that put it there. Someone has come to collect.'},
+  {id:'keep',title:'Ashes of Brambleholt',text:'A map bought for three coppers leads to a keep swallowed by thorns. You are not the only one who bought a copy.'},
+  {id:'moth',title:'The Moth Market',text:'On moonless nights a market unfolds between the trees, selling things that were never meant to be sold. Tonight, one of the stalls is selling something of yours.'},
+  {id:'crown',title:'The Hollow Crown',text:'A classic dungeon delve. Beneath a dead king\'s barrow lie nine sealed levels, and the first seal broke this morning. Whoever reaches the bottom keeps what is there.'},
+  {id:'ledger',title:'The Gilded Ledger',text:'A city heist. The richest counting-house in the free port keeps one book it would kill to protect, and three different people have just hired you to steal it.'},
+  {id:'bell',title:'The Drowned Bell',text:'A fishing town on a grey coast. The bell of a church that sank a century ago has started ringing under the water, and the tide has stopped going out.'},
+  {id:'winter',title:'Winter Without End',text:'Survival in the far north. The thaw is three months late, the pass is closed, and the hold you are wintering in is counting its food in days.'},
+  {id:'court',title:'A Knife at Court',text:'Intrigue. You arrive at the duke\'s court as a nobody on the same night his heir is poisoned, and by morning half the hall has decided it was you.'},
+  {id:'custom',title:'Write my own',text:'Describe your own setting, premise, or opening scene.'},
+];
+function newDraft(){ const d = {step:0,seen:0,wish:'',name:'',race:'Human',cls:'Fighter',background:'Outlander',cBg:'',alignment:'True Neutral',appearance:'',backstory:'',camp:'surprise',campTitle:'',campText:'',tone:'classic',abilities:null,abTouched:false,boons:[],flaws:[],msg:'',
   cRace:{name:'',about:'',plus2:'str',plus1:'con'},cCls:{name:'',about:'',main:'str',second:'con',hd:8,armor:'light',skills:[],gear:[],feat:''}};
   d.abilities = presetFor(classDef(d)); return d; }
 const rollArray = () => Array.from({length:6},()=>{ const x = [rnd(6),rnd(6),rnd(6),rnd(6)].sort((a,b)=>a-b); return x[1]+x[2]+x[3]; });
@@ -1468,17 +1484,24 @@ function renderCreate(){
       <label class="f">Appearance<input class="inp" data-d="appearance" value="${esc(d.appearance)}" maxlength="200" placeholder="Tall, rain-grey eyes, a burn scar on one hand"></label>
       <label class="f" style="margin-top:12px">Where you come from, and what you want<textarea class="inp" data-d="backstory" maxlength="1200" style="min-height:150px" placeholder="Optional. A few lines is plenty; the narrator builds the opening around it.">${esc(d.backstory)}</textarea></label>
       <div class="actions" style="justify-content:flex-start;margin-top:12px"><button type="button" class="btn small" data-act="forgeStory" ${forging?'disabled':''}>${forging?'Writing…':'Write these for me'}</button></div></div>`;
-  else { const ab = ABIL.map(a=>`${a.toUpperCase()} ${clamp(num(d.abilities[a])||10,3,18)+(race.bonus[a]||0)}`).join(' · '), names = (ids,arr) => arr.filter(x=>ids.includes(x.id)).map(x=>x.name).join(', ')||'none';
+  else if(d.step===5) body = `<div class="panel"><h3>Choose your campaign</h3>
+      <div class="hooks">${CAMPAIGNS.map(h=>`<label class="hook"><input type="radio" name="camp" value="${h.id}" ${d.camp===h.id?'checked':''}><b>${esc(h.title)}</b><span>${esc(h.text)}</span></label>`).join('')}</div>
+      ${d.camp==='custom'?`<label class="f" style="margin-top:14px">Name of your campaign<input class="inp" data-d="campTitle" value="${esc(d.campTitle)}" maxlength="60" placeholder="The Salt Road War"></label>
+        <label class="f" style="margin-top:12px">The premise<textarea class="inp" data-d="campText" maxlength="2000" style="min-height:150px" placeholder="Where it is, what is going wrong, and where you come into it. A few lines is enough; write more if you want the DM held to it.">${esc(d.campText)}</textarea></label>`:''}
+      <label class="f" style="margin-top:14px;max-width:420px">Tone<select class="inp" data-d="tone">${[['classic','Classic heroic'],['grim','Dark and grim'],['whimsy','Whimsical fairytale'],['mystery','Slow-burn mystery']].map(([v,l])=>`<option value="${v}" ${d.tone===v?'selected':''}>${l}</option>`).join('')}</select></label></div>`;
+  else { const camp = CAMPAIGNS.find(x=>x.id===d.camp)||CAMPAIGNS[0];
+    const ab = ABIL.map(a=>`${a.toUpperCase()} ${clamp(num(d.abilities[a])||10,3,18)+(race.bonus[a]||0)}`).join(' · '), names = (ids,arr) => arr.filter(x=>ids.includes(x.id)).map(x=>x.name).join(', ')||'none';
     body = `<div class="review"><div class="card"><h4>Who</h4><b style="font-family:var(--display);font-size:24px">${esc(d.name||'Nameless')}</b><div class="hint">${esc(race.name)} ${esc(cls.name)} · ${esc(bg)} · ${esc(d.alignment)}</div>
         ${race.about?`<div class="hint" style="margin-top:8px">${esc(race.name)}: ${esc(race.about)}</div>`:''}${cls.about?`<div class="hint" style="margin-top:8px">${esc(cls.name)}: ${esc(cls.about)}</div>`:''}</div>
       <div class="card"><h4>Attributes</h4><div style="font-size:14px;line-height:1.8">${ab}</div><div class="hint" style="margin-top:6px">Hit die d${cls.hd} · Skills: ${profs.join(', ')}</div></div>
       <div class="card"><h4>Boons and flaws</h4><div class="hint" style="color:var(--text)">Boons: ${names(d.boons,BOONS)}<br>Flaws: ${names(d.flaws,FLAWS)}</div></div>
+      <div class="card"><h4>Campaign</h4><b style="font-family:var(--display);font-size:21px">${esc(d.camp==='custom'?(d.campTitle.trim()||'Your own campaign'):camp.title)}</b><div class="hint" style="margin-top:4px">${esc(d.camp==='custom'?d.campText.trim():camp.text)}</div></div>
       <div class="card"><h4>Story</h4><div class="hint" style="color:var(--text)">${esc(d.appearance||'No appearance given.')}<br><br>${esc(d.backstory||'No backstory given; the narrator will leave room for it.')}</div></div></div>`; }
   main.innerHTML = `<div class="wrap"><h2 class="sec" style="margin-top:0;font-size:34px">Character sheet</h2>
     <div class="steps">${STEPS.map((t,i)=>`<button type="button" data-act="step" data-k="${i}" class="${i===d.step?'on':i<=d.seen?'done':''}" ${i>d.seen?'disabled':''} ${i===d.step?'aria-current="step"':''}>${i+1}. ${t}</button>`).join('')}</div>
     <form id="createForm">${body}
       <div id="createMsg" style="color:#ffb6a6;min-height:20px;margin-bottom:10px;text-align:right" role="alert">${esc(d.msg||'')}</div>
-      <div class="actions"><button type="button" class="btn ghost" data-act="${d.step?'stepBack':'cancelCreate'}">${d.step?'Back':'Cancel'}</button><button class="btn primary">${d.step===5?'Step into the clearing':'Next'}</button></div>
+      <div class="actions"><button type="button" class="btn ghost" data-act="${d.step?'stepBack':'cancelCreate'}">${d.step?'Back':'Cancel'}</button><button class="btn primary">${d.step===6?'Step into the clearing':'Next'}</button></div>
     </form></div>`;
   d.msg = '';
 }
@@ -1517,7 +1540,7 @@ async function forge(){
     if(typeof j.appearance==='string') d.appearance = j.appearance.trim().slice(0,200);
     if(typeof j.backstory==='string') d.backstory = j.backstory.trim().slice(0,1200);
     d.boons = (Array.isArray(j.boons)?j.boons:[]).filter(x=>BOONS.some(b=>b.id===x)).slice(0,2); d.flaws = (Array.isArray(j.flaws)?j.flaws:[]).filter(x=>FLAWS.some(b=>b.id===x)).slice(0,2);
-    d.boons = d.boons.slice(0,d.flaws.length); d.seen = 5; d.step = 5;
+    d.boons = d.boons.slice(0,d.flaws.length); d.seen = 6; d.step = 5;
   }catch(e){ d.msg = e.message||'The model could not be reached.'; }
   forging = false; if(draft===d&&$('#createForm')) renderCreate();
 }
@@ -1941,10 +1964,12 @@ document.addEventListener('submit',ev=>{
       if(d.race==='__custom'&&!d.cRace.name.trim()){ d.msg = 'Name your custom race.'; renderCreate(); return; }
       if(d.cls==='__custom'&&!d.cCls.name.trim()){ d.msg = 'Name your custom class.'; renderCreate(); return; } }
     if(d.step>=3&&d.boons.length>d.flaws.length){ d.step = 3; d.msg = 'Every boon is paid for with a flaw. Pick another flaw, or go back and give up a boon.'; renderCreate(); return; }
-    if(d.step<5){ d.step++; d.seen = Math.max(d.seen,d.step); renderCreate(); main.scrollTop = 0; return; }
+    if(d.step===5&&d.camp==='custom'&&!d.campText.trim()){ d.msg = 'Write a line or two about your campaign, or pick one from the list.'; renderCreate(); return; }
+    if(d.step<6){ d.step++; d.seen = Math.max(d.seen,d.step); renderCreate(); main.scrollTop = 0; return; }
+    const camp = CAMPAIGNS.find(x=>x.id===d.camp)||CAMPAIGNS[0];
     const character = newCharacter(d), id = 'c'+Date.now().toString(36)+rnd(1e6).toString(36);
-    store.campaigns[id] = {id,title:`${character.name}'s tale`,created:Date.now(),updated:Date.now(),tone:'classic',character,
-      premise:'Invent an original premise for this campaign, different from anything generic, and build it around this particular character: their race, class, background, backstory, boons, and flaws. Do not explain the premise up front; reveal it through the opening scene.',
+    store.campaigns[id] = {id,title:d.camp==='surprise'?`${character.name}'s tale`:d.camp==='custom'?(d.campTitle.trim().slice(0,60)||`${character.name}'s tale`):camp.title,created:Date.now(),updated:Date.now(),tone:d.tone||'classic',character,
+      premise:d.camp==='surprise'?SURPRISE:d.camp==='custom'?`${d.campTitle.trim()?d.campTitle.trim()+'. ':''}${d.campText.trim()}\nThis premise was written by the player: keep to it faithfully, and fit this character into it.`:`${camp.title}. ${camp.text}\nKeep to this premise, and fit this particular character into it: their background, backstory, boons and flaws should matter.`,
       quests:[],location:'',summary:'',sumIdx:0,log:[],suggestions:[],pendingRoll:null};
     draft = null; save(); location.hash = id;
   }
@@ -1954,6 +1979,7 @@ document.addEventListener('change',ev=>{
   const t = ev.target;
   if(draft&&(t.name==='boons'||t.name==='flaws')&&t.form?.id==='createForm'){ const list = draft[t.name], k = list.indexOf(t.value);
     if(t.checked&&k<0&&list.length<2) list.push(t.value); else if(!t.checked&&k>=0) list.splice(k,1); renderCreate(); }
+  if(draft&&t.name==='camp'&&t.form?.id==='createForm'){ draft.camp = t.value; renderCreate(); }
   if(draft&&t.dataset.d&&t.tagName==='SELECT'){ setDraft(t.dataset.d,t.value); if(t.dataset.re){ if(!draft.abTouched) draft.abilities = presetFor(classDef(draft)); renderCreate(); } }
   if(t.id==='packSort'){ store.ui.sort = t.value; saveLocal(); renderSide(); }
   if(t.id==='gsWho'){ gsWho = t.value; openGame('people'); }
@@ -1974,7 +2000,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170740';
+const BUILD = '202611170752';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
