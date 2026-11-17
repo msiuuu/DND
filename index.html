@@ -637,12 +637,16 @@ const KEY = 'calis-tavern.v1';
 const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,forgeModel:'',useCheck:true,useGuard:true,announce:true,encumb:true,vulgar:false,lore:true,loreSize:'small',diff:'standard',len:'adaptive',voice:'plain',trouble:'calm',memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
 try{ if(!localStorage.getItem(KEY)&&localStorage.getItem('emberglade.v1')) localStorage.setItem(KEY,localStorage.getItem('emberglade.v1')); }catch(e){}
-try{ const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(s){ store = s; store.settings = {...DEFAULTS,...s.settings}; store.campaigns = s.campaigns||{}; } }catch(e){}
-if(store.settings.maxTokens===1000) store.settings.maxTokens = 4000;
-if(!store.lenSet&&store.settings.len==='medium') store.settings.len = 'adaptive'; store.lenSet = true;
-store.lore ||= {}; store.lore.off ||= {}; store.lore.books ||= [];
-store.deleted ||= {}; store.ui ||= {left:false,right:false};
-function saveLocal(){ try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){ toast('!','Could not save: browser storage is full or blocked.'); } }
+let staleStore = false;
+function loadStore(){
+  try{ const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(s){ store = s; store.settings = {...DEFAULTS,...s.settings}; store.campaigns = s.campaigns||{}; } }catch(e){}
+  if(store.settings.maxTokens===1000) store.settings.maxTokens = 4000;
+  if(!store.lenSet&&store.settings.len==='medium') store.settings.len = 'adaptive'; store.lenSet = true;
+  store.lore ||= {}; store.lore.off ||= {}; store.lore.books ||= [];
+  store.deleted ||= {}; store.ui ||= {left:false,right:false};
+}
+loadStore();
+function saveLocal(){ try{ staleStore = false; localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){ toast('!','Could not save: browser storage is full or blocked.'); } }
 function save(){ if(cur) cur.updated = Date.now(); saveLocal(); scheduleSync(); }
 
 /* ============ helpers ============ */
@@ -1415,6 +1419,8 @@ async function takeTurn(entry){
 }
 // Each scene keeps a snapshot of the sheet and the world from just before it, for the most recent scenes, so a scene can be redone with everything put back.
 const KEEP_UNDO = 15;
+// The player changed something by hand in Settings or the item editor. Write that into the saved snapshots too, so redoing a scene does not undo the edit.
+function rebase(c,keys){ for(const e of c.log){ if(!e.pre) continue; try{ const snap = JSON.parse(e.pre); for(const k of keys) snap[k] = c[k]; e.pre = JSON.stringify(snap); }catch(err){} } }
 let selEntry = -1, editEntry = -1;
 // Cuts the tale back to just before entry i. Restores the sheet and the world if a snapshot from that point survives; says whether it did.
 function rewindTo(c,i){
@@ -2042,7 +2048,7 @@ function saveItem(f){
   classify(it);
   const dmg = f.dmg.value.replace(/\s/g,''); if(it.type==='weapon'){ it.dmg = dmg&&rollExpr(dmg)?dmg:it.dmg; if(k>=0||f.props.value) it.props = f.props.value; } else { delete it.dmg; delete it.props; }
   if(it.type==='armor'){ const b = num(f.abase.value); it.armor = b>=10?{base:Math.min(20,b),dex:f.adex.value,kind:'worn'}:it.armor; } else delete it.armor;
-  if(k<0) ch.inventory.push(it); refresh(ch); save(); closeModal(); renderSide(); chrome(true);
+  if(k<0) ch.inventory.push(it); refresh(ch); rebase(cur,['character']); save(); closeModal(); renderSide(); chrome(true);
 }
 
 /* ============ game settings: table options, god mode, and the edit panel ============ */
@@ -2151,6 +2157,7 @@ function saveGame(){
     c.npcs[name] = n; gsWho = name; c.present = c.present.filter(x=>x!==name); if(f.here.checked) c.present = [name,...c.present].slice(0,3); }
   else { c.location = f.location.value.trim().slice(0,80); c.mood = f.mood.value; c.summary = f.summary.value.trim();
     c.quests = [...f.querySelectorAll('.qrow')].map(r=>({title:r.querySelector('[name=qt]').value.trim().slice(0,80),status:r.querySelector('[name=qs]').value,note:r.querySelector('[name=qn]').value.trim().slice(0,240)})).filter(q=>q.title); }
+  if(c){ if(gsTab==='char') rebase(c,['character']); else if(gsTab==='people') rebase(c,['npcs','present']); else if(gsTab==='world') rebase(c,['quests','location','mood']); }
   save(); if(c){ renderGame(); } else renderHome();
 }
 
@@ -2256,7 +2263,7 @@ document.addEventListener('click',async ev=>{
     case 'equip': case 'equipOff': { const it = c.character.inventory[num(el.dataset.k)]; if(!it) break; const err = equip(c.character,it,act==='equipOff'?'off':'main'); if(err) toast('!',err); save(); renderSide(); chrome(true); break; }
     case 'unequip': { const it = c.character.inventory[num(el.dataset.k)]; if(it){ delete it.eq; refresh(c.character); save(); renderSide(); } break; }
     case 'editItem': openItem(num(el.dataset.k)); break;
-    case 'delItem': c.character.inventory.splice(num(el.dataset.k),1); refresh(c.character); save(); closeModal(); renderSide(); break;
+    case 'delItem': c.character.inventory.splice(num(el.dataset.k),1); refresh(c.character); rebase(c,['character']); save(); closeModal(); renderSide(); break;
     case 'atk': { const w = weaponInfo(c.character); freeRoll(`${w.name} attack`,w.hit); break; }
     case 'skipRoll': { const r = c.pendingRoll; if(!r||busy) break; const t = `${r.label}: passed without rolling (god mode). Treat it as a clear success.`; if(r.ask){ c.pendingRoll = null; answerAside(c,r.ask,t); } else takeTurn({role:'roll',text:t}); break; }
     case 'gameSettings': openGame(); break;
@@ -2378,12 +2385,23 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611171901';
+const BUILD = '202611171911';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
 }
 if(location.protocol!=='file:'){ checkVersion(); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) checkVersion(); }); setInterval(()=>{ if(!document.hidden) checkVersion(); },300000); }
+/* ============ keeping two open copies of the game in step ============ */
+// The installed app and a browser tab (or two tabs) share one saved store. Without this, the copy that was opened earlier still holds
+// the old sheet in memory and writes it back over the newer one the next time it saves.
+function adoptStore(){
+  staleStore = false; const id = cur&&cur.id, creating = !!$('#createForm'); loadStore();
+  if(id){ cur = store.campaigns[id]||null; if(cur){ upgrade(cur); renderGame(); } else renderHome(); } else if(!creating&&!$('#modalRoot').firstChild) renderHome();
+  memLabel();
+}
+window.addEventListener('storage',e=>{ if(e.key!==KEY||!e.newValue) return; if(busy||rolling||$('#modalRoot').firstChild||$('#createForm')){ staleStore = true; return; } adoptStore(); });
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&staleStore&&!busy&&!rolling&&!$('#modalRoot').firstChild&&!$('#createForm')) adoptStore(); });
+
 /* ============ dropdowns ============ */
 let ddOpen = null;
 function closeDD(focus){ if(!ddOpen) return; const {pop,btn} = ddOpen; ddOpen = null; pop.remove(); btn.setAttribute('aria-expanded','false'); if(focus&&document.contains(btn)) btn.focus({preventScroll:true}); }
