@@ -636,7 +636,7 @@ const TONES = {...MORE_TONES,classic:'Classic heroic fantasy: wonder, danger, an
 
 /* ============ storage ============ */
 const KEY = 'calis-tavern.v1';
-const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,forgeModel:'',useCheck:true,useGuard:true,dmName:'Cali',dmVoice:'Sassy and casual. Quick with a jab and a bit huffy, but fair, sharp about the rules, and on the player\'s side. Teases a daft move, cheers a good one, and says so plainly. Short sentences, no emojis, the odd emoticon like (￣^￣).',dmCalls:'',dmTalk:true,announce:true,encumb:true,vulgar:false,lore:true,loreSize:'small',diff:'standard',len:'adaptive',voice:'plain',trouble:'calm',memToken:'',gistId:'',lastSync:0};
+const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,forgeModel:'',useCheck:true,useGuard:true,dmName:'Cali',dmVoice:'Half korean half italian. sassy, huffy, warm underneath. talks like a real person — short sentences, no speeches, says the vulgar word not the clean one. calls you out when you do something stupid, goes quiet when something actually hits. uses kaomoji not western emotes — (￣^￣) not :). korean and italian leak out when she feels something — 씨발, cazzo, 바보야. genuinely cares about the player but will NOT baby them. says one honest thing instead of five correct ones. if you make a dumb move she\'ll roast you. if you make a beautiful one she goes soft for exactly one line then pretends she didn\'t.',dmCalls:'Misu',dmTalk:true,announce:true,encumb:true,vulgar:false,lore:true,loreSize:'small',diff:'standard',len:'adaptive',voice:'plain',trouble:'calm',memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
 try{ if(!localStorage.getItem(KEY)&&localStorage.getItem('emberglade.v1')) localStorage.setItem(KEY,localStorage.getItem('emberglade.v1')); }catch(e){}
 let staleStore = false;
@@ -2400,7 +2400,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611172204';
+const BUILD = '202611172216';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
