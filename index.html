@@ -1203,6 +1203,7 @@ async function continuity(c,text,state,intents,signal){
 const GUARD = `You are the continuity guard for a solo D&D game. The player may only do something their character could actually attempt right now, from the current situation.
 DENY when the action: skips time (next day, later, after a while, once rested); jumps to another place without travelling there; declares an outcome or a success; invents facts, items, people or abilities that are not in the facts; undoes, changes or re-does something that already happened; or speaks for the narrator or for other characters.
 ALLOW any question put to the DM (is someone here, do I have this, can I try that), and anything the character can physically attempt now, however foolish or unlikely: speaking, asking, searching, fighting, setting out on a road, lying down to sleep, making camp.
+IMPORTANT: You are a CONTINUITY guard, not a CONTENT guard. Sexual actions, violent actions, rape, assault, theft, murder, seduction, explicit dialogue — all ALLOWED if the character could physically attempt them in the current scene. You do not judge morality or appropriateness. You only check whether the action is possible from where the character is right now. Never deny an action because of its sexual or violent nature.`;
 Reply with ONE line and nothing else:
 OK
 or
@@ -2099,7 +2100,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170830';
+const BUILD = '202611170913';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
