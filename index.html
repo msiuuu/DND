@@ -1302,6 +1302,7 @@ Player wrote: ${text}${guess?`\n(Keyword guess from the app: ${guess}.)`:''}`}],
 /* ============ DM space: stepping out of the story to talk with the DM ============ */
 // Ask the DM this many out-of-story questions in a row and they take the conversation aside.
 const DM_PULL = 3;
+const TABLE_KEYS = ['diff','len','voice','trouble','dmPick','dmCalls','dmName','dmVoice','dmTalk','announce','useGuard','useSheet','useCheck','encumb','vulgar'];
 const DMSPACE = c => { const dm = lastOf(c,'dm'), here = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]);
   return `${dmSelf()}
 You and the player have stepped away from the story and are talking directly, the way a DM and a player talk across the table between scenes. Be yourself. Answer what they ask, chat, joke, explain a ruling, talk about their character or the world. Keep it short: one to four sentences a turn.
@@ -1340,7 +1341,7 @@ async function dmSay(text,pulled){
 }
 function renderDm(){
   const c = cur, n = esc(dmName());
-  $('#log').innerHTML = `<div class="dmhead"><div><b>Aside with ${n}</b><span>Out of the story. Nothing said here happens in the tale, but what ${n} settles is remembered.</span></div><button class="btn primary" data-act="dmExit">Back to the story</button></div>`
+  $('#log').innerHTML = `<div class="dmhead"><div><b>Aside with ${n}</b><span>Out of the story. Nothing said here happens in the tale, but what ${n} settles is remembered.</span></div>${(c.dmChat||[]).length?'<button class="btn ghost" data-act="dmClear">Clear chat</button>':''}<button class="btn primary" data-act="dmExit">Back to the story</button></div>`
     +(c.dmChat||[]).map(m=>m.who==='you'?`<div class="dmmsg me"><div class="bub">${md(m.text)}</div></div>`:`<div class="dmmsg them"><div class="bub"><b>${n}</b>${md(m.text)}</div></div>`).join('')
     +(busy?`<div class="dmmsg them"><div class="bub thinking"><b>${n}</b>…</div></div>`:'')
     +(lastErr?`<div class="e err"><span>${esc(lastErr)}</span><button class="btn small" data-act="settings">Models</button></div>`:'')
@@ -2207,7 +2208,8 @@ function openGame(tabName){
     ${ck('useCheck',st.useCheck,'Run a continuity check on each scene (one extra model call per turn). Skipped during fights to keep them fast.')}
     <div class="grp2">Rules</div>
     ${ck('encumb',st.encumb,'Carry weight matters: going over capacity makes me Encumbered.')}
-    ${c?`<div class="god">${ck('god',!!c.god,'<b>God mode for this tale.</b> Nothing I type is refused, I can skip any roll as a success, and whatever I declare becomes true.')}</div>`:'<div class="hint">Open a tale to get god mode and the edit panel for that tale.</div>'}`;
+    ${c?`<div class="god">${ck('god',!!c.god,'<b>God mode for this tale.</b> Nothing I type is refused, I can skip any roll as a success, and whatever I declare becomes true.')}</div>`:'<div class="hint">Open a tale to get god mode and the edit panel for that tale.</div>'}
+    <div class="actions" style="justify-content:flex-start;margin-top:14px"><button type="button" class="btn small ghost" data-act="tableReset">Reset the table to defaults</button></div>`;
   else if(gsTab==='lore'){ const books = allLore(), mine = store.lore.books, ed = mine.find(b=>b.id===loreEdit);
     if(ed) body = `<div class="actions" style="justify-content:flex-start"><button type="button" class="btn small ghost" data-act="loreBack">&#8592; All lorebooks</button></div>
       <div class="grid2"><label class="f">Name of this lorebook<input class="inp" name="bname" value="${esc(ed.name)}" maxlength="60"></label><label class="f">What it covers<input class="inp" name="babout" value="${esc(ed.about||'')}" maxlength="160"></label></div>
@@ -2383,6 +2385,11 @@ document.addEventListener('click',async ev=>{
     case 'force': if(denied&&!busy){ const t = denied.text; const ta = $('#say'); if(ta) ta.value = ''; playerAct(t,true,true); } break;
     case 'dmEnter': if(cur&&!busy) enterDm(cur,false); break;
     case 'dmExit': exitDm(); break;
+    case 'dmClear': { const c = cur; if(!c||busy||!(c.dmChat||[]).length) break;
+      if(!confirm(`Clear this chat with ${dmName()}? The story is not touched, and the facts already settled are kept (you can edit those in Settings, World).`)) break;
+      c.dmChat = []; lastErr = null; c.updated = Date.now(); save(); renderGame(); break; }
+    case 'tableReset': { if(!confirm('Put the table back to how it started? This resets difficulty, how the DM writes, the narrator and the checks. Your models, key, tales and lorebooks are not touched.')) break;
+      for(const k of TABLE_KEYS) store.settings[k] = DEFAULTS[k]; store.prefsAt = Date.now(); if(cur) refresh(cur.character); save(); openGame('game'); if(cur) renderGame(); toast('Table reset','Everything on this tab is back to its defaults.'); break; }
     case 'eEdit': editEntry = selEntry; renderLog(); $('#eBox')?.focus(); break;
     case 'eCancel': editEntry = -1; renderLog(); break;
     case 'eSave': case 'eSaveRedo': { const e = c.log[selEntry], v = ($('#eBox')?.value||'').trim(); if(!e||!v) break;
@@ -2522,7 +2529,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611172239';
+const BUILD = '202611172247';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
