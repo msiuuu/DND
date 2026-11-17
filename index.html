@@ -201,6 +201,14 @@ ul.list li button:hover{color:var(--danger)}
 .result span{font-size:13px;color:var(--muted)}
 .hist{margin-top:10px;font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:3px;max-height:150px;overflow:auto}
 
+.tray{position:relative;height:236px;border-radius:14px;overflow:hidden;margin-bottom:12px;border:1px solid var(--line2);
+  background:radial-gradient(circle at 50% 40%,color-mix(in srgb,var(--ember) 20%,#1c1c1c),#0b0b0b 85%);box-shadow:inset 0 0 30px rgba(0,0,0,.7),inset 0 2px 0 rgba(255,255,255,.05);transition:border-color .3s,box-shadow .3s}
+.tray.crit{border-color:#f0c64e;box-shadow:inset 0 0 38px rgba(240,200,80,.4)}
+.tray.fumble{border-color:#c4503a;box-shadow:inset 0 0 38px rgba(200,60,40,.45)}
+#tray3d{position:absolute;inset:0}
+#tray3d canvas{width:100%;height:100%;display:block}
+#tray2d{position:absolute;inset:0;align-items:center;align-content:center;gap:12px;padding:0 10px;pointer-events:none}
+.tray .dw{width:54px;height:54px}.tray .d3{zoom:.63}
 /* rolling dice */
 #diceStage{position:fixed;left:0;right:0;bottom:150px;z-index:35;display:flex;flex-direction:column;align-items:center;gap:14px;pointer-events:none;opacity:0;transition:opacity .35s}
 #diceStage.on{opacity:1}
@@ -277,7 +285,6 @@ ul.list li button:hover{color:var(--danger)}
   </header>
   <main id="main"></main>
 </div>
-<div id="diceStage" aria-hidden="true"></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="modalRoot"></div>
 
@@ -397,6 +404,9 @@ function rollExpr(expr,crit){
 }
 function d20(adv){ const a = rnd(20), b = rnd(20); const pick = adv==='adv'?Math.max(a,b):adv==='dis'?Math.min(a,b):a; return {pick,rolls:adv&&adv!=='none'?[a,b]:[a]}; }
 
+const TRAY_SCALE = 12;
+// Carved wood in the forest, carved stone tinted by the mood at night and in a fight.
+const diceLook = () => { const m = document.body.dataset.mood; return {theme:m==='forest'?'wooden':'rock',themeColor:m==='night'?'#7f9fe0':'#e0703a'}; };
 const calm = matchMedia('(prefers-reduced-motion: reduce)');
 // Each die is drawn as the facets you would see looking at it face-on; the last facet listed is the one facing you.
 const FACETS = (()=>{
@@ -415,23 +425,59 @@ const dieSVG = sides => { const f = FACETS[sides], n = f.length;
   return `<svg viewBox="0 0 100 100" aria-hidden="true">${f.map((poly,i)=>{ const cx = poly.reduce((a,q)=>a+q[0],0)/poly.length, cy = poly.reduce((a,q)=>a+q[1],0)/poly.length;
     const lit = i===n-1&&n>1?88:Math.round(clamp(100-(cx*.45+cy*.75),4,96));
     return `<polygon points="${poly.map(q=>q.map(v=>v.toFixed(1)).join(',')).join(' ')}" style="fill:color-mix(in srgb,var(--ember2) ${lit}%,var(--emberdeep))" stroke="rgba(255,255,255,.45)" stroke-width="1.2" stroke-linejoin="round"/>`; }).join('')}</svg>`; };
-const d20dice = d => { const k = d.rolls.length>1?(d.rolls[0]===d.pick?1:0):-1; return d.rolls.map((v,i)=>({sides:20,value:v,drop:i===k})); };
-function showDice(dice,caption){
-  dice = dice.slice(0,12);
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const within = (pr,ms) => Promise.race([pr,new Promise((_,no)=>setTimeout(()=>no(new Error('timeout')),ms))]);
+// The tray is one lasting element that is moved into the Dice tab each time the sheet is drawn, so the 3D canvas survives re-renders.
+const trayNode = document.createElement('div'); trayNode.className = 'tray'; trayNode.innerHTML = '<div id="tray3d"></div><div class="dicerow" id="tray2d"></div>';
+let box = null, boxState = '';
+async function boxInit(){
+  if(boxState) return boxState==='ok';
+  try{
+    if(location.protocol==='file:') throw new Error('needs a web server');
+    const {default:DiceBox} = await import('./lib/dice-box/dice-box.es.min.js');
+    box = new DiceBox({container:'#tray3d',origin:new URL('lib/dice-box/',location.href).href,assetPath:'assets/',...diceLook(),scale:TRAY_SCALE,gravity:2,throwForce:3,spinForce:5,startingHeight:6,settleTimeout:4000,lightIntensity:1.25,shadowTransparency:.7,enableShadows:true});
+    box._look = diceLook().theme;
+    await within(box.init(),12000); boxState = 'ok';
+  }catch(e){ boxState = 'fail'; box = null; $('#tray3d').innerHTML = ''; }
+  return boxState==='ok';
+}
+function flatDice(dice){
   return new Promise(done=>{
-    const st = $('#diceStage'); clearTimeout(st._t);
-    st.innerHTML = `<div class="dicerow">${dice.map((d,i)=>`<div class="dw" style="--dx:${(i%2?1:-1)*(140+rnd(180))}px;--rot:${(i%2?1:-1)*(620+rnd(500))}deg;--dl:${i*80}ms"><i class="sh"></i><div class="d3 s${[4,6,8,10,12,20].includes(d.sides)?d.sides:100}">${dieSVG([4,6,8,10,12,20].includes(d.sides)?d.sides:100)}<span>${rnd(d.sides)}</span></div></div>`).join('')}</div><div class="dcap"></div>`;
-    st.classList.add('on');
+    const st = $('#tray2d');
+    st.innerHTML = dice.slice(0,12).map((d,i)=>{ const k = [4,6,8,10,12,20].includes(d.sides)?d.sides:100;
+      return `<div class="dw" style="--dx:${(i%2?1:-1)*(50+rnd(70))}px;--rot:${(i%2?1:-1)*(620+rnd(500))}deg;--dl:${i*80}ms"><i class="sh"></i><div class="d3 s${k}">${dieSVG(k)}<span>${rnd(d.sides)}</span></div></div>`; }).join('');
     const els = [...st.querySelectorAll('.d3')], spin = calm.matches?0:1150+dice.length*80;
     const iv = setInterval(()=>els.forEach((el,i)=>{ el.lastChild.textContent = rnd(dice[i].sides); }),80);
-    setTimeout(()=>{
-      clearInterval(iv);
-      els.forEach((el,i)=>{ const d = dice[i]; el.lastChild.textContent = d.value; el.classList.add('land'); if(d.drop) el.classList.add('drop');
-        else if(d.sides===20){ if(d.value===20) el.classList.add('crit'); if(d.value===1) el.classList.add('fumble'); } });
-      const cap = $('.dcap',st); cap.textContent = caption; cap.classList.add('on');
-      setTimeout(done,calm.matches?250:800); st._t = setTimeout(()=>st.classList.remove('on'),2800);
-    },spin);
+    setTimeout(()=>{ clearInterval(iv); els.forEach((el,i)=>{ el.lastChild.textContent = dice[i].value; el.classList.add('land'); }); setTimeout(done,calm.matches?100:300); },spin);
   });
+}
+async function openTray(){
+  tab = 'dice'; renderSide(); trayNode.classList.remove('crit','fumble');
+  const d = $('#rightD'), was = d.classList.contains('open');
+  if(!was){ if(!wide()) $('#leftD').classList.remove('open'); d.classList.add('open'); $('#sideBtn').setAttribute('aria-pressed','true'); await sleep(320); }
+  return !was;
+}
+function closeTray(opened){ if(!opened) return; setTimeout(()=>{ if(rolling||(wide()&&store.ui.right)) return; const d = $('#rightD'); if(d){ d.classList.remove('open'); $('#sideBtn').setAttribute('aria-pressed','false'); } },1700); }
+// Throws real dice in the tray and returns what they landed on: one array of values per group.
+async function throwDice(groups,keep){
+  let vals = null;
+  if(await boxInit()){
+    try{
+      $('#tray2d').innerHTML = ''; box.resizeWorld();
+      const note = groups.map(g=>`${g.n}d${g.sides}`), opt = diceLook();
+      if(box._look!==opt.theme){ await within(box.updateConfig(opt),10000); box._look = opt.theme; }
+      const res = await within(keep?box.add(note,opt):box.roll(note,opt),12000);
+      const flat = (res||[]).map(x=>x.value); let k = 0;
+      vals = groups.map(g=>{ const c = g.sides===100?1:g.n, v = flat.slice(k,k+c); k += c; return g.sides===100?v.map(x=>x===0?100:x):v; });
+      if(k!==flat.length||!vals.every((v,i)=>v.length===(groups[i].sides===100?1:groups[i].n)&&v.every(x=>Number.isInteger(x)&&x>=1&&x<=groups[i].sides))) vals = null;
+    }catch(e){ vals = null; }
+  }
+  if(!vals){
+    if(box){ try{ box.clear(); }catch(e){} }
+    vals = groups.map(g=>Array.from({length:g.sides===100?1:g.n},()=>rnd(g.sides)));
+    await flatDice(vals.flatMap((v,i)=>v.map(x=>({sides:groups[i].sides,value:x}))));
+  }
+  return vals;
 }
 
 /* ============ state ============ */
@@ -471,6 +517,7 @@ How to narrate:
 
 Dice:
 - You never roll dice for the player and never invent the result of a player roll. When the outcome of something the character attempts is uncertain and failure would matter, stop the narration just before the outcome and request a roll in the state block. The app rolls real dice and tells you the result in the next message. Then narrate what happens, honouring the result.
+- Skilled and social actions always go to the dice when someone might resist or the attempt might fail. Persuading, deceiving or intimidating someone calls for Persuasion, Deception or Intimidation. Sneaking is Stealth, climbing, jumping or forcing something is Athletics, searching is Investigation, noticing is Perception, reading a person is Insight, picking a lock or a pocket is Sleight of Hand, and so on for the other 5e skills. Always name the matching "skill" and "ability" in the roll so the app can add the character's own modifier.
 - Use sensible DCs: 5 trivial, 10 easy, 13 moderate, 16 hard, 19 very hard, 22+ heroic. Do not ask for rolls for trivial or automatic actions. Request at most one roll per reply.
 - For a player attack, request a roll with "dc" set to the target's Armor Class and "damage" set to the weapon or spell damage dice including modifiers (for example "1d8+3"). The app rolls damage automatically on a hit.
 - You resolve monster and NPC rolls yourself, fairly, against the character's AC and saves. Apply damage to the player with "hp_delta".
@@ -510,11 +557,11 @@ function buildMessages(c){
     +(c.summary?`\n\n# Story so far\n${c.summary}`:'');
   const out = [{role:'system',content:sys}];
   const push = (role,content)=>{ const l = out[out.length-1]; if(l.role===role) l.content += '\n\n'+content; else out.push({role,content}); };
-  const from = c.sumIdx||0;
+  const from = c.sumIdx||0, lastEntry = c.log[c.log.length-1];
   push('user',from?'(The adventure continues from the story so far.)':'Begin the adventure. Open with a scene that drops my character into the premise, makes clear where I am, and ends with a choice.');
   for(const e of c.log.slice(from)){
     if(e.role==='dm') push('assistant',e.text+'\n\n<state>\n'+JSON.stringify(e.state||{})+'\n</state>');
-    else if(e.role==='player') push('user',e.text);
+    else if(e.role==='player') push('user',e.text+(e===lastEntry&&e.hint?`\n\n[App note, not written by the player: this action looks like it needs ${e.hint}. Unless the outcome is truly certain, stop before the outcome and request that roll in the state block.]`:''));
     else if(e.role==='roll') push('user','[Dice result from the app] '+e.text);
   }
   if(out[out.length-1].role==='assistant') push('user','(Continue.)');
@@ -617,7 +664,7 @@ async function takeTurn(entry){
   if(busy||!cur) return;
   const c = cur, s = store.settings;
   if(!s.apiKey&&/openrouter\.ai/i.test(s.baseUrl)){ openSettings('Add your OpenRouter API key first, so the narrator has a voice.'); return; }
-  if(entry) c.log.push(entry);
+  if(entry){ if(entry.role==='player'){ const h = hintFor(entry.text); if(h) entry.hint = h; } c.log.push(entry); }
   c.suggestions = []; c.pendingRoll = null; lastErr = null; busy = true; aborter = new AbortController();
   save(); renderGame();
   const live = document.createElement('div'); live.className = 'e dm'; live.innerHTML = LBL+'<p class="thinking">The narrator considers…</p>';
@@ -713,38 +760,65 @@ async function sync(){
   if(syncAgain){ syncAgain = false; scheduleSync(); }
 }
 
+/* ============ which check does an action call for? ============ */
+const HINTS = [
+  ['an attack roll',/\b(attack|strike|stab|slash|shoot|swing (my|at)|punch|kick|lunge|fire (an|my) arrow|hurl|throw (my|a) (dagger|axe|javelin|spear))/i],
+  ['a Charisma (Persuasion) check',/\b(persuad|convinc|negotiat|bargain|haggle|plead|reason with|appeal to|charm|talk (him|her|them|my way)|ask (him|her|them) to)/i],
+  ['a Charisma (Deception) check',/\b(lie\b|lying|bluff|deceiv|trick (him|her|them)|pretend|disguise|fake|make up a story)/i],
+  ['a Charisma (Intimidation) check',/\b(intimidat|threaten|menac|scare|bully|glare|loom over)/i],
+  ['a Dexterity (Stealth) check',/\b(sneak|creep|hide\b|hiding|stealth|tiptoe|slip past|unnoticed|unseen|quietly|silently)/i],
+  ['a Dexterity (Sleight of Hand) check',/\b(pick ?pocket|pick the lock|lockpick|palm\b|steal|swipe|pilfer|lift (his|her|their|the) (purse|key|coin))/i],
+  ['a Strength (Athletics) check',/\b(climb|jump|leap|swim|shove|grapple|wrestle|force (it|the|open)|break down|lift\b|push (the|it|over)|haul|drag)/i],
+  ['a Dexterity (Acrobatics) check',/\b(balance|tumble|dodge|flip|vault|somersault|roll under|swing across)/i],
+  ['an Intelligence (Investigation) check',/\b(search|examin|inspect|investigat|look for (clues|traps|a)|rummage|study the)/i],
+  ['a Wisdom (Perception) check',/\b(look around|listen|watch for|scan|keep (an eye|watch)|peer|spot\b|notice)/i],
+  ['a Wisdom (Insight) check',/\b(is (he|she|they) lying|are they lying|read (him|her|them)|sense (his|her|their)|gauge|do i (trust|believe))/i],
+  ['a Wisdom (Survival) check',/\b(track\b|tracks|follow the trail|forage|navigate|find (shelter|water|food|the way)|hunt\b)/i],
+  ['a Wisdom (Medicine) check',/\b(bandage|treat (the|his|her|my|their) wound|stabili[sz]e|diagnos|tend to|bind (the|my) wound)/i],
+  ['a Wisdom (Animal Handling) check',/\b(calm the|tame\b|soothe the|coax the|befriend the (horse|dog|wolf|beast|animal))/i],
+  ['a Charisma (Performance) check',/\b(perform|sing\b|play (my|the) (lute|flute|drum|fiddle|song)|dance|juggle|tell a (tale|story) to)/i],
+  ['an Intelligence (Arcana) check',/\b(arcane|decipher the (rune|glyph|sigil)|identify the (spell|magic)|what magic)/i],
+  ['an Intelligence (History) check',/\b(recall|what do i know about|remember (the|any) (history|legend|tale)|history of)/i],
+  ['an Intelligence (Nature) check',/\b(identify the (plant|animal|mushroom|beast|berr)|what kind of (plant|animal|tree))/i],
+  ['an Intelligence (Religion) check',/\b(pray|what god|holy symbol|recogni[sz]e the (rite|ritual|shrine))/i],
+];
+const hintFor = t => (HINTS.find(([,re])=>re.test(t))||[])[0]||null;
+
 /* ============ rolls ============ */
+const pickD20 = (rolls,adv) => adv==='adv'?Math.max(...rolls):adv==='dis'?Math.min(...rolls):rolls[0];
+const flare = pick => { if(pick===20) trayNode.classList.add('crit'); else if(pick===1) trayNode.classList.add('fumble'); };
 async function resolvePending(adv){
   const c = cur, r = c.pendingRoll; if(!r||busy||rolling) return; const ch = c.character;
   let bonus = r.ability?mod(ch.abilities[r.ability]):0;
   if((r.skill&&ch.profs.includes(r.skill))||(r.save&&r.ability&&ch.saves.includes(r.ability))||r.proficient) bonus += prof(ch.level);
-  const d = d20(adv), total = d.pick+bonus;
-  let t = `${r.label}: d20 rolled ${d.pick}${d.rolls.length>1?` (${d.rolls.join(' and ')}, ${adv==='adv'?'advantage':'disadvantage'})`:''} ${sgn(bonus)} = ${total}`;
+  rolling = true; const opened = await openTray();
+  const two = adv==='adv'||adv==='dis', rolls = (await throwDice([{n:two?2:1,sides:20}]))[0], pick = pickD20(rolls,adv), total = pick+bonus; flare(pick);
+  let t = `${r.label}: d20 rolled ${pick}${two?` (${rolls.join(' and ')}, ${adv==='adv'?'advantage':'disadvantage'})`:''} ${sgn(bonus)} = ${total}`;
   let hit = null;
-  if(r.dc){ hit = r.damage?(d.pick===20||(d.pick!==1&&total>=r.dc)):total>=r.dc; t += ` vs ${r.damage?'AC':'DC'} ${r.dc}. ${hit?(r.damage?'Hit':'Success'):(r.damage?'Miss':'Failure')}`; }
-  if(d.pick===20) t += ' (natural 20!)'; else if(d.pick===1) t += ' (natural 1)';
+  if(r.dc){ hit = r.damage?(pick===20||(pick!==1&&total>=r.dc)):total>=r.dc; t += ` vs ${r.damage?'AC':'DC'} ${r.dc}. ${hit?(r.damage?'Hit':'Success'):(r.damage?'Miss':'Failure')}`; }
+  if(pick===20) t += ' (natural 20!)'; else if(pick===1) t += ' (natural 1)';
   t += '.';
-  const shown = d20dice(d); let cap = `${r.label}: ${total}${hit===null?'':hit?(r.damage?' · hit':' · success'):(r.damage?' · miss':' · failure')}`;
-  if(r.damage&&hit!==false){ const dm = rollExpr(r.damage,d.pick===20); t += ` Damage ${dm.text}: ${dm.rolls.join('+')}${dm.bonus?sgn(dm.bonus):''} = ${dm.total}.`;
-    dm.rolls.forEach(v=>shown.push({sides:dm.sides,value:v})); cap += ` · ${dm.total} damage`; }
-  rolling = true; await showDice(shown,cap); rolling = false;
+  if(r.damage&&hit!==false){ const dm = rollExpr(r.damage,pick===20); await sleep(500);
+    const dv = (await throwDice([{n:dm.rolls.length,sides:dm.sides}],true))[0], sum = Math.max(0,dv.reduce((a,x)=>a+x,0)+dm.bonus);
+    t += ` Damage ${dm.text}: ${dv.join('+')}${dm.bonus?sgn(dm.bonus):''} = ${sum}.`; }
+  pushTray(total,t); await sleep(1300); rolling = false; closeTray(opened);
   if(cur===c&&c.pendingRoll===r) takeTurn({role:'roll',text:t});
 }
 async function freeRoll(label,bonus,adv){
-  if(rolling) return; const d = d20(adv), total = d.pick+bonus;
-  const text = `${label}: d20 rolled ${d.pick}${d.rolls.length>1?` (${d.rolls.join(' and ')})`:''} ${sgn(bonus)} = ${total}${d.pick===20?' (natural 20!)':d.pick===1?' (natural 1)':''}.`;
-  rolling = true; await showDice(d20dice(d),`${label}: ${total}`); rolling = false;
-  pushTray(total,text); toast(String(total),text,cur?{label:'Tell the narrator',text}:null);
+  if(rolling||!cur) return; rolling = true; const opened = await openTray();
+  const rolls = (await throwDice([{n:1,sides:20}]))[0], pick = rolls[0], total = pick+bonus; flare(pick);
+  const text = `${label}: d20 rolled ${pick} ${sgn(bonus)} = ${total}${pick===20?' (natural 20!)':pick===1?' (natural 1)':''}.`;
+  pushTray(total,text); rolling = false; closeTray(opened);
 }
 function pushTray(total,text){ lastTray = {total,text}; trayHist.unshift(text); trayHist = trayHist.slice(0,12); if(cur&&tab==='dice') renderSide(); }
 async function trayRoll(sides){
-  if(rolling) return;
-  const n = clamp(num($('#dN')?.value)||1,1,20), b = num($('#dB')?.value), adv = $('#dA')?.value||'none';
-  let rolls, total, label, shown;
-  if(sides===20&&n===1&&adv!=='none'){ const d = d20(adv); rolls = d.rolls; total = d.pick+b; label = `d20 ${adv==='adv'?'advantage':'disadvantage'}`; shown = d20dice(d); }
-  else{ rolls = Array.from({length:n},()=>rnd(sides)); total = rolls.reduce((a,x)=>a+x,0)+b; label = `${n}d${sides}`; shown = rolls.map(v=>({sides,value:v})); }
-  rolling = true; await showDice(shown,`${label}${b?sgn(b):''}: ${total}`); rolling = false;
-  pushTray(total,`${label}${b?sgn(b):''}: ${rolls.join(', ')}${b?' '+sgn(b):''} = ${total}.`);
+  if(rolling||!cur) return;
+  const n = clamp(num($('#dN')?.value)||1,1,12), b = num($('#dB')?.value), adv = $('#dA')?.value||'none';
+  const two = sides===20&&n===1&&adv!=='none'; rolling = true; trayNode.classList.remove('crit','fumble');
+  const rolls = (await throwDice([{n:two?2:sides===100?1:n,sides}]))[0];
+  const total = (two?pickD20(rolls,adv):rolls.reduce((a,x)=>a+x,0))+b, label = two?`d20 ${adv==='adv'?'advantage':'disadvantage'}`:`${rolls.length}d${sides}`;
+  if(sides===20&&(two||rolls.length===1)) flare(two?pickD20(rolls,adv):rolls[0]);
+  rolling = false; pushTray(total,`${label}${b?sgn(b):''}: ${rolls.join(', ')}${b?' '+sgn(b):''} = ${total}.`);
 }
 
 /* ============ views ============ */
@@ -857,7 +931,7 @@ function renderComposer(){
   if(r&&!busy){
     const ch = c.character; let b = r.ability?mod(ch.abilities[r.ability]):0;
     if((r.skill&&ch.profs.includes(r.skill))||(r.save&&r.ability&&ch.saves.includes(r.ability))||r.proficient) b += prof(ch.level);
-    h += `<div class="rollcard"><div class="t"><b>${esc(r.label)}</b><div>d20 ${sgn(b)}${r.dc?` against ${r.damage?'AC':'DC'} ${r.dc}`:''}${r.damage?` · damage ${esc(r.damage)}`:''}${r.advantage!=='none'?` · the narrator calls for ${r.advantage==='adv'?'advantage':'disadvantage'}`:''}</div></div>
+    h += `<div class="rollcard"><div class="t"><b>${esc(r.label)}</b><div>${r.ability?ABIL_NAME[r.ability]+(r.skill?' ('+r.skill+')':r.save?' save':'')+' · ':''}d20 ${sgn(b)}${r.dc?` against ${r.damage?'AC':'DC'} ${r.dc}`:''}${r.damage?` · damage ${esc(r.damage)}`:''}${r.advantage!=='none'?` · the narrator calls for ${r.advantage==='adv'?'advantage':'disadvantage'}`:''}</div></div>
       <button class="btn primary" data-act="pend" data-adv="${r.advantage}">Roll</button>
       ${r.advantage==='none'?`<button class="btn small" data-act="pend" data-adv="adv">Advantage</button><button class="btn small" data-act="pend" data-adv="dis">Disadvantage</button>`:''}</div>`;
   }
@@ -891,13 +965,13 @@ function renderSide(){
     h += `<div class="card"><h4>Quests</h4>${c.quests.length?c.quests.map(q=>`<div class="quest ${q.status}"><b>${esc(q.title)}</b><span>${esc(q.note||'')}</span></div>`).join(''):'<div class="hint">Nothing asked of you yet. That will not last.</div>'}</div>
       ${c.summary?`<div class="card"><h4>The story so far</h4><div class="hint" style="color:var(--text);font-family:var(--story);font-size:14.5px">${esc(c.summary)}</div></div>`:''}`;
   }else{
-    h += `<div class="card"><h4>Dice tray</h4><div class="dice">${[4,6,8,10,12,20,100].map(d=>`<button class="die" data-act="die" data-d="${d}">d${d}</button>`).join('')}</div>
-      <div class="dopts"><label class="f">Count<input class="inp" id="dN" type="number" min="1" max="20" value="${esc($('#dN')?.value||1)}"></label><label class="f">Bonus<input class="inp" id="dB" type="number" value="${esc($('#dB')?.value||0)}"></label>
+    h += `<div class="card"><h4>Dice tray</h4><div id="trayslot"></div><div class="dice">${[4,6,8,10,12,20,100].map(d=>`<button class="die" data-act="die" data-d="${d}">d${d}</button>`).join('')}</div>
+      <div class="dopts"><label class="f">Count<input class="inp" id="dN" type="number" min="1" max="12" value="${esc($('#dN')?.value||1)}"></label><label class="f">Bonus<input class="inp" id="dB" type="number" value="${esc($('#dB')?.value||0)}"></label>
         <label class="f">d20 mode<select class="inp" id="dA"><option value="none">Normal</option><option value="adv" ${$('#dA')?.value==='adv'?'selected':''}>Advantage</option><option value="dis" ${$('#dA')?.value==='dis'?'selected':''}>Disadvantage</option></select></label></div>
-      <div class="result">${lastTray?`<b>${lastTray.total}</b><span>${esc(lastTray.text)}</span><div style="margin-top:8px"><button class="btn small" data-act="tellTray" ${busy?'disabled':''}>Tell the narrator</button></div>`:'<span>Pick a die. These are real rolls, not the narrator\'s guess.</span>'}</div>
+      <div class="result">${lastTray?`<b>${lastTray.total}</b><span>${esc(lastTray.text)}</span><div style="margin-top:8px"><button class="btn small" data-act="tellTray" ${busy?'disabled':''}>Tell the narrator</button></div>`:'<span>Pick a die. They roll in the tray above, and what they land on is the result.</span>'}</div>
       ${trayHist.length>1?`<div class="hist">${trayHist.slice(1).map(t=>`<div>${esc(t)}</div>`).join('')}</div>`:''}</div>`;
   }
-  side.innerHTML = h;
+  side.innerHTML = h; $('#trayslot')?.appendChild(trayNode);
 }
 
 /* ============ settings ============ */
