@@ -265,6 +265,21 @@ ul.list li button:hover{color:var(--danger)}
 .god{border:1px solid var(--ember);border-radius:12px;padding:12px;background:color-mix(in srgb,var(--ember) 8%,transparent)}
 .qrow{display:grid;grid-template-columns:1.2fr .7fr 1.6fr auto;gap:6px;margin-bottom:6px}
 @media (max-width:700px){.gs .six{grid-template-columns:repeat(3,1fr)}.qrow{grid-template-columns:1fr 1fr}}
+details.card>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:24px}
+details.card>summary::-webkit-details-marker{display:none}
+details.card>summary::after{content:"";width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);margin-left:auto;transition:transform .15s;flex:none}
+details.card[open]>summary::after{transform:rotate(45deg)}
+details.card>summary h4{margin:0}
+details.card>summary .nm{font-family:var(--display);font-size:20px;font-weight:600;color:var(--nc);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+details.card>summary .badge{font-size:11px;color:var(--muted);border:1px solid var(--line2);border-radius:99px;padding:1px 8px;white-space:nowrap}
+details.card[open]>summary{margin-bottom:10px}
+.kv{display:grid;grid-template-columns:86px 1fr;gap:6px 10px;font-size:13.5px;line-height:1.45}
+.kv dt{color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding-top:2px}
+.kv dd{margin:0;min-width:0}
+.kv ul{margin:0;padding-left:16px}.kv li{margin-bottom:2px}
+.kv .lasting{color:var(--ember2)}
+.ok-mark{display:inline-block;margin-top:6px;color:var(--good);font-size:13px;opacity:.8}
+.tray{cursor:pointer}
 .shopcard{background:var(--s2);border:1px solid var(--line2);border-radius:14px;padding:10px 14px;margin-bottom:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .shopcard .t{flex:1;min-width:160px}.shopcard .t b{font-family:var(--display);font-size:19px;color:var(--ember2)}.shopcard .t div{font-size:13px;color:var(--muted)}
 .item{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:9px 10px;border-radius:10px;background:rgba(0,0,0,.22)}
@@ -593,7 +608,9 @@ const dieSVG = sides => { const f = FACETS[sides], n = f.length;
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 const within = (pr,ms) => Promise.race([pr,new Promise((_,no)=>setTimeout(()=>no(new Error('timeout')),ms))]);
 // The tray is one lasting element that is moved into the Dice tab each time the sheet is drawn, so the 3D canvas survives re-renders.
-const trayNode = document.createElement('div'); trayNode.className = 'tray'; trayNode.innerHTML = '<div id="tray3d"></div><div class="dicerow" id="tray2d"></div>';
+const trayNode = document.createElement('div'); trayNode.className = 'tray'; trayNode.innerHTML = '<div id="tray3d"></div><div class="dicerow" id="tray2d"></div>'; trayNode.title = 'Tap to roll again';
+// Tapping the tray rolls again: the roll you were asked for if one is waiting, otherwise the last die you threw.
+trayNode.addEventListener('click',()=>{ if(rolling||busy||!cur) return; if($('#chatTray')&&cur.pendingRoll) resolvePending(cur.pendingRoll.advantage); else if(tab==='dice'&&lastDie) trayRoll(lastDie); });
 let box = null, boxState = '';
 async function boxInit(){
   if(boxState) return boxState==='ok';
@@ -629,18 +646,25 @@ async function openTray(){
 }
 function closeTray(opened){ if(!opened) return; setTimeout(()=>{ if(rolling||(wide()&&store.ui.right)) return; setDrawer($('#rightD'),false); },1700); }
 // Throws real dice in the tray and returns what they landed on: one array of values per group.
-async function throwDice(groups,keep){
+// One 3D throw. With `apart`, the dice are thrown one after another and all stay on the table, which is steadier than throwing them together.
+async function roll3d(groups,keep,apart){
+  const opt = diceLook(); if(box._look!==opt.theme){ await within(box.updateConfig(opt),10000); box._look = opt.theme; }
+  const call = (note,add) => within(add?box.add(note,opt):box.roll(note,opt),10000);
+  const read = (res,gs) => { const flat = (res||[]).map(x=>x.value); let k = 0;
+    const vals = gs.map(g=>{ const c = g.sides===100?1:g.n, v = flat.slice(k,k+c); k += c; return g.sides===100?v.map(x=>x===0?100:x):v; });
+    return k===flat.length&&vals.every((v,i)=>v.length===(gs[i].sides===100?1:gs[i].n)&&v.every(x=>Number.isInteger(x)&&x>=1&&x<=gs[i].sides))?vals:null; };
+  if(!apart) return read(await call(groups.map(g=>`${g.n}d${g.sides}`),keep),groups);
+  const out = []; let add = keep;
+  for(const g of groups){ const v = []; for(let i=0;i<(g.sides===100?1:g.n);i++){ const one = [{n:1,sides:g.sides}], r = read(await call([`1d${g.sides}`],add),one); add = true; if(!r) return null; v.push(r[0][0]); } out.push(v); }
+  return out;
+}
+// Throws real dice in the tray and returns what they landed on: one array of values per group.
+async function throwDice(groups,keep,apart){
   let vals = null;
   if(await boxInit()){
-    try{
-      $('#tray2d').innerHTML = ''; box.resizeWorld();
-      const note = groups.map(g=>`${g.n}d${g.sides}`), opt = diceLook();
-      if(box._look!==opt.theme){ await within(box.updateConfig(opt),10000); box._look = opt.theme; }
-      const res = await within(keep?box.add(note,opt):box.roll(note,opt),12000);
-      const flat = (res||[]).map(x=>x.value); let k = 0;
-      vals = groups.map(g=>{ const c = g.sides===100?1:g.n, v = flat.slice(k,k+c); k += c; return g.sides===100?v.map(x=>x===0?100:x):v; });
-      if(k!==flat.length||!vals.every((v,i)=>v.length===(groups[i].sides===100?1:groups[i].n)&&v.every(x=>Number.isInteger(x)&&x>=1&&x<=groups[i].sides))) vals = null;
-    }catch(e){ vals = null; }
+    $('#tray2d').innerHTML = '';
+    // A die can land leaning or leave the tray; throw again rather than give up on the 3D dice.
+    for(let tries=0;tries<3&&!vals;tries++){ try{ box.resizeWorld(); vals = await roll3d(groups,keep,apart||tries>0); }catch(e){ vals = null; } }
   }
   if(!vals){
     if(box){ try{ box.clear(); }catch(e){} }
@@ -1037,7 +1061,7 @@ async function answerAside(c,q,roll){
 // One model per person in the scene, three at most. Each decides what its character does next and keeps that character's sheet up to date.
 const ACTOR = `You play exactly one non-player character in a solo D&D story. Stay strictly inside this character: what they know, what they want, how they talk. You do not narrate the world, you do not decide what the player character does, and you do not decide the result of any dice.
 Reply with JSON only, in this form:
-{"intent":"what you say and do in the next beat, one or two sentences","attitude":"one or two words for how you now feel about the player character","wants":"your current goal in a few words","stance":"friendly, neutral, wary, hostile or strange: your stance toward the player character right now","new_traits":["a short trait this beat revealed or developed in you, only if it is genuinely new"],"skills":["up to four things you are notably good at, only ones not already on your sheet"],"remember":"one short line, in your own voice, of what you will remember about the player character from this beat; empty if nothing worth keeping","lasting":false}
+{"intent":"what you say and do in the next beat, one or two sentences","attitude":"one or two words for how you now feel about the player character","wants":"your current goal in a few words","stance":"friendly, neutral, wary, hostile or strange: your stance toward the player character right now","new_traits":["one to three words each, for a trait this beat revealed in you; only if genuinely new, and usually none"],"skills":["up to four things you are notably good at, only ones not already on your sheet"],"remember":"at most twelve words, in your own voice, of what you will remember about the player character from this beat; empty if nothing worth keeping","lasting":false}
 Set "lasting" to true only for something you would never forget: a promise, a debt, a betrayal, a life saved.`;
 async function castBeat(c,signal){
   const names = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]).slice(0,3); if(!names.length) return [];
@@ -1054,7 +1078,7 @@ async function castBeat(c,signal){
       n.skills ||= []; for(const k of (Array.isArray(j.skills)?j.skills:[])) if(typeof k==='string'&&k.trim()&&n.skills.length<6&&!n.skills.some(x=>x.toLowerCase()===k.trim().toLowerCase())) n.skills.push(k.trim().slice(0,40));
       if(typeof j.remember==='string'&&j.remember.trim()&&!(n.memory||[]).some(m=>m.t.toLowerCase()===j.remember.trim().slice(0,140).toLowerCase())){ n.memory ||= []; n.memory.push({t:j.remember.trim().slice(0,140),k:j.lasting===true});
         const keep = n.memory.filter(m=>m.k).slice(-4), recent = n.memory.filter(m=>!m.k).slice(-8); n.memory = n.memory.filter(m=>keep.includes(m)||recent.includes(m)); }
-      n.traits ||= []; for(const tr of (Array.isArray(j.new_traits)?j.new_traits:[])) if(typeof tr==='string'&&tr.trim()&&!n.traits.some(x=>x.toLowerCase()===tr.trim().toLowerCase())){ n.traits.push(tr.trim().slice(0,60)); if(n.traits.length>12) n.traits.shift(); }
+      n.traits ||= []; for(const tr of (Array.isArray(j.new_traits)?j.new_traits:[])) if(typeof tr==='string'&&tr.trim()&&!n.traits.some(x=>x.toLowerCase()===tr.trim().toLowerCase())){ n.traits.push(tr.trim().slice(0,36)); if(n.traits.length>8) n.traits.shift(); }
       return {name:n.name,intent:j.intent.trim().slice(0,420)};
     }catch(e){ if(e.name==='AbortError') throw e; return null; } }));
   return out.filter(Boolean);
@@ -1120,7 +1144,7 @@ async function takeTurn(entry){
   if(entry) c.log.push(entry);
   c.suggestions = []; c.pendingRoll = null; lastErr = null; busy = true; aborter = new AbortController();
   save(); renderGame();
-  const signal = aborter.signal; let raw = '', raf = 0, text = '', state = {}, fixed = false, live = setLive('The narrator considers…');
+  const signal = aborter.signal; let raw = '', raf = 0, text = '', state = {}, fixed = false, checked = false, live = setLive('The narrator considers…');
   try{
     let intents = [];
     const who = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]).slice(0,3);
@@ -1136,8 +1160,8 @@ async function takeTurn(entry){
       raw = raw.replace(/\s+$/,'')+(/^[\s<,.;:!?)]/.test(more)?'':' ')+more; }
     ({text,state} = parseReply(raw));
     if(text&&s.useCheck&&c.log.length&&!calling&&!fight){
-      live.innerHTML = LBL+md(text)+'<div class="tools thinking">Checking that it all holds together…</div>'; scrollLog();
-      const f = await continuity(c,text,state,intents,signal); if(f){ text = f.text; state = f.state; fixed = true; }
+      live.innerHTML = LBL+md(text)+'<div class="tools thinking">…</div>'; scrollLog();
+      const f = await continuity(c,text,state,intents,signal); checked = true; if(f){ text = f.text; state = f.state; fixed = true; }
     }
   }catch(e){ if(e.name!=='AbortError'){ lastErr = e.message||String(e); text = ''; } else if(!text) ({text,state} = parseReply(raw)); }
   cancelAnimationFrame(raf); busy = false; aborter = null;
@@ -1145,9 +1169,9 @@ async function takeTurn(entry){
   if(text){
     const pre = snapshot(c);
     c.log.forEach(e=>{ delete e.pre; });
-    const called = c.log[c.log.length-1]; const changes = applyState(c,state); if(fixed) changes.push({t:'Continuity pass adjusted this scene'});
+    const called = c.log[c.log.length-1]; const changes = applyState(c,state);
     if(called&&called.role==='player'&&called.callRoll){ c.pendingRoll = called.callRoll; c.suggestions = []; }
-    c.log.push({role:'dm',text,state,changes,pre});
+    c.log.push({role:'dm',text,state,changes,pre,...(checked?{ok:1}:{})});
     c.updated = Date.now();
   }else if(!lastErr&&!signal.aborted) lastErr = raw?'The model replied with no narration. Try again, or pick a different model.':'The model returned an empty reply. Try again, raise max tokens in Models, or pick a different model.';
   save(); renderGame(); if(text) summarize(c);
@@ -1281,7 +1305,7 @@ async function resolvePending(adv){
   let bonus = r.ability?mod(ch.abilities[r.ability]):0;
   if((r.skill&&ch.profs.includes(r.skill))||(r.save&&r.ability&&ch.saves.includes(r.ability))||r.proficient) bonus += prof(ch.level);
   rolling = true; const opened = await openTray();
-  const two = adv==='adv'||adv==='dis', rolls = (await throwDice([{n:two?2:1,sides:20}]))[0], pick = pickD20(rolls,adv), total = pick+bonus; flare(pick);
+  const two = adv==='adv'||adv==='dis', rolls = (await throwDice([{n:two?2:1,sides:20}],false,two))[0], pick = pickD20(rolls,adv), total = pick+bonus; flare(pick);
   let t = `${r.label}: d20 rolled ${pick}${two?` (${rolls.join(' and ')}, ${adv==='adv'?'advantage':'disadvantage'})`:''} ${sgn(bonus)} = ${total}`;
   let hit = null;
   if(r.dc){ hit = r.damage?(pick===20||(pick!==1&&total>=r.dc)):total>=r.dc; t += ` vs ${r.damage?'AC':'DC'} ${r.dc}. ${hit?(r.damage?'Hit':'Success'):(r.damage?'Miss':'Failure')}`; }
@@ -1302,12 +1326,16 @@ async function freeRoll(label,bonus,adv){
   pushTray(total,text); rolling = false; closeTray(opened);
   if(!wide()||cur.pendingRoll) toast(String(total),text,{label:'Tell the narrator',text});
 }
-function pushTray(total,text){ lastTray = {total,text}; trayHist.unshift(text); trayHist = trayHist.slice(0,12); if(cur&&tab==='dice') renderSide(); }
+function pushTray(total,text){ lastTray = {total,text}; trayHist.unshift(text); trayHist = trayHist.slice(0,12);
+  const r = $('#side .result'); if(!cur||tab!=='dice'||!r) return;
+  r.innerHTML = `<b>${total}</b><span>${esc(text)}</span><div style="margin-top:8px"><button class="btn small" data-act="tellTray" ${busy?'disabled':''}>Tell the narrator</button></div>`;
+  let hist = $('#side .hist'); if(!hist&&trayHist.length>1){ r.insertAdjacentHTML('afterend','<div class="hist"></div>'); hist = $('#side .hist'); } if(hist) hist.innerHTML = trayHist.slice(1).map(t=>`<div>${esc(t)}</div>`).join(''); }
+let lastDie = 0;
 async function trayRoll(sides){
-  if(rolling||!cur) return;
+  if(rolling||!cur) return; lastDie = sides;
   const n = clamp(num($('#dN')?.value)||1,1,12), b = num($('#dB')?.value), adv = $('#dA')?.value||'none';
   const two = sides===20&&n===1&&adv!=='none'; rolling = true; trayNode.classList.remove('crit','fumble');
-  const rolls = (await throwDice([{n:two?2:sides===100?1:n,sides}]))[0];
+  let rolls; try{ rolls = (await throwDice([{n:two?2:sides===100?1:n,sides}],false,two))[0]; }catch(e){ rolling = false; return; }
   const total = (two?pickD20(rolls,adv):rolls.reduce((a,x)=>a+x,0))+b, label = two?`d20 ${adv==='adv'?'advantage':'disadvantage'}`:`${rolls.length}d${sides}`;
   if(sides===20&&(two||rolls.length===1)) flare(two?pickD20(rolls,adv):rolls[0]);
   rolling = false; pushTray(total,`${label}${b?sgn(b):''}: ${rolls.join(', ')}${b?' '+sgn(b):''} = ${total}.`);
@@ -1483,6 +1511,9 @@ function renderGame(){
     setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); }
   renderTales(); renderLog(); renderComposer(); renderSide();
 }
+// The little tags under a scene: drop the old continuity label and fold several "Met" tags into one.
+function chips(list){ const out = (list||[]).filter(n=>!/^Continuity pass/.test(n.t)&&!/^Met /.test(n.t)), met = (list||[]).filter(n=>/^Met /.test(n.t)).map(n=>n.t.slice(4));
+  if(met.length) out.push({t:'Met '+met.join(', '),k:'ok'}); return out; }
 function renderLog(){
   const c = cur, last = c.log.length-1;
   $('#log').innerHTML = c.log.map((e,i)=>{
@@ -1490,7 +1521,7 @@ function renderLog(){
     if(e.role==='roll') return `<div class="e roll"><div class="bub">${DIE_SVG}<span>${esc(e.text)}</span></div></div>`;
     if(e.role==='note') return `<div class="e note"><div class="bub">${esc(e.text)}</div></div>`;
     if(e.role==='aside') return `<div class="e aside"><div class="lbl">DM note</div><div class="q">${esc(e.q)}</div>${md(e.a)}${e.roll?`<div class="r">${esc(e.roll)}</div>`:''}</div>`;
-    return `<div class="e dm"><div class="lbl">Narrator</div>${md(e.text)}${e.changes&&e.changes.length?`<div class="chg">${e.changes.map(n=>`<span class="${n.k||''}">${esc(n.t)}</span>`).join('')}</div>`:''}
+    return `<div class="e dm"><div class="lbl">Narrator</div>${md(e.text)}${chips(e.changes).length?`<div class="chg">${chips(e.changes).map(n=>`<span class="${n.k||''}">${esc(n.t)}</span>`).join('')}</div>`:''}${e.ok||(e.changes||[]).some(n=>/^Continuity pass/.test(n.t))?'<span class="ok-mark" title="Continuity checked" aria-label="Continuity checked">&#10003;</span>':''}
       ${i===last&&e.pre&&!busy?`<div class="tools"><button data-act="regen">Retell this scene</button></div>`:''}</div>`;
   }).join('')+(lastErr?`<div class="e err"><span>${esc(lastErr)}</span><button class="btn small" data-act="retry">Try again</button><button class="btn small" data-act="settings">Models</button></div>`:'');
   scrollLog();
@@ -1513,6 +1544,9 @@ function renderComposer(){
     ${busy?`<button type="button" class="btn" data-act="stop" aria-label="Stop the narrator" title="Stop">&#9632;</button>`:`<button class="btn primary" aria-label="Send" title="Send">&#8593;</button>`}</form>`;
   $('#composer').innerHTML = h; placeTray(); const ta = $('#say'); ta.value = keep; if(!busy&&wide()) ta.focus();
 }
+const openSecs = new Set(['abilities']);
+const sec = (id,head,body,cls='') => `<details class="card ${cls}" data-sec="${esc(id)}" ${openSecs.has(id)?'open':''}><summary>${head}</summary>${body}</details>`;
+document.addEventListener('toggle',ev=>{ const d = ev.target; if(d.dataset&&d.dataset.sec){ if(d.open) openSecs.add(d.dataset.sec); else openSecs.delete(d.dataset.sec); } },true);
 function renderSide(){
   const c = cur, ch = c.character, side = $('#side');
   const tabs = [['sheet','Sheet'],['pack','Pack'],['quests','Quests'],['people','People'],['notes','Notes'],['dice','Dice']];
@@ -1525,12 +1559,13 @@ function renderSide(){
       <div class="hprow"><span><b style="color:var(--text);font-size:15px">${ch.hp}</b> / ${ch.maxHp} hit points</span><span><button class="btn small" data-act="hp" data-d="-1" aria-label="Lose 1 hit point">−</button> <button class="btn small" data-act="hp" data-d="1" aria-label="Gain 1 hit point">+</button></span></div>
       <div class="xp">${ch.xp} XP${next?` · next level at ${next}`:''}</div></div>
     ${ch.conditions.length?`<div class="card"><h4>Conditions</h4><div class="tags">${ch.conditions.map(x=>`<span class="tag">${esc(x)}</span>`).join('')}</div></div>`:''}
-    <div class="card"><h4>Abilities · tap to roll</h4><div class="stats">${ABIL.map(a=>`<button class="stat" data-act="abil" data-a="${a}" title="Roll ${ABIL_NAME[a]}"><span>${a.toUpperCase()}</span><b>${ch.abilities[a]}</b><small>${sgn(mod(ch.abilities[a]))}</small></button>`).join('')}</div></div>
-    <div class="card"><h4>Saving throws</h4><div class="skills">${ABIL.map(a=>`<button class="skill ${ch.saves.includes(a)?'prof':''}" data-act="save" data-a="${a}"><span>${ABIL_NAME[a]}</span><em>${sgn(saveMod(ch,a))}</em></button>`).join('')}</div></div>
-    <div class="card"><h4>Skills</h4><div class="skills">${Object.keys(SKILLS).map(s=>`<button class="skill ${ch.profs.includes(s)?'prof':''}" data-act="skill" data-s="${s}"><span>${s}</span><em>${sgn(skillMod(ch,s))}</em></button>`).join('')}</div></div>
-    <div class="card"><h4>Class features</h4><div class="hint" style="color:var(--text)">${esc(ch.features)}</div></div>
-    ${(ch.boons||[]).length||(ch.flaws||[]).length?`<div class="card"><h4>Boons and flaws</h4>${(ch.boons||[]).map(x=>`<div class="quest done" style="opacity:1"><b style="text-decoration:none">${esc(x.name)}</b><span>${esc(x.text)}</span></div>`).join('')}${(ch.flaws||[]).map(x=>`<div class="quest failed" style="opacity:1"><b>${esc(x.name)}</b><span>${esc(x.text)}</span></div>`).join('')}</div>`:''}
-    ${ch.alignment||ch.appearance||ch.backstory?`<div class="card"><h4>About</h4><div class="hint" style="color:var(--text)">${[ch.alignment,ch.appearance,ch.backstory].filter(Boolean).map(esc).join('<br><br>')}</div></div>`:''}`;
+    ${sec('abilities','<h4>Abilities · tap to roll</h4>',`<div class="stats">${ABIL.map(a=>`<button class="stat" data-act="abil" data-a="${a}" title="Roll ${ABIL_NAME[a]}"><span>${a.toUpperCase()}</span><b>${ch.abilities[a]}</b><small>${sgn(mod(ch.abilities[a]))}</small></button>`).join('')}</div>`)}
+    ${sec('saves','<h4>Saving throws</h4>',`<div class="skills">${ABIL.map(a=>`<button class="skill ${ch.saves.includes(a)?'prof':''}" data-act="save" data-a="${a}"><span>${ABIL_NAME[a]}</span><em>${sgn(saveMod(ch,a))}</em></button>`).join('')}</div>`)}
+    ${sec('skills','<h4>Skills</h4>',`<div class="skills">${Object.keys(SKILLS).map(s=>`<button class="skill ${ch.profs.includes(s)?'prof':''}" data-act="skill" data-s="${s}"><span>${s}</span><em>${sgn(skillMod(ch,s))}</em></button>`).join('')}</div>`)}
+    ${sec('traits','<h4>Features, boons and flaws</h4>',`<dl class="kv"><dt>Features</dt><dd>${esc(ch.features||'None')}</dd>
+      ${(ch.boons||[]).length?`<dt>Boons</dt><dd><ul>${ch.boons.map(x=>`<li><b>${esc(x.name)}.</b> ${esc(x.text)}</li>`).join('')}</ul></dd>`:''}
+      ${(ch.flaws||[]).length?`<dt>Flaws</dt><dd><ul>${ch.flaws.map(x=>`<li><b>${esc(x.name)}.</b> ${esc(x.text)}</li>`).join('')}</ul></dd>`:''}</dl>`)}
+    ${ch.alignment||ch.appearance||ch.backstory?sec('about','<h4>About</h4>',`<dl class="kv">${ch.alignment?`<dt>Alignment</dt><dd>${esc(ch.alignment)}</dd>`:''}${ch.appearance?`<dt>Looks</dt><dd>${esc(ch.appearance)}</dd>`:''}${ch.backstory?`<dt>Story</dt><dd>${esc(ch.backstory)}</dd>`:''}</dl>`):''}`;
   }else if(tab==='pack'){
     const load = loadOf(ch), cap = capOf(ch), sort = store.ui.sort||'type', w = weaponInfo(ch), ar = worn(ch,'armor'), off = worn(ch,'off'), main = worn(ch,'main');
     const meta = i => [i.type==='weapon'?`${i.dmg} damage${i.props?' · '+i.props.replace('two','two-handed').split(' ').join(', '):''}`:i.type==='armor'?`AC ${i.armor.base}${i.armor.dex==='full'?' + Dex':i.armor.dex==='max2'?' + Dex (max 2)':''}`:i.type==='shield'?'+2 AC':'',
@@ -1552,12 +1587,17 @@ function renderSide(){
       <div class="hint" style="margin-top:10px">Use settles healing items on the spot with a real roll. Anything else is handed to the narrator as your action.</div></div>`;
   }else if(tab==='people'){
     const all = Object.values(c.npcs||{}), here = c.present||[]; all.sort((a,b)=>here.includes(b.name)-here.includes(a.name));
-    h += all.length?all.map(n=>`<div class="card"><h4>${here.includes(n.name)?'In the scene':'Met or heard of'}</h4><div class="who st-${stanceOf(n)}" id="npc-${esc(n.name.replace(/\W+/g,'-'))}"><h3 style="font-size:21px;color:var(--nc)"><i class="dot"></i>${esc(n.name)}</h3><div class="sub">${esc(n.about||'Not much known yet.')}</div></div>
-      ${(n.traits||[]).length?`<div class="tags" style="margin-top:10px">${n.traits.map(t=>`<span class="tag" style="background:var(--s2);border-color:var(--line2);color:var(--text)">${esc(t)}</span>`).join('')}</div>`:''}
-      ${(n.skills||[]).length?`<div class="hint" style="margin-top:10px;color:var(--text)"><span style="color:var(--muted)">Skilled at:</span> ${n.skills.map(esc).join(', ')}</div>`:''}
-      ${(n.memory||[]).length?`<div class="hint" style="margin-top:10px"><span>Remembers:</span><ul style="margin:4px 0 0;padding-left:18px">${n.memory.map(m=>`<li style="${m.k?'color:var(--text)':''}">${esc(m.t)}</li>`).join('')}</ul></div>`:''}
-      <div class="hint" style="margin-top:8px">${n.wants?`Wants: ${esc(n.wants)}<br>`:''}${stanceOf(n)[0].toUpperCase()+stanceOf(n).slice(1)} toward you${n.attitude&&n.attitude.toLowerCase()!==stanceOf(n)?` (${esc(n.attitude)})`:''}.</div></div>`).join('')
-      +`<div class="card"><h4>Name colours</h4><div class="legend">${STANCES.map(k=>`<span class="st-${k}"><i class="dot"></i>${k[0].toUpperCase()+k.slice(1)}</span>`).join('')}</div></div>`
+    const person = n => { const st = stanceOf(n), id = 'npc-'+n.name.replace(/\W+/g,'-'), mem = (n.memory||[]).slice().reverse();
+      return `<span id="${esc(id)}"></span>`+sec(id,`<i class="dot"></i><span class="nm">${esc(n.name)}</span><span class="badge">${here.includes(n.name)?'here · ':''}${st}</span>`,
+        `<dl class="kv">${n.about?`<dt>Who</dt><dd>${esc(n.about)}</dd>`:''}
+          <dt>Toward you</dt><dd>${st[0].toUpperCase()+st.slice(1)}${n.attitude&&n.attitude.toLowerCase()!==st?`, ${esc(n.attitude)}`:''}</dd>
+          ${n.wants?`<dt>Wants</dt><dd>${esc(n.wants)}</dd>`:''}
+          ${(n.traits||[]).length?`<dt>Traits</dt><dd>${n.traits.map(esc).join(' · ')}</dd>`:''}
+          ${(n.skills||[]).length?`<dt>Skilled at</dt><dd>${n.skills.map(esc).join(' · ')}</dd>`:''}
+          ${mem.length?`<dt>Remembers</dt><dd><ul>${mem.slice(0,4).map(m=>`<li class="${m.k?'lasting':''}">${esc(m.t)}</li>`).join('')}</ul>${mem.length>4?`<span class="hint">and ${mem.length-4} older</span>`:''}</dd>`:''}</dl>`,'st-'+st); };
+    const inScene = all.filter(n=>here.includes(n.name)), others = all.filter(n=>!here.includes(n.name));
+    h += all.length?`${inScene.length?`<div class="dlabel">In the scene</div>${inScene.map(person).join('')}`:''}${others.length?`<div class="dlabel">Met or heard of</div>${others.map(person).join('')}`:''}
+      <div class="legend" style="padding:6px 4px">${STANCES.map(k=>`<span class="st-${k}"><i class="dot"></i>${k[0].toUpperCase()+k.slice(1)}</span>`).join('')}</div>`
       :'<div class="card"><h4>People</h4><div class="hint">No one you have met yet. Each person who joins a scene gets their own sheet here, kept up to date by the model that plays them.</div></div>';
   }else if(tab==='notes'){
     const list = c.log.filter(e=>e.role==='aside'||e.role==='note').reverse();
@@ -1571,7 +1611,7 @@ function renderSide(){
     h += `<div class="card"><h4>Dice tray</h4><div id="trayslot"></div><div class="dice">${[4,6,8,10,12,20,100].map(d=>`<button class="die" data-act="die" data-d="${d}">d${d}</button>`).join('')}</div>
       <div class="dopts"><label class="f">Count<input class="inp" id="dN" type="number" min="1" max="12" value="${esc($('#dN')?.value||1)}"></label><label class="f">Bonus<input class="inp" id="dB" type="number" value="${esc($('#dB')?.value||0)}"></label>
         <label class="f">d20 mode<select class="inp" id="dA"><option value="none">Normal</option><option value="adv" ${$('#dA')?.value==='adv'?'selected':''}>Advantage</option><option value="dis" ${$('#dA')?.value==='dis'?'selected':''}>Disadvantage</option></select></label></div>
-      <div class="result">${lastTray?`<b>${lastTray.total}</b><span>${esc(lastTray.text)}</span><div style="margin-top:8px"><button class="btn small" data-act="tellTray" ${busy?'disabled':''}>Tell the narrator</button></div>`:'<span>Pick a die. They roll in the tray above, and what they land on is the result.</span>'}</div>
+      <div class="result">${lastTray?`<b>${lastTray.total}</b><span>${esc(lastTray.text)}</span><div style="margin-top:8px"><button class="btn small" data-act="tellTray" ${busy?'disabled':''}>Tell the narrator</button></div>`:'<span>Pick a die. They roll in the tray above, and what they land on is the result. Tap the tray to roll the same die again.</span>'}</div>
       ${trayHist.length>1?`<div class="hist">${trayHist.slice(1).map(t=>`<div>${esc(t)}</div>`).join('')}</div>`:''}</div>`;
   }
   side.innerHTML = h; placeTray();
@@ -1812,7 +1852,7 @@ document.addEventListener('click',async ev=>{
     case 'gsAddQuest': $('#gsQuests').insertAdjacentHTML('beforeend','<div class="qrow"><input class="inp" name="qt" maxlength="80" placeholder="Quest title" aria-label="Quest title"><select class="inp" name="qs" aria-label="Quest status"><option value="active">Active</option><option value="done">Done</option><option value="failed">Failed</option></select><input class="inp" name="qn" maxlength="240" placeholder="Note" aria-label="Quest note"><button type="button" class="btn small ghost" data-act="gsDelQuest" aria-label="Remove quest">&#10005;</button></div>'); break;
     case 'gsDelQuest': el.closest('.qrow').remove(); break;
     case 'gsDelWho': if(c.npcs[gsWho]){ delete c.npcs[gsWho]; c.present = (c.present||[]).filter(x=>x!==gsWho); gsWho = ''; save(); renderGame(); openGame('people'); } break;
-    case 'npc': { tab = 'people'; renderSide(); setDrawer($('#rightD'),true); if(!wide()) setDrawer($('#leftD'),false); document.getElementById('npc-'+el.dataset.n.replace(/\W+/g,'-'))?.scrollIntoView({block:'center'}); break; }
+    case 'npc': { tab = 'people'; setDrawer($('#rightD'),true); if(!wide()) setDrawer($('#leftD'),false); openSecs.add('npc-'+el.dataset.n.replace(/\W+/g,'-')); renderSide(); document.getElementById('npc-'+el.dataset.n.replace(/\W+/g,'-'))?.scrollIntoView({block:'start'}); break; }
     case 'shop': shopTrades = shopTrades||[]; openShop(); break;
     case 'shopClose': closeShop(); break;
     case 'shopCloseBg': if(ev.target===el) closeShop(); break;
@@ -1904,7 +1944,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170655';
+const BUILD = '202611170709';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version of Emberglade is ready.',{label:'Update',reload:v}); }catch(e){}
