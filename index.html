@@ -295,6 +295,21 @@ ul.list li button:hover{color:var(--danger)}
 .god{border:1px solid var(--ember);border-radius:12px;padding:12px;background:color-mix(in srgb,var(--ember) 8%,transparent)}
 .qrow{display:grid;grid-template-columns:1.2fr .7fr 1.6fr auto;gap:6px;margin-bottom:6px}
 @media (max-width:700px){.gs .six{grid-template-columns:repeat(3,1fr)}.qrow{grid-template-columns:1fr 1fr}}
+.dd{position:relative;display:block;width:100%}
+.dd>select{position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:none;margin:0}
+.ddb{display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;cursor:pointer}
+.ddb span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ddb::after{content:"";width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg) translate(-2px,-2px);flex:none;transition:transform .15s}
+.ddb[aria-expanded=true]{border-color:var(--ember)}
+.ddb[aria-expanded=true]::after{transform:rotate(225deg) translate(-2px,-2px)}
+.ddp{position:fixed;z-index:60;background:var(--solid);border:1px solid var(--line2);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.65);overflow:auto;padding:5px;overscroll-behavior:contain}
+.ddp div{padding:10px 12px;border-radius:8px;cursor:pointer;font-size:15px;line-height:1.3;color:var(--text);letter-spacing:0;text-transform:none}
+.ddp div.act{background:var(--s3)}
+.ddp div[aria-selected=true]{color:var(--ember2);font-weight:600}
+.ddp div[aria-selected=true]::after{content:"\2713";float:right;margin-left:10px}
+.modal details.card{background:rgba(0,0,0,.16)}
+.modal details.card .stack{margin-top:0}
+.grp2{font:600 11px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ember);margin:8px 0 -4px}
 details.card>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:24px}
 details.card>summary::-webkit-details-marker{display:none}
 details.card>summary::after{content:"";width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);margin-left:auto;transition:transform .15s;flex:none}
@@ -1963,14 +1978,18 @@ function openGame(tabName){
   const o = (v,l,curv) => `<option value="${v}" ${String(v)===String(curv)?'selected':''}>${l}</option>`, ck = (n,on,l) => `<label class="check"><input type="checkbox" name="${n}" ${on?'checked':''}><span>${l}</span></label>`;
   let body = '';
   if(gsTab==='game') body = `
+    <div class="grp2" style="margin-top:0">The table</div>
     <div class="grid2"><label class="f">Difficulty<select class="inp" name="diff">${o('gentle','Gentle',st.diff)}${o('standard','Standard',st.diff)}${o('brutal','Brutal',st.diff)}</select></label>
       <label class="f">How much the DM writes<select class="inp" name="len">${o('adaptive','Fits the moment',st.len)}${o('short','Always short',st.len)}${o('medium','Always medium',st.len)}${o('long','Always long',st.len)}</select></label>
       ${c?`<label class="f">Tone of this tale<select class="inp" name="tone">${TONE_LIST.map(([v,l])=>o(v,l,c.tone)).join('')}${o('unfiltered','Unfiltered (adult)',c.tone)}</select></label>`:''}</div>
+    <div class="grp2">How the DM runs it</div>
     ${ck('announce',st.announce,'The DM sets the scene and tells me what to roll at the end. Off: the roll comes up straight away with no lead-in.')}
+    ${ck('vulgar',st.vulgar,'Vulgar language: the DM and the people you meet swear freely and naturally (fuck, shit, bitch and so on), where it fits.')}
+    <div class="grp2">Checks on each action</div>
     ${ck('useSheet',st.useSheet,'Check my sheet before each action: a model reads my full sheet and pack, tells the DM what I really have, and stops me only if something is missing (with a button to do it anyway).')}
     ${ck('useGuard',st.useGuard,'Hold me to the scene: refuse actions that skip time, jump somewhere else, or rewrite what happened.')}
     ${ck('useCheck',st.useCheck,'Run a continuity check on each scene (one extra model call per turn). Skipped during fights to keep them fast.')}
-    ${ck('vulgar',st.vulgar,'Vulgar language: the DM and the people you meet swear freely and naturally (fuck, shit, bitch and so on), where it fits.')}
+    <div class="grp2">Rules</div>
     ${ck('encumb',st.encumb,'Carry weight matters: going over capacity makes me Encumbered.')}
     ${c?`<div class="god">${ck('god',!!c.god,'<b>God mode for this tale.</b> Nothing I type is refused, I can skip any roll as a success, and whatever I declare becomes true.')}</div>`:'<div class="hint">Open a tale to get god mode and the edit panel for that tale.</div>'}`;
   else if(gsTab==='lore'){ const books = allLore(), mine = store.lore.books, ed = mine.find(b=>b.id===loreEdit);
@@ -2060,25 +2079,30 @@ function openSettings(msg){
       <label class="f">Proxy / API base URL (a web address, not the model)<input class="inp" name="baseUrl" value="${esc(s.baseUrl)}" placeholder="https://openrouter.ai/api/v1" required></label>
       <label class="f">API key<input class="inp" name="apiKey" type="password" value="${esc(s.apiKey)}" placeholder="sk-or-…" autocomplete="off"></label>
       <label class="f">Model<span style="display:flex;gap:6px"><input class="inp" name="model" value="${esc(s.model)}" list="modelList" placeholder="openrouter/auto" required><button type="button" class="btn small" data-act="loadModels">Load list</button></span><datalist id="modelList"></datalist></label>
-      <div class="hint" style="margin-top:-4px">The model above tells the story. Five helpers work beside it; leave one blank to use the story model for it.</div>
+      <div id="testout"></div>
+      <details class="card" data-sec="m-help" ${openSecs.has('m-help')?'open':''}><summary><h4>Helper models</h4></summary><div class="stack">
+      <div class="hint">The model above tells the story. Five helpers work beside it; leave one blank to use the story model for it.</div>
       <label class="f">Dice gate model (decides yes or no on a roll; pick something small and fast)<input class="inp" name="gateModel" value="${esc(s.gateModel)}" list="modelList" placeholder="same as the story model"></label>
       <label class="f">Character model (plays each person in the scene, up to three at once)<input class="inp" name="charModel" value="${esc(s.charModel)}" list="modelList" placeholder="same as the story model"></label>
       <label class="f">Sheet model (reads your whole sheet and pack to confirm what your character can do)<input class="inp" name="sheetModel" value="${esc(s.sheetModel)}" list="modelList" placeholder="same as the story model"></label>
       <label class="f">Character builder model (builds a new character from your description; pick something small and fast)<input class="inp" name="forgeModel" value="${esc(s.forgeModel)}" list="modelList" placeholder="same as the story model"></label>
       <label class="f">Continuity model (checks the scene holds together)<input class="inp" name="checkModel" value="${esc(s.checkModel)}" list="modelList" placeholder="same as the story model"></label>
-      <div class="hint">Game options such as the continuity check, god mode and the edit panel are under <b>Settings</b>.</div>
+      </div></details>
+      <details class="card" data-sec="m-adv" ${openSecs.has('m-adv')?'open':''}><summary><h4>Advanced</h4></summary><div class="stack">
       <div class="grid2"><label class="f">Temperature<input class="inp" name="temperature" type="number" min="0" max="2" step="0.05" value="${esc(s.temperature)}"></label>
         <label class="f">Max tokens per reply<input class="inp" name="maxTokens" type="number" min="200" max="8000" step="50" value="${esc(s.maxTokens)}"></label></div>
       <label class="check"><input type="checkbox" name="stream" ${s.stream?'checked':''}><span>Stream the narration as it is written</span></label>
       <label class="check"><input type="checkbox" name="localProxy" ${s.localProxy?'checked':''}><span>Route through the local server. Only works when you run <code>node server.js</code>; use it if your proxy refuses requests from a browser.</span></label>
       <div class="hint">Your key is kept in this browser's local storage and sent only to the URL above.</div>
-      <div id="testout"></div>
-      <h3 style="font-size:23px;margin-top:6px">Memory</h3>
+      </div></details>
+      <details class="card" data-sec="m-mem" ${openSecs.has('m-mem')?'open':''}><summary><h4>Cloud memory and other devices</h4></summary><div class="stack">
       <div class="hint">Tales always save in this browser. To keep them in step across devices, connect a GitHub token that has only the <b>gist</b> permission on one device, then use <b>Link another device</b> to bring the rest in with a QR code. Tales and model settings go into one secret gist on your account. Your API key is never put there.</div>
       <label class="f">GitHub token for memory<input class="inp" name="memToken" type="password" value="${esc(s.memToken)}" placeholder="ghp_…" autocomplete="off"></label>
       <div class="actions" style="justify-content:flex-start"><a class="btn small ghost" href="https://github.com/settings/tokens/new?scopes=gist&description=Calis%20Tavern%20saves" target="_blank" rel="noopener">Create a token</a>
         <button type="button" class="btn small" data-act="memConnect">Connect and sync</button><button type="button" class="btn small" data-act="memLink">Link another device</button><button type="button" class="btn small danger" data-act="memOff">Disconnect</button></div>
       <div id="memout"></div><div id="linkout"></div>
+      </div></details>
+      <div class="hint">Game options such as difficulty, tone, god mode, lorebooks and the edit panel are under <b>Settings</b>.</div>
       <div class="actions"><button type="button" class="btn ghost" data-act="test">Test connection</button><button type="button" class="btn ghost" data-act="closeModal">Cancel</button><button class="btn primary">Save</button></div>
     </form></div></div>`;
   $('#setForm input').focus(); memLabel();
@@ -2262,12 +2286,52 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170949';
+const BUILD = '202611170953';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
 }
 if(location.protocol!=='file:'){ checkVersion(); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) checkVersion(); }); setInterval(()=>{ if(!document.hidden) checkVersion(); },300000); }
+/* ============ dropdowns ============ */
+let ddOpen = null;
+function closeDD(focus){ if(!ddOpen) return; const {pop,btn} = ddOpen; ddOpen = null; pop.remove(); btn.setAttribute('aria-expanded','false'); if(focus&&document.contains(btn)) btn.focus({preventScroll:true}); }
+function openDD(sel,btn){
+  if(ddOpen){ const same = ddOpen.btn===btn; closeDD(); if(same) return; }
+  const pop = document.createElement('div'); pop.className = 'ddp'; pop.setAttribute('role','listbox'); pop.tabIndex = -1;
+  const opts = [...sel.options]; let act = Math.max(0,sel.selectedIndex);
+  pop.innerHTML = opts.map((o,i)=>`<div role="option" data-i="${i}" aria-selected="${i===sel.selectedIndex}">${esc(o.textContent)}</div>`).join('');
+  document.body.appendChild(pop); btn.setAttribute('aria-expanded','true'); ddOpen = {pop,btn,at:Date.now()};
+  const r = btn.getBoundingClientRect(), below = innerHeight-r.bottom-12, above = r.top-12, up = below<220&&above>below, room = Math.max(140,Math.min(340,up?above:below));
+  Object.assign(pop.style,{left:Math.max(8,Math.min(r.left,innerWidth-r.width-8))+'px',width:r.width+'px',maxHeight:room+'px'});
+  if(up) pop.style.bottom = (innerHeight-r.top+4)+'px'; else pop.style.top = (r.bottom+4)+'px';
+  const mark = () => { [...pop.children].forEach((d,i)=>d.classList.toggle('act',i===act)); const d = pop.children[act]; if(!d) return;
+    if(d.offsetTop<pop.scrollTop) pop.scrollTop = d.offsetTop-4; else if(d.offsetTop+d.offsetHeight>pop.scrollTop+pop.clientHeight) pop.scrollTop = d.offsetTop+d.offsetHeight-pop.clientHeight+4; };
+  const choose = i => { const changed = sel.selectedIndex!==i; sel.selectedIndex = i; closeDD(true); if(changed) sel.dispatchEvent(new Event('change',{bubbles:true})); };
+  mark(); pop.focus({preventScroll:true}); let typed = '', typedAt = 0;
+  pop.addEventListener('click',e=>{ const d = e.target.closest('[data-i]'); if(d) choose(num(d.dataset.i)); });
+  pop.addEventListener('mousemove',e=>{ const d = e.target.closest('[data-i]'); if(d&&num(d.dataset.i)!==act){ act = num(d.dataset.i); [...pop.children].forEach((x,i)=>x.classList.toggle('act',i===act)); } });
+  pop.addEventListener('keydown',e=>{
+    if(e.key==='ArrowDown'){ act = Math.min(opts.length-1,act+1); mark(); } else if(e.key==='ArrowUp'){ act = Math.max(0,act-1); mark(); }
+    else if(e.key==='Home'){ act = 0; mark(); } else if(e.key==='End'){ act = opts.length-1; mark(); }
+    else if(e.key==='Enter'||e.key===' '){ choose(act); } else if(e.key==='Escape'||e.key==='Tab'){ closeDD(true); }
+    else if(e.key.length===1){ const now = Date.now(); typed = (now-typedAt>700?'':typed)+e.key.toLowerCase(); typedAt = now; const k = opts.findIndex(o=>o.textContent.trim().toLowerCase().startsWith(typed)); if(k>=0){ act = k; mark(); } }
+    else return; e.preventDefault(); e.stopPropagation(); });
+}
+function enhanceSelect(sel){
+  if(sel._dd||!sel.classList.contains('inp')||sel.multiple) return; sel._dd = true;
+  const wrap = document.createElement('span'); wrap.className = 'dd'; sel.parentNode.insertBefore(wrap,sel); wrap.appendChild(sel); sel.tabIndex = -1; sel.setAttribute('aria-hidden','true');
+  const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'inp ddb'; btn.setAttribute('aria-haspopup','listbox'); btn.setAttribute('aria-expanded','false');
+  const lbl = sel.closest('label'), name = sel.getAttribute('aria-label')||(lbl&&lbl.firstChild&&lbl.firstChild.nodeType===3?lbl.firstChild.textContent.trim():'')||'Choose';
+  const show = () => { const o = sel.options[sel.selectedIndex]; btn.innerHTML = `<span>${esc(o?o.textContent:'')}</span>`; btn.setAttribute('aria-label',`${name}: ${o?o.textContent:''}`); };
+  show(); wrap.appendChild(btn); sel.addEventListener('change',show);
+  btn.addEventListener('click',e=>{ e.preventDefault(); openDD(sel,btn); });
+  btn.addEventListener('keydown',e=>{ if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); openDD(sel,btn); } });
+}
+new MutationObserver(()=>{ document.querySelectorAll('select.inp').forEach(enhanceSelect); if(ddOpen&&!document.contains(ddOpen.btn)) closeDD(); }).observe(document.body,{childList:true,subtree:true});
+document.addEventListener('pointerdown',e=>{ if(ddOpen&&!ddOpen.pop.contains(e.target)&&!ddOpen.btn.contains(e.target)) closeDD(); },true);
+document.addEventListener('scroll',e=>{ if(ddOpen&&Date.now()-ddOpen.at>250&&e.target!==ddOpen.pop&&!(e.target.nodeType===1&&ddOpen.pop.contains(e.target))) closeDD(); },true);
+window.addEventListener('resize',()=>closeDD());
+
 /* ============ install as an app ============ */
 let installEvt = null;
 const standalone = () => matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
