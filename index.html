@@ -560,17 +560,32 @@ const STANCE_WORDS = {friendly:/friend|warm|grateful|trust|fond|loyal|amused|kin
   strange:/eerie|strange|unknowable|alien|inscrutable|hungry|otherworld|uncanny/i};
 const stanceOf = n => STANCES.includes(n.stance)?n.stance:(Object.keys(STANCE_WORDS).find(k=>STANCE_WORDS[k].test(n.attitude||''))||'neutral');
 const NAME_STOP = new Set(['the','old','young','sir','lady','lord','captain','master','mistress','brother','sister','father','mother','king','queen','and','von','van','der','little','big','mad']);
-// Wraps every known person's name in a coloured, clickable span: the full name, any other name they go by, or a distinctive part of either.
+// Words that are never a name by themselves, and words that show a phrase is a description rather than a name.
+const COMMON = new Set(('the a an and or but if then so of to in on at by for from with without into onto over under up down out off near past ago again still just only very too also not no yes '+
+  'i me my you your he him his she her hers it its we us our they them their who whom whose which what that this these those there here when where why how '+
+  'is are was were be been being am do does did have has had will would can could shall should may might must '+
+  'one two three four five six seven eight nine ten some any all both each few many more most other another such same own '+
+  'man men woman women boy girl child people person someone somebody anyone nobody everyone something nothing thing things '+
+  'old young new big small little great good bad first last next day night time way back side hand eyes face voice door room road').split(' '));
+const DESCRIBES = new Set('with without who whose whom that which her his their its still and or from in on at by up down into over under near behind beside wearing holding carrying sitting standing nursing'.split(' '));
+// A real name or title: short, and not a description like "woman with her hood still up".
+function okName(name){ const w = String(name||'').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if(!w.length||w.length>4||w.join(' ').length<2) return false; if(w.length===1) return w[0].length>=2&&!COMMON.has(w[0]);
+  if(/^(two|three|four|five|six|seven|eight|nine|ten|some|several|many|few|both|all|a|an)$/.test(w[0])||/^\d/.test(w[0])) return false;
+  return !w.slice(1).some(x=>DESCRIBES.has(x))&&!DESCRIBES.has(w[0])&&!w.every(x=>COMMON.has(x)); }
+// Wraps every known person's name in a coloured, clickable span: the full name, any other name they go by, or a distinctive part of a proper name.
 function markNames(raw){
   raw = String(raw??''); const all = cur&&cur.npcs?Object.values(cur.npcs):[]; if(!all.length) return esc(raw);
-  const map = new Map(), count = {}, forms = n => [n.name,...(n.aka||[])].filter(x=>x&&x.trim().length>=2);
+  const map = new Map(), parts = new Set(), count = {}, forms = n => [n.name,...(n.aka||[])].filter(okName);
   for(const n of all) for(const f of forms(n)) for(const w of new Set(f.toLowerCase().split(/\s+/))) count[w] = (count[w]||0)+1;
-  for(const n of all) for(const f of forms(n)){ const full = f.trim().toLowerCase(); if(!map.has(full)) map.set(full,n);
-    const bare = full.replace(/^(the|a|an)\s+/,''); if(bare.length>=3&&!map.has(bare)) map.set(bare,n);
-    if(/\s/.test(full)) for(const w of full.split(/\s+/)) if(w.length>=3&&count[w]===1&&!NAME_STOP.has(w)&&!map.has(w)) map.set(w,n); }
+  for(const n of all) for(const f of forms(n)){ const full = f.trim().toLowerCase().replace(/\s+/g,' '); if(!map.has(full)) map.set(full,n);
+    const bare = full.replace(/^(the|a|an)\s+/,''); if(bare.length>=3&&okName(bare)&&!map.has(bare)) map.set(bare,n);
+    // One word out of a longer name counts only when it is a capitalised proper name, like "Tam" from "Old Tam", and it must be capitalised in the text too.
+    if(/\s/.test(f.trim())) for(const w of f.trim().split(/\s+/)){ const k = w.toLowerCase(); if(/^[A-Z]/.test(w)&&k.length>=3&&count[k]===1&&!NAME_STOP.has(k)&&!COMMON.has(k)&&!map.has(k)){ map.set(k,n); parts.add(k); } } }
+  if(!map.size) return esc(raw);
   const alts = [...map.keys()].sort((a,b)=>b.length-a.length).map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+'));
   const re = new RegExp(`(?<![\\w])(?:${alts.join('|')})(?![\\w])`,'gi'); let out = '', last = 0;
-  for(const m of raw.matchAll(re)){ const n = map.get(m[0].toLowerCase().replace(/\s+/g,' ')); if(!n) continue;
+  for(const m of raw.matchAll(re)){ const k = m[0].toLowerCase().replace(/\s+/g,' '), n = map.get(k); if(!n||(parts.has(k)&&!/^[A-Z]/.test(m[0]))) continue;
     out += esc(raw.slice(last,m.index))+`<button type="button" class="npc st-${stanceOf(n)}" data-act="npc" data-n="${esc(n.name)}">${esc(m[0])}</button>`; last = m.index+m[0].length; }
   return out+esc(raw.slice(last));
 }
@@ -790,14 +805,15 @@ function autoEquip(ch){
   refresh(ch);
 }
 // Older saves have no slots or weights: sort them out once, keeping the armour class they already had.
-function upgrade(c){ const ch = c.character; if(ch.inv2) return; const was = ch.ac; ch.acMisc = 0; autoEquip(ch); ch.acMisc = was-ch.ac; ch.inv2 = true; refresh(ch); }
+function upgrade(c){ const ch = c.character;
+  for(const k of Object.keys(c.npcs||{})){ const n = c.npcs[k]; if(!okName(n.name)){ delete c.npcs[k]; c.present = (c.present||[]).filter(x=>x!==k); } else if(n.aka) n.aka = n.aka.filter(okName); } if(ch.inv2) return; const was = ch.ac; ch.acMisc = 0; autoEquip(ch); ch.acMisc = was-ch.ac; ch.inv2 = true; refresh(ch); }
 // What using an item does when the app can settle it without the narrator.
 const KNOWN_USE = [[/superior (healing|potion)|potion of superior healing/i,{heal:'8d4+8'}],[/greater (healing|potion)|potion of greater healing/i,{heal:'4d4+4'}],[/healing potion|potion of healing|healing draught|healing salve/i,{heal:'2d4+2'}],[/healer'?s kit|bandage/i,{heal:'1d4'}]];
 const useOf = it => it.use||(KNOWN_USE.find(([re])=>re.test(it.name))||[])[1]||null;
 // Other names a person goes by. A name already belonging to someone else is left alone.
 function addAka(c,sh,list){ sh.aka ||= []; const taken = new Set(Object.values(c.npcs||{}).flatMap(n=>n===sh?[]:[n.name,...(n.aka||[])]).map(x=>x.toLowerCase()));
   for(const a of (Array.isArray(list)?list:String(list||'').split(','))){ const v = String(a||'').trim().slice(0,50), k = v.toLowerCase();
-    if(v.length>=2&&k!==sh.name.toLowerCase()&&!taken.has(k)&&!sh.aka.some(x=>x.toLowerCase()===k)&&sh.aka.length<6&&k!==c.character.name.toLowerCase()) sh.aka.push(v); } }
+    if(v.length>=2&&okName(v)&&k!==sh.name.toLowerCase()&&!taken.has(k)&&!sh.aka.some(x=>x.toLowerCase()===k)&&sh.aka.length<6&&k!==c.character.name.toLowerCase()) sh.aka.push(v); } }
 const MOODS = ['forest','night','fire'];
 function setMood(m){ m = MOODS.includes(m)?m:'forest'; document.body.dataset.mood = m; document.querySelector('meta[name=theme-color]')?.setAttribute('content',{forest:'#0d1410',night:'#090d18',fire:'#140b09'}[m]); }
 let rolling = false;
@@ -1005,7 +1021,7 @@ function applyState(c,s){
   refresh(ch);
   c.npcs ||= {}; c.present ||= [];
   const sheetFor = name => { const k = Object.keys(c.npcs).find(x=>x.toLowerCase()===name.toLowerCase()); if(k) return c.npcs[k];
-    if(Object.keys(c.npcs).length>=40) return null; return c.npcs[name] = {name,about:'',traits:[],wants:'',attitude:'neutral'}; };
+    if(Object.keys(c.npcs).length>=40||!okName(name)) return null; return c.npcs[name] = {name,about:'',traits:[],wants:'',attitude:'neutral'}; };
   for(const n of (Array.isArray(s.npcs)?s.npcs:[])){ if(!n||typeof n.name!=='string'||!n.name.trim()) continue; const isNew = !Object.keys(c.npcs).some(x=>x.toLowerCase()===n.name.trim().toLowerCase());
     const sh = sheetFor(n.name.trim().slice(0,50)); if(!sh) continue; if(typeof n.about==='string'&&n.about.trim()) sh.about = n.about.trim().slice(0,240);
     if(STANCES.includes(n.stance)) sh.stance = n.stance;
@@ -1169,7 +1185,7 @@ Action: ${text}`}],{stream:false,maxTokens:1200,temperature:0,model:store.settin
   return {reason:(parts[1]||'That skips past what is happening right now.').slice(0,140),steps:parts.slice(2,5).map(x=>x.replace(/^[-\d.)\s]+/,'').slice(0,90)).filter(Boolean)};
 }
 // The narrator often names someone without recording them. This small pass reads the scene and records whoever was missed.
-const SPOT = `You pick out the people in a passage from a fantasy story. List every individual person or creature that the passage names or refers to by a title (for example "Marta Quill", "the Ninth Borrower", "the tally-clerk"), including people who are only talked about, who is NOT already in the known list. If the passage gives a known person a new name or title, list that person again using their known name, with the new name in the last field. Do not list places, objects, groups, crowds, or the player character.
+const SPOT = `You pick out the people in a passage from a fantasy story. List every individual person or creature that the passage calls by a proper name or by a fixed title used like a name (for example "Marta Quill", "the Ninth Borrower", "the tally-clerk"), including people who are only talked about, who is NOT already in the known list. Never list someone who is only described in passing and has no name or title, such as "a woman with her hood up", "two carters" or "the man by the door"; a name is one to four words and is never a description. If the passage gives a known person a new name or title, list that person again using their known name, with the new name in the last field. Do not list places, objects, groups, crowds, or the player character.
 Reply with one line per person and nothing else, or the single word NONE:
 Name|who they are, in a few words|friendly, neutral, wary, hostile or strange (toward the player character)|other names or titles used for them, comma separated`;
 async function spotNames(c,text){
@@ -1181,7 +1197,7 @@ async function spotNames(c,text){
   c.npcs ||= {}; let changed = false; const pc = c.character.name.toLowerCase();
   const find = name => Object.values(c.npcs).find(n=>n.name.toLowerCase()===name.toLowerCase()||(n.aka||[]).some(a=>a.toLowerCase()===name.toLowerCase()));
   for(const line of out.split('\n')){ const f = line.replace(/^[\s\-*\d.)]+/,'').split('|').map(x=>x.trim()); const name = (f[0]||'').replace(/^["']|["']$/g,'').slice(0,50);
-    if(f.length<2||name.length<2||/^none$/i.test(name)||name.toLowerCase()===pc||pc.split(/\s+/).includes(name.toLowerCase())) continue;
+    if(f.length<2||name.length<2||!okName(name)||/^none$/i.test(name)||name.toLowerCase()===pc||pc.split(/\s+/).includes(name.toLowerCase())) continue;
     let sh = find(name); const before = sh?(sh.aka||[]).length:0;
     if(!sh){ if(Object.keys(c.npcs).length>=40) continue; sh = c.npcs[name] = {name,about:(f[1]||'').slice(0,240),traits:[],skills:[],wants:'',attitude:'neutral',memory:[]}; if(STANCES.includes((f[2]||'').toLowerCase())) sh.stance = f[2].toLowerCase(); changed = true; }
     else if(!sh.about&&f[1]) { sh.about = f[1].slice(0,240); changed = true; }
@@ -2040,7 +2056,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170806';
+const BUILD = '202611170813';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
