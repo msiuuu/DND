@@ -1,6 +1,6 @@
-// Emberglade service worker: lets the game install as an app and open without a connection.
+// Cali's Tavern service worker: lets the game install as an app and open without a connection.
 // The page itself is always fetched fresh when online, so updates still arrive; the dice files and icons are kept once used.
-const SHELL = 'emberglade-shell-v1', ASSETS = 'emberglade-assets-v1', ROOT = self.registration.scope;
+const SHELL = 'calis-tavern-shell-v1', ASSETS = 'calis-tavern-assets-v1', ROOT = self.registration.scope;
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(SHELL).then(c => c.addAll([ROOT, ROOT + 'manifest.webmanifest', ROOT + 'icon.svg', ROOT + 'icon-192.png', ROOT + 'icon-512.png'])).then(() => self.skipWaiting()));
 });

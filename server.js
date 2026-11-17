@@ -1,4 +1,4 @@
-// Emberglade local server. No dependencies; needs Node 18+.
+// Cali's Tavern local server. No dependencies; needs Node 18+.
 //   node server.js          -> http://localhost:8787
 // Serves the site, and forwards /proxy/* to the API base URL set in Settings,
 // for proxies that refuse requests made directly from a browser.
@@ -42,4 +42,4 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
     res.end(data);
   });
-}).listen(PORT, '127.0.0.1', () => console.log('Emberglade is burning at http://localhost:' + PORT));
+}).listen(PORT, '127.0.0.1', () => console.log('Tavern is open at http://localhost:' + PORT));
