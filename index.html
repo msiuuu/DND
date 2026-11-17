@@ -229,6 +229,10 @@ ul.list li button:hover{color:var(--danger)}
 .legend span{display:flex;align-items:center}
 .e.note .bub{font-size:13.5px;line-height:1.45;background:var(--s1);border:1px dashed var(--line2);color:var(--muted);border-radius:14px;padding:6px 14px}
 .e.note{display:flex;justify-content:center}
+.deny{background:rgba(208,97,74,.1);border:1px solid rgba(208,97,74,.45);border-radius:14px;padding:11px 14px;margin-bottom:10px}
+.deny b{display:block;font-size:14px;color:#ffc9bd}
+.deny .hint{margin:2px 0 8px}
+.deny .sugg{margin:0}
 .shopcard{background:var(--s2);border:1px solid var(--line2);border-radius:14px;padding:10px 14px;margin-bottom:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .shopcard .t{flex:1;min-width:160px}.shopcard .t b{font-family:var(--display);font-size:19px;color:var(--ember2)}.shopcard .t div{font-size:13px;color:var(--muted)}
 .item{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:9px 10px;border-radius:10px;background:rgba(0,0,0,.22)}
@@ -433,7 +437,7 @@ const TONES = {classic:'Classic heroic fantasy: wonder, danger, and earnest adve
 
 /* ============ storage ============ */
 const KEY = 'emberglade.v1';
-const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:1000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',useCheck:true,memToken:'',gistId:'',lastSync:0};
+const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:1000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',useCheck:true,useGuard:true,memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
 try{ const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(s){ store = s; store.settings = {...DEFAULTS,...s.settings}; store.campaigns = s.campaigns||{}; } }catch(e){}
 store.deleted ||= {}; store.ui ||= {left:false,right:false};
@@ -608,6 +612,7 @@ const RULES = `You are the Dungeon Master for a solo tabletop fantasy adventure 
 How to narrate:
 - Write in second person, present tense. Keep each reply to one to three short paragraphs of vivid, concrete prose. No headings, no bullet lists, no out-of-character commentary.
 - Never decide what the player's character does, says, thinks, or feels. End each reply at a moment where the player chooses what to do next.
+- Nothing is skipped and nothing is rewritten. Time and place move only through what the character actually does: a night passes because they made camp and slept, a journey happens leg by leg with the road in between. Never jump ahead past the immediate result of the player's action, never undo or revise what has already happened, and treat every established fact as fixed.
 - Give the world texture: named people with wants of their own, places with history, choices with consequences. Let failures be interesting rather than dead ends.
 - Stay consistent with the character sheet, inventory, quests, and the story so far given below. The player cannot use items or abilities they do not have.
 
@@ -835,7 +840,7 @@ async function castBeat(c,signal){
 }
 
 // Last pass: catches a draft that ignores the dice, plays the player's character for them, or contradicts the sheets.
-const EDITOR = `You are the continuity editor for a solo D&D story. You are given the facts and the narrator's draft reply. Look only for real errors: the draft ignores or contradicts the dice result; it decides the player character's actions, words or feelings; it uses items, abilities or people that are not in the facts; a character acts against their sheet for no reason; the numbers in the state block do not match the narration.
+const EDITOR = `You are the continuity editor for a solo D&D story. You are given the facts and the narrator's draft reply. Look only for real errors: the draft ignores or contradicts the dice result; it decides the player character's actions, words or feelings; it uses items, abilities or people that are not in the facts; a character acts against their sheet for no reason; the numbers in the state block do not match the narration; it skips time or moves the scene further than the player's action did; it rewrites something already established.
 If the draft is sound, reply with exactly: OK
 Otherwise reply with the complete corrected reply in the same format (the narration, then the <state> block), changing as little as possible. No commentary.`;
 async function continuity(c,text,state,intents,signal){
@@ -848,17 +853,40 @@ async function continuity(c,text,state,intents,signal){
     if(!Object.keys(fixed.state).length) fixed.state = state; return fixed;
   }catch(e){ if(e.name==='AbortError') throw e; return null; }
 }
+// Runs before the story sees an action. Refuses anything that skips ahead or rewrites the past, and offers real next steps instead.
+const GUARD = `You are the continuity guard for a solo D&D game. The player may only do something their character could actually attempt right now, from the current situation.
+DENY when the action: skips time (next day, later, after a while, once rested); jumps to another place without travelling there; declares an outcome or a success; invents facts, items, people or abilities that are not in the facts; undoes, changes or re-does something that already happened; or speaks for the narrator or for other characters.
+ALLOW anything the character can physically attempt now, however foolish or unlikely: speaking, asking, searching, fighting, setting out on a road, lying down to sleep, making camp.
+Reply with ONE line and nothing else:
+OK
+or
+NO|reason in twelve words or fewer|step|step|step
+Each step is a short concrete action, written as the player would type it, that starts from the current situation and moves toward what the player wanted. Give two or three.`;
+let denied = null;
+async function guard(c,text,signal){
+  if(!store.settings.useGuard) return null;
+  const ch = c.character, dm = lastOf(c,'dm'); let out = '';
+  try{
+    out = await chat([{role:'system',content:GUARD},{role:'user',content:`Facts: at ${c.location||'an unnamed place'}. With: ${(c.present||[]).join(', ')||'no one'}. ${ch.name}, level ${ch.level} ${ch.race} ${ch.cls}, ${ch.hp}/${ch.maxHp} HP, ${ch.gold} gp. Carries: ${ch.inventory.map(i=>i.name).join(', ')||'nothing'}. Class features: ${ch.features}.
+Scene: ${dm?clip(dm.text,600):'the adventure is just beginning'}
+Action: ${text}`}],{stream:false,maxTokens:300,temperature:0,model:store.settings.checkModel,quick:true,signal});
+  }catch(e){ if(e.name==='AbortError') throw e; return null; }
+  const line = (out.trim().split('\n').filter(x=>/^\W*(ok|no)\b/i.test(x)).pop()||'').trim();
+  if(!/^\W*no\b/i.test(line)) return null;
+  const parts = line.split('|').map(x=>x.trim()).filter(Boolean);
+  return {reason:(parts[1]||'That skips past what is happening right now.').slice(0,140),steps:parts.slice(2,5).map(x=>x.replace(/^[-\d.)\s]+/,'').slice(0,90)).filter(Boolean)};
+}
 const needKey = () => { const s = store.settings; if(!s.apiKey&&/openrouter\.ai/i.test(s.baseUrl)){ openSettings('Add your OpenRouter API key first, so the narrator has a voice.'); return true; } return false; };
 // A player's action goes to the dice gate first. A yes puts the roll card up and waits; a no goes straight to the story.
-async function playerAct(text){
+async function playerAct(text,trusted){
   if(busy||!cur||needKey()) return;
-  const c = cur, entry = {role:'player',text}; c.log.push(entry);
+  const c = cur, entry = {role:'player',text}; c.log.push(entry); denied = null;
   c.suggestions = []; c.pendingRoll = null; lastErr = null; busy = true; aborter = new AbortController(); save(); renderGame();
-  setLive('Asking whether the dice are needed…');
-  let g = null, stopped = false;
-  try{ g = await gate(c,text,aborter.signal); }catch(e){ stopped = true; }
+  setLive(trusted||!store.settings.useGuard?'Asking whether the dice are needed…':'Checking this against the scene…');
+  let g = null, no = null, stopped = false;
+  try{ [g,no] = await Promise.all([gate(c,text,aborter.signal),trusted?null:guard(c,text,aborter.signal)]); }catch(e){ stopped = true; }
   busy = false; aborter = null; if(cur!==c) return;
-  if(stopped){ renderGame(); return; }
+  if(stopped||no){ const k = c.log.indexOf(entry); if(k>=0) c.log.splice(k,1); if(no) denied = {...no,text}; save(); renderGame(); const ta = $('#say'); if(ta&&!ta.value) ta.value = text; return; }
   if(g){ c.pendingRoll = g; save(); renderGame(); return; }
   entry.noRoll = true; takeTurn(null);
 }
@@ -925,7 +953,7 @@ async function gh(path,opt={}){
   if(!r.ok){ const e = new Error(r.status===401?'GitHub rejected the token. Make a new one with the gist permission.':r.status===403?'GitHub refused (403). The token needs the gist permission.':'GitHub answered '+r.status+'.'); e.status = r.status; throw e; }
   return r.json();
 }
-const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','useCheck','temperature','maxTokens','stream'];
+const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','useCheck','useGuard','temperature','maxTokens','stream'];
 const memCore = o => JSON.stringify([o.last||null,o.deleted||{},o.campaigns||{},o.prefs||null,o.prefsAt||0]);
 function memData(){ const campaigns = {}; for(const [id,c] of Object.entries(store.campaigns)){ const {_summing,...rest} = c; campaigns[id] = rest; }
   return {app:'emberglade',version:1,savedAt:Date.now(),last:store.last||null,deleted:store.deleted,campaigns,prefs:Object.fromEntries(PREFS.map(k=>[k,store.settings[k]])),prefsAt:store.prefsAt||0}; }
@@ -1172,6 +1200,7 @@ function renderComposer(){
       <button class="btn primary" data-act="pend" data-adv="${r.advantage}">Roll</button>
       ${r.advantage==='none'?`<button class="btn small" data-act="pend" data-adv="adv">Advantage</button><button class="btn small" data-act="pend" data-adv="dis">Disadvantage</button>`:''}</div>`;
   }
+  if(denied&&!busy) h += `<div class="deny" role="status"><b>Not from here.</b><div class="hint">${esc(denied.reason)} Nothing was added to the story.</div>${denied.steps.length?`<div class="sugg">${denied.steps.map(x=>`<button data-act="sugg">${esc(x)}</button>`).join('')}</div>`:''}</div>`;
   if(c.shop&&!busy) h += `<div class="shopcard"><div class="t"><b>${esc(c.shop.name)}</b><div>${c.shop.keeper?esc(c.shop.keeper)+' · ':''}${c.shop.items.length} things for sale · you have ${c.character.gold} gp</div></div><button class="btn primary" data-act="shop">Open shop</button></div>`;
   if(c.suggestions.length&&!busy&&!r) h += `<div class="sugg">${c.suggestions.map(s=>`<button data-act="sugg">${esc(s)}</button>`).join('')}</div>`;
   h += `<form class="send" id="sendForm"><textarea id="say" rows="1" maxlength="2000" placeholder="${busy?'The narrator is speaking…':r?'Roll, or do something else instead…':'What do you do?'}" ${busy?'disabled':''}></textarea>
@@ -1277,6 +1306,7 @@ function openSettings(msg){
       <label class="f">Dice gate model (decides yes or no on a roll; pick something small and fast)<input class="inp" name="gateModel" value="${esc(s.gateModel)}" list="modelList" placeholder="same as the story model"></label>
       <label class="f">Character model (plays each person in the scene, up to three at once)<input class="inp" name="charModel" value="${esc(s.charModel)}" list="modelList" placeholder="same as the story model"></label>
       <label class="f">Continuity model (checks the scene holds together)<input class="inp" name="checkModel" value="${esc(s.checkModel)}" list="modelList" placeholder="same as the story model"></label>
+      <label class="check"><input type="checkbox" name="useGuard" ${s.useGuard?'checked':''}><span>Hold me to the scene: refuse actions that skip time, jump somewhere else, or rewrite what happened (one small call per action, uses the continuity model)</span></label>
       <label class="check"><input type="checkbox" name="useCheck" ${s.useCheck?'checked':''}><span>Run the continuity check after each scene (one extra call per turn)</span></label>
       <div class="grid2"><label class="f">Temperature<input class="inp" name="temperature" type="number" min="0" max="2" step="0.05" value="${esc(s.temperature)}"></label>
         <label class="f">Max tokens per reply<input class="inp" name="maxTokens" type="number" min="200" max="8000" step="50" value="${esc(s.maxTokens)}"></label></div>
@@ -1295,13 +1325,13 @@ function openSettings(msg){
   $('#setForm input').focus(); memLabel();
 }
 function readSettings(){ const f = $('#setForm'); if(!f) return; Object.assign(store.settings,{baseUrl:f.baseUrl.value.trim()||DEFAULTS.baseUrl,apiKey:f.apiKey.value.trim(),model:f.model.value.trim()||DEFAULTS.model,
-  temperature:clamp(Number(f.temperature.value)||0,0,2),maxTokens:clamp(num(f.maxTokens.value)||1000,200,8000),stream:f.stream.checked,localProxy:f.localProxy.checked,gateModel:f.gateModel.value.trim(),charModel:f.charModel.value.trim(),checkModel:f.checkModel.value.trim(),useCheck:f.useCheck.checked});
+  temperature:clamp(Number(f.temperature.value)||0,0,2),maxTokens:clamp(num(f.maxTokens.value)||1000,200,8000),stream:f.stream.checked,localProxy:f.localProxy.checked,gateModel:f.gateModel.value.trim(),charModel:f.charModel.value.trim(),checkModel:f.checkModel.value.trim(),useCheck:f.useCheck.checked,useGuard:f.useGuard.checked});
   const tok = f.memToken.value.trim(); if(tok!==store.settings.memToken) Object.assign(store.settings,{memToken:tok,gistId:'',lastSync:0});
   if(!/^https?:\/\/[^\s/]+/i.test(store.settings.baseUrl)){ store.settings.baseUrl = DEFAULTS.baseUrl; f.baseUrl.value = DEFAULTS.baseUrl; toast('!','The base URL has to be a web address, so it was reset to OpenRouter. Model names go in the Model box.'); } }
 function closeModal(){ $('#modalRoot').innerHTML = ''; }
 
 /* ============ events ============ */
-function go(){ const id = location.hash.slice(1); if(id==='new') return renderCreate(); if(store.campaigns[id]){ cur = store.campaigns[id]; store.last = id; saveLocal(); lastErr = null; main.innerHTML = ''; renderGame(); if(!cur.log.length) takeTurn(null); return; } renderHome(); }
+function go(){ const id = location.hash.slice(1); if(id==='new') return renderCreate(); if(store.campaigns[id]){ denied = null; cur = store.campaigns[id]; store.last = id; saveLocal(); lastErr = null; main.innerHTML = ''; renderGame(); if(!cur.log.length) takeTurn(null); return; } renderHome(); }
 window.addEventListener('hashchange',()=>{ if(aborter) aborter.abort(); busy = false; go(); });
 
 document.addEventListener('click',async ev=>{
@@ -1324,7 +1354,7 @@ document.addEventListener('click',async ev=>{
     case 'rollStats': fillStats(Array.from({length:6},()=>{ const d = [rnd(6),rnd(6),rnd(6),rnd(6)].sort((a,b)=>a-b); return d[1]+d[2]+d[3]; })); break;
     case 'stdArray': fillStats([15,14,13,12,10,8]); break;
     case 'tab': tab = el.dataset.tab; renderSide(); break;
-    case 'sugg': if(!busy) playerAct(el.textContent); break;
+    case 'sugg': if(!busy){ const ta = $('#say'); if(ta) ta.value = ''; playerAct(el.textContent,true); } break;
     case 'pend': resolvePending(el.dataset.adv); break;
     case 'stop': if(aborter) aborter.abort(); break;
     case 'retry': takeTurn(null); break;
