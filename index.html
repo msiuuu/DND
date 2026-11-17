@@ -766,7 +766,8 @@ async function chat(messages,{stream=store.settings.stream,onText,signal,maxToke
   if(!stream||!res.body||ctype.includes('application/json')){
     const j = await res.json();
     if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
-    const t = j.choices?.[0]?.message?.content||''; onText&&onText(t); return t;
+    const t = j.choices?.[0]?.message?.content||''; if(!t.trim()&&j.choices?.[0]?.finish_reason==='length') throw new Error('The model used up its whole reply thinking and never answered. Raise "Max tokens per reply" in Settings, or pick a model that thinks less.');
+    onText&&onText(t); return t;
   }
   const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', full = '';
   for(;;){
@@ -854,7 +855,19 @@ function applyState(c,s){
 const npcLine = n => `- ${n.name}: ${n.about||'not yet described'}. Traits: ${(n.traits||[]).join(', ')||'none noted yet'}. Skills: ${(n.skills||[]).join(', ')||'none noted'}. Wants: ${n.wants||'unclear'}. Stance toward the player character: ${stanceOf(n)} (${n.attitude||'neutral'}).${(n.memory||[]).length?' Remembers: '+n.memory.map(m=>m.t).join(' / ')+'.':''}`;
 const clip = (t,n) => t.length>n?'…'+t.slice(-n):t;
 const lastOf = (c,role) => { for(let i=c.log.length-1;i>=0;i--) if(c.log[i].role===role) return c.log[i]; return null; };
-function jsonIn(t){ const a = t.indexOf('{'), b = t.lastIndexOf('}'); if(a<0||b<=a) return null; const j = t.slice(a,b+1); try{ return JSON.parse(j); }catch(e){ try{ return JSON.parse(j.replace(/,\s*([}\]])/g,'$1')); }catch(e2){ return null; } } }
+function jsonIn(t){
+  t = String(t||'').replace(/```(?:json)?/gi,''); const a = t.indexOf('{'); if(a<0) return null; t = t.slice(a);
+  const tryParse = x => { try{ return JSON.parse(x); }catch(e){ try{ return JSON.parse(x.replace(/,\s*([}\]])/g,'$1')); }catch(e2){ return undefined; } } };
+  const b = t.lastIndexOf('}'); if(b>0){ const v = tryParse(t.slice(0,b+1)); if(v!==undefined) return v; }
+  // Cut off mid-reply: walk the text, remember each point where a value had just finished, and close the brackets from the last good one.
+  const stack = [], cuts = []; let str = false, escp = false;
+  for(let k=0;k<t.length;k++){ const ch = t[k];
+    if(str){ if(escp) escp = false; else if(ch==='\\') escp = true; else if(ch==='"') str = false; continue; }
+    if(ch==='"') str = true; else if(ch==='{'||ch==='[') stack.push(ch); else if(ch==='}'||ch===']'){ stack.pop(); if(!stack.length) break; }
+    else if(ch===',') cuts.push([k,stack.slice()]); }
+  for(let n=cuts.length-1;n>=0&&n>=cuts.length-6;n--){ const [k,st] = cuts[n], v = tryParse(t.slice(0,k)+st.reverse().map(c=>c==='{'?'}':']').join('')); if(v!==undefined&&v&&typeof v==='object') return v; }
+  return null;
+}
 function setLive(msg){ let el = $('#live'); if(!el){ el = document.createElement('div'); el.id = 'live'; el.className = 'e dm'; $('#log').appendChild(el); } el.innerHTML = LBL+`<p class="thinking">${esc(msg)}</p>`; scrollLog(); return el; }
 
 // Small, fast, one-line answer: does this action need a roll before the outcome is told?
@@ -880,7 +893,7 @@ async function gate(c,text,signal){
   try{
     out = await chat([{role:'system',content:GATE},{role:'user',content:`Scene: ${dm?clip(dm.text,500):'the adventure is just beginning'}
 Character: level ${ch.level} ${ch.race} ${ch.cls}. ${ABIL.map(a=>a.toUpperCase()+' '+sgn(mod(ch.abilities[a]))).join(', ')}. Proficiency +${prof(ch.level)}. Carries: ${ch.inventory.map(i=>i.name).join(', ')||'nothing'}.
-Player wrote: ${text}${guess?`\n(Keyword guess from the app: ${guess}.)`:''}`}],{stream:false,maxTokens:300,temperature:0,model:store.settings.gateModel,quick:true,signal});
+Player wrote: ${text}${guess?`\n(Keyword guess from the app: ${guess}.)`:''}`}],{stream:false,maxTokens:1200,temperature:0,model:store.settings.gateModel,quick:true,signal});
   }catch(e){ if(e.name==='AbortError') throw e; return fallback(); }
   const line = (out.trim().split('\n').filter(x=>/^\W*(yes|no|ask)\b/i.test(x)).pop()||'').trim();
   if(!line) return fallback();
@@ -903,7 +916,7 @@ async function answerAside(c,q,roll){
   try{
     const dm = lastOf(c,'dm'), here = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]), away = Object.keys(c.npcs||{}).filter(n=>!here.includes(n));
     a = await chat([{role:'system',content:NOTE},{role:'user',content:`# Facts\n${sheetText(c)}\n\nPeople here now:\n${here.map(n=>npcLine(c.npcs[n])).join('\n')||'no one'}\nKnown but not here: ${away.join(', ')||'no one'}${c.summary?`\n\nStory so far: ${c.summary}`:''}\n\nCurrent scene: ${dm?clip(dm.text,800):'the adventure has not begun'}\n\n# Question\n${q}${roll?`\n\n# Dice result\n${roll}`:''}`}],
-      {stream:false,maxTokens:300,temperature:0.3,model:store.settings.checkModel,quick:true,signal:aborter.signal});
+      {stream:false,maxTokens:1200,temperature:0.3,model:store.settings.checkModel,quick:true,signal:aborter.signal});
   }catch(e){ if(e.name!=='AbortError') lastErr = e.message||String(e); }
   busy = false; aborter = null; if(cur!==c) return;
   a = a.trim().replace(/^["“]|["”]$/g,'').slice(0,400);
@@ -924,7 +937,7 @@ async function castBeat(c,signal){
   const out = await Promise.all(names.map(async name=>{ const n = c.npcs[name];
     try{
       const t = await chat([{role:'system',content:ACTOR},{role:'user',content:`Your sheet:\nName: ${n.name}\nAbout: ${n.about||'not yet described; define yourself through how you act'}\nTraits: ${(n.traits||[]).join(', ')||'none noted yet'}\nSkills: ${(n.skills||[]).join(', ')||'none noted yet'}\nWants: ${n.wants||'unclear'}\nWhat you remember of the player character: ${(n.memory||[]).map(m=>m.t).join(' / ')||'nothing yet; you have only just met'}\nFeeling toward the player character: ${n.attitude||'neutral'}\n\nThe player character: ${ch.name}, a ${ch.race} ${ch.cls}. ${ch.appearance||''}\nOthers present: ${names.filter(x=>x!==name).join(', ')||'no one else'}\n\nWhat just happened:\n${happened}`}],
-        {stream:false,maxTokens:400,temperature:0.8,model:store.settings.charModel,quick:true,signal});
+        {stream:false,maxTokens:1500,temperature:0.8,model:store.settings.charModel,quick:true,signal});
       const j = jsonIn(t); if(!j||typeof j.intent!=='string'||!j.intent.trim()) return null;
       if(typeof j.attitude==='string'&&j.attitude.trim()) n.attitude = j.attitude.trim().slice(0,40);
       if(typeof j.wants==='string'&&j.wants.trim()) n.wants = j.wants.trim().slice(0,120);
@@ -968,7 +981,7 @@ async function guard(c,text,signal){
   try{
     out = await chat([{role:'system',content:GUARD},{role:'user',content:`Facts: at ${c.location||'an unnamed place'}. With: ${(c.present||[]).join(', ')||'no one'}. ${ch.name}, level ${ch.level} ${ch.race} ${ch.cls}, ${ch.hp}/${ch.maxHp} HP, ${ch.gold} gp. Carries: ${ch.inventory.map(i=>i.name).join(', ')||'nothing'}. Class features: ${ch.features}.
 Scene: ${dm?clip(dm.text,600):'the adventure is just beginning'}
-Action: ${text}`}],{stream:false,maxTokens:300,temperature:0,model:store.settings.checkModel,quick:true,signal});
+Action: ${text}`}],{stream:false,maxTokens:1200,temperature:0,model:store.settings.checkModel,quick:true,signal});
   }catch(e){ if(e.name==='AbortError') throw e; return null; }
   const line = (out.trim().split('\n').filter(x=>/^\W*(ok|no)\b/i.test(x)).pop()||'').trim();
   if(!/^\W*no\b/i.test(line)) return null;
@@ -1307,8 +1320,10 @@ const abil3 = v => { const a = String(v||'').toLowerCase().slice(0,3); return AB
 async function forge(){
   if(forging||needKey()) return; const d = draft; forging = true; d.msg = ''; renderCreate();
   try{
-    const out = await chat([{role:'system',content:FORGE()},{role:'user',content:`The player's wish: ${d.wish.trim()||'Surprise me with someone interesting.'}${d.name.trim()?`\nKeep the name: ${d.name.trim()}`:''}`}],{stream:false,maxTokens:Math.max(1200,Number(store.settings.maxTokens)),temperature:1});
-    const j = jsonIn(out); if(!j) throw new Error('The model did not send back a character. Try again, or choose by hand.');
+    const ask = [{role:'system',content:FORGE()},{role:'user',content:`The player's wish: ${d.wish.trim()||'Surprise me with someone interesting.'}${d.name.trim()?`\nKeep the name: ${d.name.trim()}`:''}`}], room = Math.max(4000,Number(store.settings.maxTokens));
+    let out = await chat(ask,{stream:false,maxTokens:room,temperature:1,quick:true}), j = jsonIn(out);
+    if(!j||!(j.race||j.class)){ out = await chat([...ask,{role:'user',content:'Reply again with only the JSON object, starting with { and nothing before it. Keep the backstory under 80 words.'}],{stream:false,maxTokens:room,temperature:0.7,quick:true}); j = jsonIn(out); }
+    if(!j||!(j.race||j.class)) throw new Error(out.trim()?'The model answered, but not with a character sheet it could be read from. Try again, or try a different story model.':'The model sent back an empty reply. Try again, or raise "Max tokens per reply" in Settings.');
     if(typeof j.name==='string'&&j.name.trim()&&!d.name.trim()) d.name = j.name.trim().slice(0,40);
     const rk = findKey(RACES,j.race);
     if(rk) d.race = rk; else if(typeof j.race==='string'&&j.race.trim()){ const b = Object.entries(j.race_bonus||{}).map(([k,v])=>[abil3(k),num(v)]).filter(x=>x[0]).sort((a,b)=>b[1]-a[1]);
@@ -1331,8 +1346,8 @@ async function forgeStory(){
   if(forging||needKey()) return; const d = draft, cls = classDef(d), race = raceDef(d); forging = true; renderCreate();
   try{
     const out = await chat([{role:'system',content:'You write the look and the past of a tabletop fantasy character. Reply with JSON only: {"appearance":"one vivid line","backstory":"60 to 100 words, ending on what they want"}'},
-      {role:'user',content:`${d.name||'Unnamed'}, a ${race.name} ${cls.name}${race.about?` (${race.about})`:''}${cls.about?` (${cls.about})`:''}. Background: ${d.background==='__custom'?d.cBg:d.background}. Alignment: ${d.alignment}. Boons: ${BOONS.filter(x=>d.boons.includes(x.id)).map(x=>x.name).join(', ')||'none'}. Flaws: ${FLAWS.filter(x=>d.flaws.includes(x.id)).map(x=>x.name).join(', ')||'none'}.${d.wish.trim()?` The player's wish: ${d.wish.trim()}`:''}`}],{stream:false,maxTokens:Math.max(700,Number(store.settings.maxTokens)),temperature:1});
-    const j = jsonIn(out); if(!j) throw new Error('The model did not send back a story. Try again, or write your own.');
+      {role:'user',content:`${d.name||'Unnamed'}, a ${race.name} ${cls.name}${race.about?` (${race.about})`:''}${cls.about?` (${cls.about})`:''}. Background: ${d.background==='__custom'?d.cBg:d.background}. Alignment: ${d.alignment}. Boons: ${BOONS.filter(x=>d.boons.includes(x.id)).map(x=>x.name).join(', ')||'none'}. Flaws: ${FLAWS.filter(x=>d.flaws.includes(x.id)).map(x=>x.name).join(', ')||'none'}.${d.wish.trim()?` The player's wish: ${d.wish.trim()}`:''}`}],{stream:false,maxTokens:Math.max(2500,Number(store.settings.maxTokens)),temperature:1,quick:true});
+    const j = jsonIn(out); if(!j) throw new Error(out.trim()?'The model answered, but not in a form that could be read. Try again, or write your own.':'The model sent back an empty reply. Try again, or raise "Max tokens per reply" in Settings.');
     if(typeof j.appearance==='string') d.appearance = j.appearance.trim().slice(0,200); if(typeof j.backstory==='string') d.backstory = j.backstory.trim().slice(0,1200);
   }catch(e){ d.msg = e.message||'The model could not be reached.'; }
   forging = false; if(draft===d&&$('#createForm')) renderCreate();
