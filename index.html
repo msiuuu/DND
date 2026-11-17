@@ -95,9 +95,10 @@ textarea.inp{resize:vertical;min-height:80px;font-family:var(--story);font-size:
 .abil label{align-items:center;text-align:center}
 .abil input{text-align:center;font-size:20px;font-family:var(--display);font-weight:700;padding:6px 2px}
 .abil small{color:var(--ember2);letter-spacing:0;font-size:13px}
-.hooks{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.hooks{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
 .hook{position:relative;border:1px solid var(--line);border-radius:12px;padding:14px;background:rgba(8,13,10,.4);cursor:pointer;display:block}
 .hook input{position:absolute;opacity:0}
+.panel h3 small{font:500 13px var(--ui);margin-left:8px}
 .hook b{display:block;font-family:var(--display);font-size:20px;color:var(--parch);margin-bottom:4px}
 .hook span{font-family:var(--story);color:var(--muted);font-size:14.5px;line-height:1.45}
 .hook:has(input:checked){border-color:var(--ember);background:rgba(232,161,74,.1);box-shadow:0 0 0 1px var(--ember) inset}
@@ -221,6 +222,12 @@ ul.list li button:hover{color:var(--danger)}
 .check input{margin-top:3px;accent-color:var(--ember)}
 #testout{font-size:13px;min-height:18px}
 .sideToggle{display:none}
+a.btn{text-decoration:none;display:inline-block}
+.mem{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:4px 11px;background:none;white-space:nowrap}
+.mem.ok{color:var(--good);border-color:rgba(134,184,112,.4)}
+.mem.bad{color:#ffb6a6;border-color:var(--danger)}
+.mem:hover{border-color:var(--ember)}
+#memout{font-size:13px;min-height:18px}
 
 @media (max-width:960px){
   #game{grid-template-columns:1fr;padding:10px;gap:0}
@@ -230,6 +237,7 @@ ul.list li button:hover{color:var(--danger)}
   .sideToggle{display:inline-block}
   header.bar{padding:10px 12px;gap:8px}
   .brand span{display:none}
+  .mem{display:none}
   #log{font-size:17px}
   .abil{grid-template-columns:repeat(3,1fr)}
 }
@@ -244,6 +252,7 @@ ul.list li button:hover{color:var(--danger)}
       <span>Emberglade</span>
     </button>
     <div class="where" id="where"></div>
+    <button class="mem" id="mem" data-act="settings" title="Where your tales are kept"></button>
     <button class="btn small sideToggle" data-act="toggleSide" hidden id="sideBtn">Sheet</button>
     <button class="btn small ghost" data-act="home" id="homeBtn" hidden>Campaigns</button>
     <button class="btn small" data-act="settings">Settings</button>
@@ -292,24 +301,49 @@ const CLASSES = {
 const RACES = {Human:{str:1,dex:1,con:1,int:1,wis:1,cha:1},Elf:{dex:2,wis:1},Dwarf:{con:2,wis:1},Halfling:{dex:2,cha:1},'Half-Elf':{cha:2,dex:1,con:1},
   'Half-Orc':{str:2,con:1},Gnome:{int:2,con:1},Tiefling:{cha:2,int:1},Dragonborn:{str:2,cha:1}};
 const NAMES = ['Wren Ashdown','Corin Vale','Tamsin Roe','Bram Oakhollow','Isolde Fenn','Garrick Thorne','Maeve Underbough','Ode Larkspur','Renna Vesk','Hale Briarwood','Sable Quill','Dunmar Stonewake'];
-const HOOKS = [
-  {id:'lantern',title:'The Lantern Road',text:'You signed on to guard a caravan through the old forest. The road is lined with ever-burning lanterns, and tonight they are going out, one by one, behind you.'},
-  {id:'well',title:'Hollow Under Thistlewick',text:'The village well ran dry a week ago. Since then, on quiet nights, something at the bottom has been singing the names of the villagers.'},
-  {id:'stag',title:"The Stag King's Debt",text:'You wake in a moonlit clearing with an antler-shaped brand on your palm and no memory of the bargain that put it there. Someone has come to collect.'},
-  {id:'keep',title:'Ashes of Brambleholt',text:'A map bought for three coppers leads to a keep swallowed by thorns. You are not the only one who bought a copy.'},
-  {id:'moth',title:'The Moth Market',text:'On moonless nights a market unfolds between the trees, selling things that were never meant to be sold. Tonight, one of the stalls is selling something of yours.'},
-  {id:'surprise',title:'Surprise me',text:'Let the narrator invent the premise. You will find out where you are when you open your eyes.'},
-  {id:'custom',title:'Write my own',text:'Describe your own setting, premise, or opening scene.'},
+const BACKGROUNDS = {Acolyte:['Insight','Religion'],Charlatan:['Deception','Sleight of Hand'],Criminal:['Deception','Stealth'],Entertainer:['Acrobatics','Performance'],
+  'Folk Hero':['Animal Handling','Survival'],'Guild Artisan':['Insight','Persuasion'],Hermit:['Medicine','Religion'],Noble:['History','Persuasion'],Outlander:['Athletics','Survival'],
+  Sage:['Arcana','History'],Sailor:['Athletics','Perception'],Soldier:['Athletics','Intimidation'],Urchin:['Sleight of Hand','Stealth']};
+const ALIGNMENTS = ['Lawful Good','Neutral Good','Chaotic Good','Lawful Neutral','True Neutral','Chaotic Neutral','Lawful Evil','Neutral Evil','Chaotic Evil'];
+const BOONS = [
+  {id:'tough',name:'Tough',text:'Hard to put down. +3 maximum hit points.',apply:c=>{c.maxHp+=3;}},
+  {id:'hide',name:'Thick Hide',text:'Blows glance off you. +1 Armor Class.',apply:c=>{c.ac+=1;}},
+  {id:'keen',name:'Keen Senses',text:'Little escapes you. Proficient in Perception.',skill:'Perception'},
+  {id:'tongue',name:'Silver Tongue',text:'People want to agree with you. Proficient in Persuasion.',skill:'Persuasion'},
+  {id:'hands',name:'Quick Hands',text:'Locks, pockets, and knots. Proficient in Sleight of Hand.',skill:'Sleight of Hand'},
+  {id:'beast',name:'Beast Friend',text:'Animals trust you. Proficient in Animal Handling.',skill:'Animal Handling'},
+  {id:'will',name:'Iron Will',text:'Your mind is your own. Proficient in Wisdom saving throws.',save:'wis'},
+  {id:'reflex',name:'Cat Reflexes',text:'You move before you think. Proficient in Dexterity saving throws.',save:'dex'},
+  {id:'night',name:'Night-Eyed',text:'You see in darkness out to 60 feet as if it were dim light.'},
+  {id:'lucky',name:'Lucky',text:'Once per day, reroll one d20 you just rolled and keep either result.'},
+  {id:'spark',name:'Arcane Spark',text:'You know one minor cantrip, whatever your class.'},
+  {id:'purse',name:'Heavy Purse',text:'You start with 40 extra gold pieces.',apply:c=>{c.gold+=40;}},
+];
+const FLAWS = [
+  {id:'frail',name:'Frail',text:'An old sickness never quite left. −2 maximum hit points.',apply:c=>{c.maxHp=Math.max(1,c.maxHp-2);}},
+  {id:'wound',name:'Old Wound',text:'A bad leg or a bad shoulder. It flares up at the worst moments.'},
+  {id:'greedy',name:'Greedy',text:'You find it very hard to walk away from coin.'},
+  {id:'reckless',name:'Reckless',text:'You act first and count the enemy afterwards.'},
+  {id:'craven',name:'Craven',text:'When the odds turn, your first thought is the door.'},
+  {id:'temper',name:'Hot-Tempered',text:'Insults get answered, usually loudly.'},
+  {id:'honest',name:'Honest to a Fault',text:'You cannot lie convincingly, even when you should.'},
+  {id:'haunted',name:'Haunted',text:'Something you did, or saw, follows you into your sleep.'},
+  {id:'wanted',name:'Wanted',text:'There is a price on your head somewhere, and people who would collect it.'},
+  {id:'debt',name:'In Debt',text:'You owe someone dangerous more than you can pay.'},
+  {id:'superst',name:'Superstitious',text:'Omens rule you. A bad sign can stop you cold.'},
+  {id:'vice',name:'A Vice',text:'Drink, dice, or something worse. It costs you gold and judgment.'},
 ];
 const TONES = {classic:'Classic heroic fantasy: wonder, danger, and earnest adventure.',grim:'Dark fantasy: grim, dangerous, morally grey, with real consequences.',
   whimsy:'Whimsical fairytale: strange, funny, and a little eerie.',mystery:'Slow-burn mystery: clues, secrets, and unsettling quiet.'};
 
 /* ============ storage ============ */
 const KEY = 'emberglade.v1';
-const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:1000,stream:true,localProxy:false};
+const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:1000,stream:true,localProxy:false,memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
 try{ const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(s){ store = s; store.settings = {...DEFAULTS,...s.settings}; store.campaigns = s.campaigns||{}; } }catch(e){}
-function save(){ try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){ toast('!','Could not save: browser storage is full or blocked.'); } }
+store.deleted ||= {};
+function saveLocal(){ try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){ toast('!','Could not save: browser storage is full or blocked.'); } }
+function save(){ if(cur) cur.updated = Date.now(); saveLocal(); scheduleSync(); }
 
 /* ============ helpers ============ */
 const $ = (s,r=document)=>r.querySelector(s);
@@ -354,8 +388,13 @@ function newCharacter(f){
   const maxHp = Math.max(1,cls.hd+mods.con);
   const inv = cls.gear.map(([name,qty])=>({name,qty}));
   inv.push({name:'Rations (day)',qty:5},{name:'Waterskin',qty:1},{name:'Torch',qty:3},{name:'Bedroll',qty:1});
-  return {name:f.name,race:f.race,cls:f.cls,background:f.background,level:1,xp:0,hp:maxHp,maxHp,ac:cls.ac(mods),abilities:ab,
-    profs:[...cls.skills],saves:[...cls.saves],features:cls.feat,inventory:inv,gold:15,conditions:[]};
+  const ch = {name:f.name,race:f.race,cls:f.cls,background:f.background,alignment:f.alignment||'',appearance:f.appearance||'',backstory:f.backstory||'',
+    level:1,xp:0,hp:maxHp,maxHp,ac:cls.ac(mods),abilities:ab,profs:[...new Set([...cls.skills,...(BACKGROUNDS[f.background]||[])])],saves:[...cls.saves],
+    features:cls.feat,inventory:inv,gold:15,conditions:[],boons:[],flaws:[]};
+  for(const b of BOONS.filter(x=>(f.boons||[]).includes(x.id))){ ch.boons.push({name:b.name,text:b.text}); if(b.apply) b.apply(ch);
+    if(b.skill&&!ch.profs.includes(b.skill)) ch.profs.push(b.skill); if(b.save&&!ch.saves.includes(b.save)) ch.saves.push(b.save); }
+  for(const w of FLAWS.filter(x=>(f.flaws||[]).includes(x.id))){ ch.flaws.push({name:w.name,text:w.text}); if(w.apply) w.apply(ch); }
+  ch.hp = ch.maxHp; return ch;
 }
 function skillMod(ch,skill){ return mod(ch.abilities[SKILLS[skill]])+(ch.profs.includes(skill)?prof(ch.level):0); }
 function saveMod(ch,a){ return mod(ch.abilities[a])+(ch.saves.includes(a)?prof(ch.level):0); }
@@ -390,7 +429,12 @@ function sheetText(c){
   const ab = ABIL.map(a=>`${a.toUpperCase()} ${ch.abilities[a]} (${sgn(mod(ch.abilities[a]))})`).join(', ');
   const inv = ch.inventory.map(i=>i.qty>1?`${i.name} x${i.qty}`:i.name).join(', ')||'nothing';
   const q = c.quests.length?c.quests.map(x=>`- [${x.status}] ${x.title}${x.note?': '+x.note:''}`).join('\n'):'- none yet';
-  return `Name: ${ch.name}. ${ch.race} ${ch.cls}, level ${ch.level} (${ch.xp} XP). Background: ${ch.background||'unknown'}.
+  const list = a => (a||[]).map(x=>`${x.name} (${x.text})`).join('; ')||'none';
+  return `Name: ${ch.name}. ${ch.race} ${ch.cls}, level ${ch.level} (${ch.xp} XP). Background: ${ch.background||'unknown'}. Alignment: ${ch.alignment||'unstated'}.
+Appearance: ${ch.appearance||'not described'}.
+Backstory: ${ch.backstory||'not given; leave room for the player to define it'}.
+Boons: ${list(ch.boons)}.
+Flaws: ${list(ch.flaws)}. Bring these flaws into play: tempt them, test them, and let them cause trouble.
 HP ${ch.hp}/${ch.maxHp}. AC ${ch.ac}. Proficiency bonus +${prof(ch.level)}.
 Abilities: ${ab}.
 Skill proficiencies: ${ch.profs.join(', ')}. Saving throw proficiencies: ${ch.saves.map(s=>s.toUpperCase()).join(', ')}.
@@ -550,6 +594,64 @@ async function summarize(c){
   delete c._summing;
 }
 
+/* ============ memory: cloud sync to a secret GitHub gist ============ */
+const GH = 'https://api.github.com', MEMFILE = 'emberglade-memory.json';
+let syncT = 0, syncing = false, syncAgain = false, memState = '', memErr = '';
+function memLabel(){
+  const s = store.settings, el = $('#mem'); if(!el) return;
+  el.textContent = !s.memToken?'Saved on this device':memState==='sync'?'Syncing…':memState==='err'?'Memory sync failed':s.lastSync?'Memory synced '+new Date(s.lastSync).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'Memory connected';
+  el.className = 'mem'+(memState==='err'?' bad':s.memToken?' ok':'');
+  const out = $('#memout'); if(out&&s.memToken){ out.style.color = memState==='err'?'var(--danger)':memState==='sync'?'var(--muted)':'var(--good)';
+    out.textContent = memState==='err'?memErr:memState==='sync'?'Talking to GitHub…':s.lastSync?`Connected. ${Object.keys(store.campaigns).length} tale(s) held in memory.`:''; }
+}
+async function gh(path,opt={}){
+  let r; try{ r = await fetch(GH+path,{...opt,headers:{Accept:'application/vnd.github+json',Authorization:'Bearer '+store.settings.memToken,...(opt.body?{'Content-Type':'application/json'}:{})}}); }
+  catch(e){ throw new Error('Could not reach GitHub. Check your connection.'); }
+  if(!r.ok){ const e = new Error(r.status===401?'GitHub rejected the token. Make a new one with the gist permission.':r.status===403?'GitHub refused (403). The token needs the gist permission.':'GitHub answered '+r.status+'.'); e.status = r.status; throw e; }
+  return r.json();
+}
+const memCore = o => JSON.stringify([o.last||null,o.deleted||{},o.campaigns||{}]);
+function memData(){ const campaigns = {}; for(const [id,c] of Object.entries(store.campaigns)){ const {_summing,...rest} = c; campaigns[id] = rest; }
+  return {app:'emberglade',version:1,savedAt:Date.now(),last:store.last||null,deleted:store.deleted,campaigns}; }
+function mergeRemote(r){
+  let changed = false;
+  for(const [id,ts] of Object.entries(r.deleted||{})) if(typeof ts==='number'&&!(store.deleted[id]>=ts)) store.deleted[id] = ts;
+  for(const [id,rc] of Object.entries(r.campaigns||{})){
+    if(!rc||!rc.character||!Array.isArray(rc.log)||store.deleted[id]>=(rc.updated||0)) continue;
+    const lc = store.campaigns[id];
+    if(lc&&(lc.updated||0)>=(rc.updated||0)) continue;
+    if(cur&&cur.id===id&&busy) continue;
+    rc.id = id; rc.quests ||= []; rc.suggestions ||= []; store.campaigns[id] = rc; changed = true;
+    if(cur&&cur.id===id){ cur = rc; renderGame(); }
+  }
+  for(const id of Object.keys(store.campaigns)) if(store.deleted[id]>=(store.campaigns[id].updated||0)&&!(cur&&cur.id===id)){ delete store.campaigns[id]; changed = true; }
+  if(r.last&&!store.last&&store.campaigns[r.last]){ store.last = r.last; changed = true; }
+  return changed;
+}
+function scheduleSync(){ if(!store.settings.memToken) return; clearTimeout(syncT); syncT = setTimeout(sync,4000); }
+async function sync(){
+  const s = store.settings; if(!s.memToken) return;
+  if(syncing){ syncAgain = true; return; }
+  clearTimeout(syncT); syncing = true; memState = 'sync'; memLabel();
+  try{
+    if(!s.gistId){ const list = await gh('/gists?per_page=100'); const g = list.find(x=>x.files&&x.files[MEMFILE]); if(g) s.gistId = g.id; }
+    if(s.gistId){
+      let g = null; try{ g = await gh('/gists/'+s.gistId); }catch(e){ if(e.status!==404) throw e; s.gistId = ''; }
+      if(g){
+        const f = g.files&&g.files[MEMFILE]; let txt = f?f.content:''; if(f&&f.truncated) txt = await (await fetch(f.raw_url)).text();
+        let remote = null; try{ remote = JSON.parse(txt); }catch(e){}
+        if(remote&&mergeRemote(remote)){ saveLocal(); if(!cur&&!$('#createForm')) renderHome(); }
+        const mine = memData();
+        if(!remote||memCore(remote)!==memCore(mine)) await gh('/gists/'+s.gistId,{method:'PATCH',body:JSON.stringify({files:{[MEMFILE]:{content:JSON.stringify(mine)}}})});
+      }
+    }
+    if(!s.gistId){ const g = await gh('/gists',{method:'POST',body:JSON.stringify({description:'Emberglade memory (campaign saves)',public:false,files:{[MEMFILE]:{content:JSON.stringify(memData())}}})}); s.gistId = g.id; }
+    s.lastSync = Date.now(); memState = ''; memErr = '';
+  }catch(e){ memState = 'err'; memErr = e.message||'Sync failed.'; }
+  syncing = false; saveLocal(); memLabel();
+  if(syncAgain){ syncAgain = false; scheduleSync(); }
+}
+
 /* ============ rolls ============ */
 function resolvePending(adv){
   const c = cur, r = c.pendingRoll; if(!r||busy) return; const ch = c.character;
@@ -589,41 +691,51 @@ function chrome(inGame){
 function renderHome(){
   cur = null; chrome(false);
   const list = Object.values(store.campaigns).sort((a,b)=>b.updated-a.updated), s = store.settings;
-  const needKey = !s.apiKey&&/openrouter\.ai/i.test(s.baseUrl);
+  const needKey = !s.apiKey&&/openrouter\.ai/i.test(s.baseUrl), last = store.campaigns[store.last]||list[0];
   main.innerHTML = `<div class="wrap">
     <section class="hero"><h1>Emberglade</h1>
       <p>Pull a stump up to the fire. The forest is listening, the dice are warm, and tonight the story is yours alone.</p>
-      <button class="btn primary" data-act="create" style="font-size:16px;padding:12px 26px">Begin a new tale</button></section>
+      ${last?`<div class="actions" style="justify-content:center"><button class="btn primary" data-act="open" data-id="${esc(last.id)}" style="font-size:16px;padding:12px 26px">Continue ${esc(last.title)}</button>
+        <button class="btn" data-act="create" style="font-size:16px;padding:12px 26px">Begin a new tale</button></div>
+        <div class="hint" style="margin-top:12px">Last played ${new Date(last.updated).toLocaleString([],{dateStyle:'medium',timeStyle:'short'})} as ${esc(last.character.name)}${last.location?', at '+esc(last.location):''}.</div>`
+      :`<button class="btn primary" data-act="create" style="font-size:16px;padding:12px 26px">Begin a new tale</button>`}</section>
     ${needKey?`<div class="notice"><span>No narrator connected yet. Add an API key and pick a model to play.</span><button class="btn small" data-act="settings">Open settings</button></div>`:''}
     <h2 class="sec">Your tales</h2>
     ${list.length?`<div class="saves">${list.map(c=>`<article class="save"><h3>${esc(c.title)}</h3>
       <div class="meta">${esc(c.character.name)} · level ${c.character.level} ${esc(c.character.race)} ${esc(c.character.cls)}</div>
       <div class="meta">${esc(c.location||'Not yet begun')} · ${c.log.filter(e=>e.role==='dm').length} scenes · ${new Date(c.updated).toLocaleDateString()}</div>
-      <div class="row"><button class="btn small primary" data-act="open" data-id="${c.id}">Continue</button>
-        <button class="btn small" data-act="export" data-id="${c.id}">Export</button>
-        <button class="btn small danger" data-act="del" data-id="${c.id}">Delete</button></div></article>`).join('')}</div>`
+      <div class="row"><button class="btn small primary" data-act="open" data-id="${esc(c.id)}">Continue</button>
+        <button class="btn small" data-act="export" data-id="${esc(c.id)}">Export</button>
+        <button class="btn small danger" data-act="del" data-id="${esc(c.id)}">Delete</button></div></article>`).join('')}</div>`
       :`<div class="empty">No tales yet. Every campaign starts differently, so start one.</div>`}
     <div class="actions" style="margin-top:16px"><button class="btn small ghost" data-act="import">Import a saved tale</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
   </div>`;
 }
 function renderCreate(){
   cur = null; chrome(false);
-  const opt = o => Object.keys(o).map(k=>`<option>${k}</option>`).join('');
-  main.innerHTML = `<div class="wrap"><h2 class="sec" style="margin-top:0;font-size:36px">A new tale</h2>
+  const opt = o => (Array.isArray(o)?o:Object.keys(o)).map(k=>`<option>${k}</option>`).join('');
+  const pick = (name,arr) => `<div class="hooks">${arr.map(h=>`<label class="hook"><input type="checkbox" name="${name}" value="${h.id}"><b>${esc(h.name)}</b><span>${esc(h.text)}</span></label>`).join('')}</div>`;
+  main.innerHTML = `<div class="wrap"><h2 class="sec" style="margin-top:0;font-size:36px">Character sheet</h2>
   <form id="createForm">
-    <div class="panel"><h3>Who are you?</h3><div class="grid2">
+    <div class="panel"><h3>Identity</h3><div class="grid2">
       <label class="f">Name<span style="display:flex;gap:6px"><input class="inp" name="name" required maxlength="40" placeholder="Wren Ashdown"><button type="button" class="btn small" data-act="randName" title="Random name">Random</button></span></label>
-      <label class="f">Ancestry<select class="inp" name="race">${opt(RACES)}</select></label>
+      <label class="f">Race<select class="inp" name="race">${opt(RACES)}</select></label>
       <label class="f">Class<select class="inp" name="cls">${opt(CLASSES)}</select></label>
-      <label class="f">Background<input class="inp" name="background" maxlength="60" placeholder="Outlander, ex-soldier, runaway scribe…"></label></div></div>
-    <div class="panel"><h3>Ability scores</h3>
+      <label class="f">Background<select class="inp" name="background">${opt(BACKGROUNDS)}</select></label>
+      <label class="f">Alignment<select class="inp" name="alignment">${opt(ALIGNMENTS)}</select></label>
+      <label class="f">Appearance<input class="inp" name="appearance" maxlength="140" placeholder="Tall, rain-grey eyes, a burn scar on one hand"></label></div>
+      <p class="hint" id="classLine" style="margin:14px 0 0"></p></div>
+    <div class="panel"><h3>Attributes</h3>
       <div class="abil">${ABIL.map(a=>`<label class="f">${a}<input class="inp" type="number" name="ab_${a}" min="3" max="18" value="10"><small id="m_${a}"></small></label>`).join('')}</div>
       <div class="actions" style="justify-content:flex-start;margin-top:14px"><button type="button" class="btn small" data-act="rollStats">Roll 4d6, drop lowest</button><button type="button" class="btn small" data-act="stdArray">Standard array</button></div>
-      <p class="hint" style="margin-bottom:0">Scores are placed to suit your class, and you can edit them. Ancestry bonuses are added on top when you begin.</p></div>
-    <div class="panel"><h3>Where does it begin?</h3>
-      <div class="hooks">${HOOKS.map((h,i)=>`<label class="hook"><input type="radio" name="hook" value="${h.id}" ${i===0?'checked':''}><b>${esc(h.title)}</b><span>${esc(h.text)}</span></label>`).join('')}</div>
-      <label class="f" id="customWrap" hidden style="margin-top:14px">Your premise<textarea class="inp" name="custom" maxlength="1500" placeholder="A drowned city, a heist at the solstice fair, a letter from a dead friend…"></textarea></label>
-      <label class="f" style="margin-top:14px;max-width:420px">Tone<select class="inp" name="tone"><option value="classic">Classic heroic</option><option value="grim">Dark and grim</option><option value="whimsy">Whimsical fairytale</option><option value="mystery">Slow-burn mystery</option></select></label></div>
+      <p class="hint" style="margin-bottom:0">Scores are placed to suit your class, and you can edit them. The bonus in brackets comes from your race and is added when you begin.</p></div>
+    <div class="panel"><h3>Boons <small class="hint" id="boonCount"></small></h3>
+      <p class="hint" style="margin-top:-6px">Choose up to two. Every boon has to be paid for with a flaw.</p>${pick('boons',BOONS)}</div>
+    <div class="panel"><h3>Flaws <small class="hint" id="flawCount"></small></h3>
+      <p class="hint" style="margin-top:-6px">Choose up to two. The narrator will use them against you.</p>${pick('flaws',FLAWS)}</div>
+    <div class="panel"><h3>Backstory</h3>
+      <label class="f">Where you come from, and what you want<textarea class="inp" name="backstory" maxlength="1200" placeholder="Optional. A few lines is plenty; the narrator builds the opening around it."></textarea></label></div>
+    <div id="createMsg" style="color:#ffb6a6;min-height:20px;margin-bottom:10px;text-align:right" role="alert"></div>
     <div class="actions"><button type="button" class="btn ghost" data-act="home">Cancel</button><button class="btn primary">Step into the clearing</button></div>
   </form></div>`;
   fillStats([15,14,13,12,10,8]);
@@ -632,7 +744,13 @@ function fillStats(vals){
   const f = $('#createForm'); if(!f) return; const prio = CLASSES[f.cls.value].prio; const sorted = [...vals].sort((a,b)=>b-a);
   prio.forEach((a,i)=>{ f['ab_'+a].value = sorted[i]; }); showMods();
 }
-function showMods(){ const f = $('#createForm'); if(!f) return; ABIL.forEach(a=>{ const r = (RACES[f.race.value]||{})[a]||0; $('#m_'+a).textContent = sgn(mod(clamp(num(f['ab_'+a].value)||10,3,18)+r))+(r?` (+${r})`:''); }); }
+function picked(f,name){ return [...f.querySelectorAll(`[name=${name}]:checked`)].map(x=>x.value); }
+function showMods(){ const f = $('#createForm'); if(!f) return;
+  const cls = CLASSES[f.cls.value], b = picked(f,'boons'), w = picked(f,'flaws');
+  const profs = [...new Set([...cls.skills,...BACKGROUNDS[f.background.value],...BOONS.filter(x=>b.includes(x.id)&&x.skill).map(x=>x.skill)])];
+  $('#classLine').textContent = `Hit die d${cls.hd}. Saving throws: ${cls.saves.map(a=>ABIL_NAME[a]).join(', ')}. Skills: ${profs.join(', ')}. Class features: ${cls.feat}.`;
+  $('#boonCount').textContent = `${b.length} of 2`; $('#flawCount').textContent = `${w.length} of 2`; $('#createMsg').textContent = '';
+  ABIL.forEach(a=>{ const r = (RACES[f.race.value]||{})[a]||0; $('#m_'+a).textContent = sgn(mod(clamp(num(f['ab_'+a].value)||10,3,18)+r))+(r?` (+${r})`:''); }); }
 
 function renderGame(){
   if(!cur) return renderHome();
@@ -681,7 +799,9 @@ function renderSide(){
     <div class="card"><h4>Abilities · tap to roll</h4><div class="stats">${ABIL.map(a=>`<button class="stat" data-act="abil" data-a="${a}" title="Roll ${ABIL_NAME[a]}"><span>${a.toUpperCase()}</span><b>${ch.abilities[a]}</b><small>${sgn(mod(ch.abilities[a]))}</small></button>`).join('')}</div></div>
     <div class="card"><h4>Saving throws</h4><div class="skills">${ABIL.map(a=>`<button class="skill ${ch.saves.includes(a)?'prof':''}" data-act="save" data-a="${a}"><span>${ABIL_NAME[a]}</span><em>${sgn(saveMod(ch,a))}</em></button>`).join('')}</div></div>
     <div class="card"><h4>Skills</h4><div class="skills">${Object.keys(SKILLS).map(s=>`<button class="skill ${ch.profs.includes(s)?'prof':''}" data-act="skill" data-s="${s}"><span>${s}</span><em>${sgn(skillMod(ch,s))}</em></button>`).join('')}</div></div>
-    <div class="card"><h4>Class features</h4><div class="hint" style="color:var(--text)">${esc(ch.features)}</div></div>`;
+    <div class="card"><h4>Class features</h4><div class="hint" style="color:var(--text)">${esc(ch.features)}</div></div>
+    ${(ch.boons||[]).length||(ch.flaws||[]).length?`<div class="card"><h4>Boons and flaws</h4>${(ch.boons||[]).map(x=>`<div class="quest done" style="opacity:1"><b style="text-decoration:none">${esc(x.name)}</b><span>${esc(x.text)}</span></div>`).join('')}${(ch.flaws||[]).map(x=>`<div class="quest failed" style="opacity:1"><b>${esc(x.name)}</b><span>${esc(x.text)}</span></div>`).join('')}</div>`:''}
+    ${ch.alignment||ch.appearance||ch.backstory?`<div class="card"><h4>About</h4><div class="hint" style="color:var(--text)">${[ch.alignment,ch.appearance,ch.backstory].filter(Boolean).map(esc).join('<br><br>')}</div></div>`:''}`;
   }else if(tab==='pack'){
     h += `<div class="card"><h4>Pack · ${ch.gold} gold</h4>${ch.inventory.length?`<ul class="list">${ch.inventory.map((i,k)=>`<li><span>${esc(i.name)}</span>${i.qty>1?`<em>×${i.qty}</em>`:''}<button data-act="drop" data-k="${k}" aria-label="Drop ${esc(i.name)}">×</button></li>`).join('')}</ul>`:'<div class="hint">Your pack is empty.</div>'}
       <form class="addrow" id="addItem"><input class="inp" name="item" maxlength="60" placeholder="Add an item"><button class="btn small">Add</button></form></div>`;
@@ -713,17 +833,24 @@ function openSettings(msg){
       <label class="check"><input type="checkbox" name="localProxy" ${s.localProxy?'checked':''}><span>Route through the local server. Only works when you run <code>node server.js</code>; use it if your proxy refuses requests from a browser.</span></label>
       <div class="hint">Your key is kept in this browser's local storage and sent only to the URL above.</div>
       <div id="testout"></div>
+      <h3 style="font-size:23px;margin-top:6px">Memory</h3>
+      <div class="hint">Tales always save in this browser. To keep them in the cloud and pick them up on any device, connect a GitHub token that has only the <b>gist</b> permission. Saves go into one secret gist on your account. Your API key is never put there.</div>
+      <label class="f">GitHub token for memory<input class="inp" name="memToken" type="password" value="${esc(s.memToken)}" placeholder="ghp_…" autocomplete="off"></label>
+      <div class="actions" style="justify-content:flex-start"><a class="btn small ghost" href="https://github.com/settings/tokens/new?scopes=gist&description=Emberglade%20memory" target="_blank" rel="noopener">Create a token</a>
+        <button type="button" class="btn small" data-act="memConnect">Connect and sync</button><button type="button" class="btn small danger" data-act="memOff">Disconnect</button></div>
+      <div id="memout"></div>
       <div class="actions"><button type="button" class="btn ghost" data-act="test">Test connection</button><button type="button" class="btn ghost" data-act="closeModal">Cancel</button><button class="btn primary">Save</button></div>
     </form></div></div>`;
-  $('#setForm input').focus();
+  $('#setForm input').focus(); memLabel();
 }
 function readSettings(){ const f = $('#setForm'); if(!f) return; Object.assign(store.settings,{baseUrl:f.baseUrl.value.trim()||DEFAULTS.baseUrl,apiKey:f.apiKey.value.trim(),model:f.model.value.trim()||DEFAULTS.model,
   temperature:clamp(Number(f.temperature.value)||0,0,2),maxTokens:clamp(num(f.maxTokens.value)||1000,200,8000),stream:f.stream.checked,localProxy:f.localProxy.checked});
+  const tok = f.memToken.value.trim(); if(tok!==store.settings.memToken) Object.assign(store.settings,{memToken:tok,gistId:'',lastSync:0});
   if(!/^https?:\/\/[^\s/]+/i.test(store.settings.baseUrl)){ store.settings.baseUrl = DEFAULTS.baseUrl; f.baseUrl.value = DEFAULTS.baseUrl; toast('!','The base URL has to be a web address, so it was reset to OpenRouter. Model names go in the Model box.'); } }
 function closeModal(){ $('#modalRoot').innerHTML = ''; }
 
 /* ============ events ============ */
-function go(){ const id = location.hash.slice(1); if(id==='new') return renderCreate(); if(store.campaigns[id]){ cur = store.campaigns[id]; lastErr = null; main.innerHTML = ''; renderGame(); if(!cur.log.length) takeTurn(null); return; } renderHome(); }
+function go(){ const id = location.hash.slice(1); if(id==='new') return renderCreate(); if(store.campaigns[id]){ cur = store.campaigns[id]; store.last = id; saveLocal(); lastErr = null; main.innerHTML = ''; renderGame(); if(!cur.log.length) takeTurn(null); return; } renderHome(); }
 window.addEventListener('hashchange',()=>{ if(aborter) aborter.abort(); busy = false; go(); });
 
 document.addEventListener('click',async ev=>{
@@ -736,7 +863,7 @@ document.addEventListener('click',async ev=>{
     case 'closeModal': closeModal(); break;
     case 'closeModalBg': if(ev.target===el) closeModal(); break;
     case 'toggleSide': $('#side')?.classList.toggle('open'); break;
-    case 'del': { const x = store.campaigns[el.dataset.id]; if(x&&confirm(`Delete "${x.title}"? This cannot be undone.`)){ delete store.campaigns[el.dataset.id]; save(); renderHome(); } break; }
+    case 'del': { const x = store.campaigns[el.dataset.id]; if(x&&confirm(`Delete "${x.title}"? This cannot be undone.`)){ delete store.campaigns[el.dataset.id]; store.deleted[el.dataset.id] = Date.now(); if(store.last===el.dataset.id) store.last = null; save(); renderHome(); } break; }
     case 'export': { const x = store.campaigns[el.dataset.id]; if(!x) break; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(x,null,2)],{type:'application/json'}));
       a.download = x.title.replace(/[^\w-]+/g,'_')+'.emberglade.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); break; }
     case 'import': $('#importFile').click(); break;
@@ -757,6 +884,11 @@ document.addEventListener('click',async ev=>{
     case 'die': trayRoll(num(el.dataset.d)); break;
     case 'tellTray': if(lastTray&&!busy) takeTurn({role:'roll',text:lastTray.text}); break;
     case 'toastAct': { const t = $('#toast'); t.classList.remove('on'); if(t._action&&cur&&!busy) takeTurn({role:'roll',text:t._action.text}); break; }
+    case 'memConnect': { readSettings(); saveLocal(); const out = $('#memout');
+      if(!store.settings.memToken){ out.textContent = 'Paste a GitHub token first. "Create a token" opens the right page; keep only the gist box ticked.'; out.style.color = 'var(--danger)'; memLabel(); break; }
+      await sync(); break; }
+    case 'memOff': { Object.assign(store.settings,{memToken:'',gistId:'',lastSync:0}); memState = ''; saveLocal(); const f = $('#setForm'); if(f) f.memToken.value = '';
+      memLabel(); const out = $('#memout'); if(out){ out.textContent = 'Disconnected. Tales stay in this browser, and the gist stays on your GitHub until you delete it.'; out.style.color = 'var(--muted)'; } break; }
     case 'loadModels': { readSettings(); const out = $('#testout'); out.textContent = 'Fetching models…'; out.style.color = 'var(--muted)';
       try{ const {url,headers} = endpoint('/models'); const r = await fetch(url,{headers}); if(!r.ok) throw new Error(r.status+' '+r.statusText); const j = await r.json();
         const ids = (j.data||j.models||[]).map(m=>m.id||m.name).filter(Boolean).sort(); $('#modelList').innerHTML = ids.map(i=>`<option value="${esc(i)}">`).join('');
@@ -773,24 +905,26 @@ document.addEventListener('submit',ev=>{
   else if(f.id==='setForm'){ readSettings(); save(); closeModal(); if(!cur) renderHome(); else if(!cur.log.length&&!busy) takeTurn(null); }
   else if(f.id==='addItem'){ const v = f.item.value.trim(); if(v){ cur.character.inventory.push({name:v,qty:1}); save(); renderSide(); } }
   else if(f.id==='createForm'){
-    const hook = HOOKS.find(h=>h.id===f.hook.value), custom = f.custom.value.trim();
-    if(hook.id==='custom'&&!custom){ f.custom.focus(); return; }
+    const boons = picked(f,'boons'), flaws = picked(f,'flaws');
+    if(boons.length>flaws.length){ $('#createMsg').textContent = 'Every boon is paid for with a flaw. Pick another flaw, or give up a boon.'; return; }
     const abilities = {}; ABIL.forEach(a=>abilities[a]=f['ab_'+a].value);
-    const character = newCharacter({name:f.name.value.trim(),race:f.race.value,cls:f.cls.value,background:f.background.value.trim(),abilities});
-    const premise = hook.id==='custom'?custom:hook.id==='surprise'?'Invent an original premise of your own and surprise the player. Do not explain it up front; reveal it through the opening scene.':`${hook.title}. ${hook.text}`;
+    const character = newCharacter({name:f.name.value.trim(),race:f.race.value,cls:f.cls.value,background:f.background.value,alignment:f.alignment.value,
+      appearance:f.appearance.value.trim(),backstory:f.backstory.value.trim(),abilities,boons,flaws});
     const id = 'c'+Date.now().toString(36)+rnd(1e6).toString(36);
-    store.campaigns[id] = {id,title:hook.id==='custom'||hook.id==='surprise'?`${character.name}'s tale`:hook.title,created:Date.now(),updated:Date.now(),premise,tone:f.tone.value,character,
+    store.campaigns[id] = {id,title:`${character.name}'s tale`,created:Date.now(),updated:Date.now(),tone:'classic',character,
+      premise:'Invent an original premise for this campaign, different from anything generic, and build it around this particular character: their background, backstory, boons, and flaws. Do not explain the premise up front; reveal it through the opening scene.',
       quests:[],location:'',summary:'',sumIdx:0,log:[],suggestions:[],pendingRoll:null};
     save(); location.hash = id;
   }
 });
 document.addEventListener('change',ev=>{
   const t = ev.target;
-  if(t.name==='hook') $('#customWrap').hidden = t.value!=='custom';
+  if((t.name==='boons'||t.name==='flaws')&&t.form?.id==='createForm'){ if(picked(t.form,t.name).length>2) t.checked = false; showMods(); }
+  if((t.name==='background')&&t.form?.id==='createForm') showMods();
   if(t.name==='cls'&&t.form?.id==='createForm') fillStats(ABIL.map(a=>num(t.form['ab_'+a].value)||10));
   if(t.name==='race'&&t.form?.id==='createForm') showMods();
   if(t.id==='importFile'&&t.files[0]){ t.files[0].text().then(txt=>{ const x = JSON.parse(txt); if(!x.character||!Array.isArray(x.log)) throw 0;
-    x.id = 'c'+Date.now().toString(36)+rnd(1e6).toString(36); x.updated = Date.now(); x.quests ||= []; x.suggestions ||= []; store.campaigns[x.id] = x; save(); renderHome(); toast('✓','Tale imported.'); })
+    x.id = 'c'+Date.now().toString(36)+rnd(1e6).toString(36); x.updated = Date.now(); x.quests ||= []; x.suggestions ||= []; store.campaigns[x.id] = x; saveLocal(); scheduleSync(); renderHome(); toast('✓','Tale imported.'); })
     .catch(()=>toast('!','That file is not an Emberglade save.')); }
 });
 document.addEventListener('input',ev=>{
@@ -805,7 +939,7 @@ document.addEventListener('keydown',ev=>{
 /* fireflies */
 (function(){ const f = $('#flies'); for(let i=0;i<16;i++){ const s = document.createElement('i'); s.style.left = Math.random()*100+'%'; s.style.top = 25+Math.random()*75+'%';
   s.style.animationDelay = (-Math.random()*14)+'s'; s.style.animationDuration = 10+Math.random()*10+'s'; f.appendChild(s); } })();
-go();
+go(); memLabel(); if(store.settings.memToken) sync();
 </script>
 </body>
 </html>
