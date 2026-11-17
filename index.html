@@ -1807,7 +1807,7 @@ document.addEventListener('click',async ev=>{
     case 'skill': freeRoll(el.dataset.s+' check',skillMod(c.character,el.dataset.s)); break;
     case 'die': trayRoll(num(el.dataset.d)); break;
     case 'tellTray': if(lastTray&&!busy) tellRoll(lastTray.text); break;
-    case 'toastAct': { const t = $('#toast'); t.classList.remove('on'); if(t._action&&cur&&!busy) tellRoll(t._action.text); break; }
+    case 'toastAct': { const t = $('#toast'); t.classList.remove('on'); if(t._action&&t._action.reload){ location.replace(location.pathname+'?v='+t._action.reload+location.hash); break; } if(t._action&&cur&&!busy) tellRoll(t._action.text); break; }
     case 'memConnect': { readSettings(); saveLocal(); const out = $('#memout');
       if(!store.settings.memToken){ out.textContent = 'Paste a GitHub token first. "Create a token" opens the right page; keep only the gist box ticked.'; out.style.color = 'var(--danger)'; memLabel(); break; }
       await sync(); break; }
@@ -1883,6 +1883,13 @@ document.addEventListener('keydown',ev=>{
 });
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
+// Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
+const BUILD = '202611170600';
+async function checkVersion(){
+  try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
+    if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version of Emberglade is ready.',{label:'Update',reload:v}); }catch(e){}
+}
+if(location.protocol!=='file:'){ checkVersion(); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) checkVersion(); }); setInterval(()=>{ if(!document.hidden) checkVersion(); },300000); }
 /* fireflies */
 (function(){ const f = $('#flies'); for(let i=0;i<16;i++){ const s = document.createElement('i'); s.style.left = Math.random()*100+'%'; s.style.top = 25+Math.random()*75+'%';
   s.style.animationDelay = (-Math.random()*14)+'s'; s.style.animationDuration = 10+Math.random()*10+'s'; f.appendChild(s); } })();
