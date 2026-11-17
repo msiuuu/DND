@@ -191,6 +191,7 @@ textarea.inp{resize:vertical;min-height:80px}
 .send textarea{flex:1;border:0;background:none;color:var(--text);padding:8px 0;font-size:16px;line-height:1.45;resize:none;min-height:38px;max-height:160px;outline:none}
 .send textarea::placeholder{color:var(--muted)}
 .send .btn{width:38px;height:38px;padding:0;border-radius:50%;font-size:17px;flex:none}
+.send .btn svg{width:19px;height:19px;display:block;margin:auto}
 
 /* sheet */
 .tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:2px;background:rgba(0,0,0,.3);padding:4px;border-radius:12px;border:1px solid var(--line);position:sticky;top:0;z-index:2;backdrop-filter:blur(8px)}
@@ -987,6 +988,8 @@ Dice:
 - Skilled and social actions always go to the dice when someone might resist or the attempt might fail. Persuading, deceiving or intimidating someone calls for Persuasion, Deception or Intimidation. Sneaking is Stealth, climbing, jumping or forcing something is Athletics, searching is Investigation, noticing is Perception, reading a person is Insight, picking a lock or a pocket is Sleight of Hand, and so on for the other 5e skills. Always name the matching "skill" and "ability" in the roll so the app can add the character's own modifier.
 - A separate dice gate usually decides whether the player's action needs a roll, and the app rolls it before you write. When the player's latest message already carries a dice result from the app, never ask for that roll again: narrate what happens, honouring it. When an app note says no roll is needed, resolve the action directly. You may still request a roll yourself for something new that you introduce, such as a saving throw against a hazard or an attack the gate missed.
 - When an app note tells you the player's action needs a particular check, narrate only the attempt up to the moment of uncertainty, in two or three sentences, and end your reply by telling the player plainly what to roll, for example: "Roll Persuasion." Do not narrate the outcome yet. Whenever you ask for a roll yourself, end on that same kind of line.
+- Every d20 result arrives with a degree, and the outcome must be scaled to it. The middle degrees are ordinary: narrow, clean, fair. The ends are extreme. A natural 20 is the power of the dice: the attempt comes off spectacularly even if it was a long shot, more is gained than was asked for, and anyone on the other side of it is swayed, impressed or won over beyond what reason would allow. A natural 1 is the mirror of that: the worst plausible turn, with lasting cost. Never flatten a 20 into an ordinary success or a 1 into an ordinary failure, and never let your own sense of what is likely overrule the degree.
+- The player may roll without being asked. A dice result that arrives without your having called for it applies to whatever the player last attempted or asked for, even if you had already answered it: treat it as the roll for that, and re-judge the outcome by its degree. If you had said no and the dice say legendary, the answer changes.
 - If the dice result the player sends back is for a different check than the one you asked for, do not correct them and do not ask again. Go along with it: judge the outcome from what they rolled.
 - Use sensible DCs: 5 trivial, 10 easy, 13 moderate, 16 hard, 19 very hard, 22+ heroic. Do not ask for rolls for trivial or automatic actions. Request at most one roll per reply.
 - For a player attack, request a roll with "dc" set to the target's Armor Class and "damage" set to the weapon or spell damage dice including modifiers (for example "1d8+3"). The app rolls damage automatically on a hit.
@@ -1344,13 +1347,13 @@ async function sheetCheck(c,text,signal){
 }
 const needKey = () => { const s = store.settings; if(!s.apiKey&&/openrouter\.ai/i.test(s.baseUrl)){ openSettings('Add your OpenRouter API key first, so the narrator has a voice.'); return true; } return false; };
 // A player's action goes to the dice gate first. A yes puts the roll card up and waits; a no goes straight to the story.
-async function playerAct(text,trusted,overrule){
+async function playerAct(text,trusted,overrule,rollNow){
   if(busy||!cur||needKey()) return;
   const c = cur, entry = {role:'player',text}; c.log.push(entry); denied = null;
   c.suggestions = []; c.pendingRoll = null; lastErr = null; busy = true; aborter = new AbortController(); save(); renderGame();
   setLive(trusted||!store.settings.useGuard?'Asking whether the dice are needed…':'Checking this against the scene…');
   let g = {ask:false,roll:null}, no = null, sheet = null, stopped = false;
-  try{ [g,no,sheet] = await Promise.all([gate(c,text,aborter.signal),trusted||c.god?null:guard(c,text,aborter.signal),trusted||c.god?null:sheetCheck(c,text,aborter.signal)]); }catch(e){ stopped = true; }
+  try{ [g,no,sheet] = await Promise.all([rollNow?{ask:false,roll:null}:gate(c,text,aborter.signal),trusted||c.god?null:guard(c,text,aborter.signal),trusted||c.god?null:sheetCheck(c,text,aborter.signal)]); }catch(e){ stopped = true; }
   busy = false; aborter = null; if(cur!==c) return;
   const drop = () => { const k = c.log.indexOf(entry); if(k>=0) c.log.splice(k,1); };
   if(stopped||(no&&!g.ask)){ drop(); if(no) denied = {...no,text}; save(); renderGame(); const ta = $('#say'); if(ta&&!ta.value) ta.value = text; return; }
@@ -1359,6 +1362,10 @@ async function playerAct(text,trusted,overrule){
   if(sheet&&sheet.ok===false){ drop(); denied = {title:'Not on your sheet.',reason:(sheet.fact?sheet.fact[0].toUpperCase()+sheet.fact.slice(1)+'.':'Your character does not seem to have what this needs.'),steps:[],text,force:true}; save(); renderGame(); const ta = $('#say'); if(ta&&!ta.value) ta.value = text; return; }
   if(overrule) entry.sheet = 'The player has checked their own sheet and overruled the app: the character is able to attempt this.';
   else if(sheet&&sheet.ok) entry.sheet = `The character can do this${sheet.fact?': '+sheet.fact:''}.`;
+  // The player chose to roll for this themselves: throw a d20 now, with the bonus for whichever skill the action plainly leans on, and send both on.
+  if(rollNow){ const m = /\(([^)]+)\)/.exec(hintFor(text)||''), skill = m&&Object.keys(SKILLS).find(k=>k===m[1]);
+    c.pendingRoll = {label:skill?skill+' check':'d20',ability:skill?SKILLS[skill]:null,skill:skill||null,save:false,proficient:false,advantage:'none',dc:null,damage:null,own:true};
+    save(); renderGame(); resolvePending('none'); return; }
   if(g.roll&&!store.settings.announce){ c.pendingRoll = g.roll; save(); renderGame(); return; }
   if(g.roll) entry.callRoll = g.roll; else entry.noRoll = true; takeTurn(null);
 }
@@ -1588,6 +1595,17 @@ const HINTS = [
 const hintFor = t => (HINTS.find(([,re])=>re.test(t))||[])[0]||null;
 
 /* ============ rolls ============ */
+// How well or badly a d20 roll went. The middle is ordinary; the ends are extreme, and a natural 20 or natural 1 overrides everything.
+function degree(pick,total,dc){
+  if(pick===20) return 'Degree: LEGENDARY (natural 20). The best outcome imaginable, far beyond what was asked for. Long shots come off and people are won over past all reason.';
+  if(pick===1) return 'Degree: CATASTROPHE (natural 1). The worst plausible outcome. It backfires and leaves things worse than before.';
+  if(dc){ const m = total-dc;
+    return m>=10?'Degree: triumph (beat it by 10 or more). It succeeds and brings something extra with it.':m>=5?'Degree: clean success.':m>=0?'Degree: narrow success. It works, only just, perhaps at a small cost.'
+      :m>=-4?'Degree: narrow failure. It does not work, but nothing is lost and there may still be an opening.':m>=-9?'Degree: clear failure, at a cost.':'Degree: disaster (missed by 10 or more). It fails and makes matters worse.'; }
+  // No target number was set, so the total (die plus the character's bonus) is read against fixed bands.
+  return total>=20?'Degree: superb. It goes about as well as it reasonably could, and then a little better.':total>=15?'Degree: strong. It works well.':total>=10?'Degree: fair. It mostly works, or works in part.'
+    :total>=5?'Degree: poor. It mostly fails, though not disastrously.':'Degree: bad. It fails outright, and it costs something.';
+}
 const pickD20 = (rolls,adv) => adv==='adv'?Math.max(...rolls):adv==='dis'?Math.min(...rolls):rolls[0];
 const flare = pick => { if(pick===20) trayNode.classList.add('crit'); else if(pick===1) trayNode.classList.add('fumble'); };
 async function resolvePending(adv){
@@ -1600,7 +1618,7 @@ async function resolvePending(adv){
   let hit = null;
   if(r.dc){ hit = r.damage?(pick===20||(pick!==1&&total>=r.dc)):total>=r.dc; t += ` vs ${r.damage?'AC':'DC'} ${r.dc}. ${hit?(r.damage?'Hit':'Success'):(r.damage?'Miss':'Failure')}`; }
   if(pick===20) t += ' (natural 20!)'; else if(pick===1) t += ' (natural 1)';
-  t += '.';
+  t += '.'; if(!r.damage) t += ' '+degree(pick,total,r.dc);
   if(r.damage&&hit!==false){ const dm = rollExpr(r.damage,pick===20); await sleep(500);
     const dv = (await throwDice([{n:dm.rolls.length,sides:dm.sides}],true))[0], sum = Math.max(0,dv.reduce((a,x)=>a+x,0)+dm.bonus);
     t += ` Damage ${dm.text}: ${dv.join('+')}${dm.bonus?sgn(dm.bonus):''} = ${sum}.`; }
@@ -1612,7 +1630,7 @@ function tellRoll(text){ const c = cur, r = c.pendingRoll; if(r&&r.ask){ c.pendi
 async function freeRoll(label,bonus,adv){
   if(rolling||!cur) return; rolling = true; const opened = await openTray();
   const rolls = (await throwDice([{n:1,sides:20}]))[0], pick = rolls[0], total = pick+bonus; flare(pick);
-  const text = `${label}: d20 rolled ${pick} ${sgn(bonus)} = ${total}${pick===20?' (natural 20!)':pick===1?' (natural 1)':''}.`;
+  const text = `${label}: d20 rolled ${pick} ${sgn(bonus)} = ${total}${pick===20?' (natural 20!)':pick===1?' (natural 1)':''}. ${degree(pick,total,null)}`;
   pushTray(total,text); rolling = false; closeTray(opened);
   if(!wide()||cur.pendingRoll) toast(String(total),text,{label:'Tell the narrator',text});
 }
@@ -1628,7 +1646,7 @@ async function trayRoll(sides){
   let rolls; try{ rolls = (await throwDice([{n:two?2:sides===100?1:n,sides}],false,two))[0]; }catch(e){ rolling = false; return; }
   const total = (two?pickD20(rolls,adv):rolls.reduce((a,x)=>a+x,0))+b, label = two?`d20 ${adv==='adv'?'advantage':'disadvantage'}`:`${rolls.length}d${sides}`;
   if(sides===20&&(two||rolls.length===1)) flare(two?pickD20(rolls,adv):rolls[0]);
-  rolling = false; pushTray(total,`${label}${b?sgn(b):''}: ${rolls.join(', ')}${b?' '+sgn(b):''} = ${total}.`);
+  rolling = false; pushTray(total,`${label}${b?sgn(b):''}: ${rolls.join(', ')}${b?' '+sgn(b):''} = ${total}.${sides===20&&(two||rolls.length===1)?' '+degree(two?pickD20(rolls,adv):rolls[0],total,null):''}`);
 }
 
 /* ============ views ============ */
@@ -1857,7 +1875,7 @@ function renderComposer(){
   if(c.shop&&!busy&&!r) h += `<details class="suggbox" data-sec="shop" ${store.ui.shop===false?'':'open'}><summary>Shop: ${esc(c.shop.name)}</summary><div class="shopcard"><div class="t"><b>${esc(c.shop.name)}</b><div>${c.shop.keeper?esc(c.shop.keeper)+' · ':''}${c.shop.items.length} things for sale · you have ${c.character.gold} gp</div></div><button class="btn primary" data-act="shop">Open shop</button></div></details>`;
   if(c.suggestions.length&&!busy&&!r) h += `<details class="suggbox" data-sec="sugg" ${store.ui.sugg===false?'':'open'}><summary>Suggestions (${c.suggestions.length})</summary><div class="sugg">${c.suggestions.map(s=>`<button data-act="sugg">${esc(s)}</button>`).join('')}</div></details>`;
   h += `<form class="send" id="sendForm"><textarea id="say" rows="1" maxlength="2000" placeholder="${busy?'The narrator is speaking…':r?'Roll, or do something else instead…':'What do you do?'}" ${busy?'disabled':''}></textarea>
-    ${busy?`<button type="button" class="btn" data-act="stop" aria-label="Stop the narrator" title="Stop">&#9632;</button>`:`<button class="btn primary" aria-label="Send" title="Send">&#8593;</button>`}</form>`;
+    ${busy?'':`<button type="button" class="btn" data-act="sayRoll" aria-label="Send this and roll a d20 for it" title="Send and roll a d20 for it">${DIE_SVG}</button>`}${busy?`<button type="button" class="btn" data-act="stop" aria-label="Stop the narrator" title="Stop">&#9632;</button>`:`<button class="btn primary" aria-label="Send" title="Send">&#8593;</button>`}</form>`;
   $('#composer').innerHTML = h; placeTray(); const ta = $('#say'); ta.value = keep; if(!busy&&wide()) ta.focus();
 }
 const openSecs = new Set(['abilities']);
@@ -2203,6 +2221,7 @@ document.addEventListener('click',async ev=>{
     case 'stop': if(aborter) aborter.abort(); break;
     case 'retry': takeTurn(null); break;
     case 'regen': regenerate(); break;
+    case 'sayRoll': { const ta = $('#say'), t = (ta?.value||'').trim(); if(busy||rolling) break; if(!t){ toast('!','Type what you attempt first, then tap the die to send it with a roll.'); break; } ta.value = ''; playerAct(t,false,false,true); break; }
     case 'force': if(denied&&!busy){ const t = denied.text; const ta = $('#say'); if(ta) ta.value = ''; playerAct(t,true,true); } break;
     case 'eEdit': editEntry = selEntry; renderLog(); $('#eBox')?.focus(); break;
     case 'eCancel': editEntry = -1; renderLog(); break;
@@ -2342,7 +2361,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611171840';
+const BUILD = '202611171858';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
