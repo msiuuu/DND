@@ -506,9 +506,10 @@ const TONES = {classic:'Classic heroic fantasy: wonder, danger, and earnest adve
 
 /* ============ storage ============ */
 const KEY = 'emberglade.v1';
-const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:1000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',forgeModel:'',useCheck:true,useGuard:true,announce:true,encumb:true,diff:'standard',len:'medium',memToken:'',gistId:'',lastSync:0};
+const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',forgeModel:'',useCheck:true,useGuard:true,announce:true,encumb:true,diff:'standard',len:'medium',memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
 try{ const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(s){ store = s; store.settings = {...DEFAULTS,...s.settings}; store.campaigns = s.campaigns||{}; } }catch(e){}
+if(store.settings.maxTokens===1000) store.settings.maxTokens = 4000;
 store.deleted ||= {}; store.ui ||= {left:false,right:false};
 function saveLocal(){ try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){ toast('!','Could not save: browser storage is full or blocked.'); } }
 function save(){ if(cur) cur.updated = Date.now(); saveLocal(); scheduleSync(); }
@@ -844,10 +845,14 @@ function endpoint(path){
   if(s.localProxy){ headers['X-Target-Base'] = base; return {url:'/proxy'+path,headers}; }
   return {url:base+path,headers};
 }
-async function chat(messages,{stream=store.settings.stream,onText,signal,maxTokens,temperature,model,quick}={}){
+async function chat(messages,opts={}){
+  const {stream=store.settings.stream,onText,signal,maxTokens,temperature,model,quick,_again} = opts;
   const s = store.settings, {url,headers} = endpoint('/chat/completions');
   const body = {model:(model||'').trim()||s.model.trim(),messages,temperature:temperature??Number(s.temperature),max_tokens:maxTokens??Number(s.maxTokens),stream:!!stream};
-  if(quick&&/openrouter\.ai/i.test(s.baseUrl)) body.reasoning = {effort:'low'};
+  if(/openrouter\.ai/i.test(s.baseUrl)) body.reasoning = {effort:quick||_again?'low':'medium'};
+  // A thinking model can spend the whole budget before it writes a word. When that happens, ask once more with far more room and less thinking.
+  const starved = () => { if(_again) throw new Error('The model used up its whole reply thinking and never answered, even with extra room. Raise "Max tokens per reply" in Models, or pick a model that thinks less.');
+    return chat(messages,{...opts,maxTokens:Math.min(32000,Math.max(8000,body.max_tokens*4)),_again:true}); };
   let res;
   try{ res = await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal}); }
   catch(e){ if(e.name==='AbortError') throw e; throw new Error('Could not reach the model endpoint. Check the proxy URL in Settings'+(s.localProxy?'':' (if your proxy blocks browser requests, try the local server option)')+'.'); }
@@ -861,10 +866,10 @@ async function chat(messages,{stream=store.settings.stream,onText,signal,maxToke
   if(!stream||!res.body||ctype.includes('application/json')){
     const j = await res.json();
     if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
-    const t = j.choices?.[0]?.message?.content||''; if(!t.trim()&&j.choices?.[0]?.finish_reason==='length') throw new Error('The model used up its whole reply thinking and never answered. Raise "Max tokens per reply" in Settings, or pick a model that thinks less.');
+    const m0 = j.choices?.[0]||{}, t = m0.message?.content||''; if(!t.trim()&&(m0.finish_reason==='length'||m0.message?.reasoning||m0.message?.reasoning_content)) return starved();
     onText&&onText(t); return t;
   }
-  const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', full = '';
+  const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', full = '', fin = '', thought = false;
   for(;;){
     const {done,value} = await reader.read(); if(done) break;
     buf += dec.decode(value,{stream:true});
@@ -874,9 +879,11 @@ async function chat(messages,{stream=store.settings.stream,onText,signal,maxToke
       const data = line.slice(5).trim(); if(!data||data==='[DONE]') continue;
       let j; try{ j = JSON.parse(data); }catch(e){ continue; }
       if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
-      const d = j.choices?.[0]?.delta?.content; if(d){ full += d; onText&&onText(full); }
+      const c0 = j.choices?.[0]||{}, d = c0.delta?.content; if(c0.finish_reason) fin = c0.finish_reason; if(c0.delta?.reasoning||c0.delta?.reasoning_content) thought = true;
+      if(d){ full += d; onText&&onText(full); }
     }
   }
+  if(!full.trim()&&(fin==='length'||thought)) return starved();
   return full;
 }
 function visibleText(raw){
@@ -1129,7 +1136,7 @@ async function takeTurn(entry){
     if(called&&called.role==='player'&&called.callRoll){ c.pendingRoll = called.callRoll; c.suggestions = []; }
     c.log.push({role:'dm',text,state,changes,pre});
     c.updated = Date.now();
-  }else if(!lastErr&&!signal.aborted) lastErr = raw?'The model replied with no narration. Try again, or pick a different model.':'The model returned an empty reply. Try again, raise max tokens in Settings, or pick a different model.';
+  }else if(!lastErr&&!signal.aborted) lastErr = raw?'The model replied with no narration. Try again, or pick a different model.':'The model returned an empty reply. Try again, raise max tokens in Models, or pick a different model.';
   save(); renderGame(); if(text) summarize(c);
 }
 function regenerate(){
@@ -1425,7 +1432,7 @@ async function forge(){
     const ask = [{role:'system',content:FORGE()},{role:'user',content:`The player's wish: ${d.wish.trim()||'Surprise me with someone interesting.'}${d.name.trim()?`\nKeep the name: ${d.name.trim()}`:''}`}], room = Math.max(4000,Number(store.settings.maxTokens));
     let out = await chat(ask,{stream:false,maxTokens:room,temperature:1,quick:true,model:store.settings.forgeModel}), j = jsonIn(out);
     if(!j||!(j.race||j.class)){ out = await chat([...ask,{role:'user',content:'Reply again with only the JSON object, starting with { and nothing before it. Keep the backstory under 80 words.'}],{stream:false,maxTokens:room,temperature:0.7,quick:true,model:store.settings.forgeModel}); j = jsonIn(out); }
-    if(!j||!(j.race||j.class)) throw new Error(out.trim()?'The model answered, but not with a character sheet it could be read from. Try again, or try a different story model.':'The model sent back an empty reply. Try again, or raise "Max tokens per reply" in Settings.');
+    if(!j||!(j.race||j.class)) throw new Error(out.trim()?'The model answered, but not with a character sheet it could be read from. Try again, or try a different story model.':'The model sent back an empty reply. Try again, or raise "Max tokens per reply" in Models.');
     if(typeof j.name==='string'&&j.name.trim()&&!d.name.trim()) d.name = j.name.trim().slice(0,40);
     const rk = findKey(RACES,j.race);
     if(rk) d.race = rk; else if(typeof j.race==='string'&&j.race.trim()){ const b = Object.entries(j.race_bonus||{}).map(([k,v])=>[abil3(k),num(v)]).filter(x=>x[0]).sort((a,b)=>b[1]-a[1]);
@@ -1449,7 +1456,7 @@ async function forgeStory(){
   try{
     const out = await chat([{role:'system',content:'You write the look and the past of a tabletop fantasy character. Be quick and compact. Reply with JSON only, nothing outside it: {"appearance":"one short vivid line","backstory":"40 to 60 words, ending on what they want"}'},
       {role:'user',content:`${d.name||'Unnamed'}, a ${race.name} ${cls.name}${race.about?` (${race.about})`:''}${cls.about?` (${cls.about})`:''}. Background: ${d.background==='__custom'?d.cBg:d.background}. Alignment: ${d.alignment}. Boons: ${BOONS.filter(x=>d.boons.includes(x.id)).map(x=>x.name).join(', ')||'none'}. Flaws: ${FLAWS.filter(x=>d.flaws.includes(x.id)).map(x=>x.name).join(', ')||'none'}.${d.wish.trim()?` The player's wish: ${d.wish.trim()}`:''}`}],{stream:false,maxTokens:Math.max(2500,Number(store.settings.maxTokens)),temperature:1,quick:true,model:store.settings.forgeModel});
-    const j = jsonIn(out); if(!j) throw new Error(out.trim()?'The model answered, but not in a form that could be read. Try again, or write your own.':'The model sent back an empty reply. Try again, or raise "Max tokens per reply" in Settings.');
+    const j = jsonIn(out); if(!j) throw new Error(out.trim()?'The model answered, but not in a form that could be read. Try again, or write your own.':'The model sent back an empty reply. Try again, or raise "Max tokens per reply" in Models.');
     if(typeof j.appearance==='string') d.appearance = j.appearance.trim().slice(0,200); if(typeof j.backstory==='string') d.backstory = j.backstory.trim().slice(0,1200);
   }catch(e){ d.msg = e.message||'The model could not be reached.'; }
   forging = false; if(draft===d&&$('#createForm')) renderCreate();
@@ -1884,7 +1891,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170600';
+const BUILD = '202611170603';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version of Emberglade is ready.',{label:'Update',reload:v}); }catch(e){}
