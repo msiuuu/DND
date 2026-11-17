@@ -164,8 +164,8 @@ textarea.inp{resize:vertical;min-height:80px}
 .send .btn{width:38px;height:38px;padding:0;border-radius:50%;font-size:17px;flex:none}
 
 /* sheet */
-.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;background:rgba(0,0,0,.3);padding:4px;border-radius:12px;border:1px solid var(--line);position:sticky;top:0;z-index:2;backdrop-filter:blur(8px)}
-.tabs button{border:0;background:none;border-radius:9px;padding:7px 2px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:2px;background:rgba(0,0,0,.3);padding:4px;border-radius:12px;border:1px solid var(--line);position:sticky;top:0;z-index:2;backdrop-filter:blur(8px)}
+.tabs button{border:0;background:none;border-radius:9px;padding:7px 1px;font-size:12px;font-weight:600;color:var(--muted)}
 .tabs button[aria-selected=true]{background:var(--s3);color:var(--ember2)}
 .card{border:1px solid var(--line);background:var(--s1);border-radius:var(--r);padding:14px}
 .card h4{margin:0 0 10px;font:600 11px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ember)}
@@ -241,6 +241,11 @@ ul.list li button:hover{color:var(--danger)}
 .about{font-size:13px;color:var(--muted);line-height:1.45;letter-spacing:0;text-transform:none;min-height:18px}
 .review{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
 .review .card b{color:var(--ember2)}
+.e.aside{background:var(--s1);border:1px solid var(--line2);border-left:3px solid var(--ember);border-radius:12px;padding:10px 14px;font-size:14.5px;line-height:1.5}
+.e.aside .lbl{margin-bottom:4px}
+.e.aside .q{color:var(--muted);font-size:13.5px}
+.e.aside .r{color:var(--muted);font-size:12.5px;margin-top:4px}
+.rollcard .tray{flex:1 1 100%;margin:4px 0 0;height:220px}
 .shopcard{background:var(--s2);border:1px solid var(--line2);border-radius:14px;padding:10px 14px;margin-bottom:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .shopcard .t{flex:1;min-width:160px}.shopcard .t b{font-family:var(--display);font-size:19px;color:var(--ember2)}.shopcard .t div{font-size:13px;color:var(--muted)}
 .item{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:9px 10px;border-radius:10px;background:rgba(0,0,0,.22)}
@@ -583,8 +588,13 @@ function flatDice(dice){
     setTimeout(()=>{ clearInterval(iv); els.forEach((el,i)=>{ el.lastChild.textContent = dice[i].value; el.classList.add('land'); }); setTimeout(done,calm.matches?100:300); },spin);
   });
 }
+// The tray sits in the chat while a roll is being called for, and in the Dice tab otherwise.
+function placeTray(){ const slot = $('#chatTray')||$('#trayslot'); if(slot&&trayNode.parentNode!==slot) slot.appendChild(trayNode);
+  const hint = $('#trayslot'); if(hint&&$('#chatTray')&&!hint.firstChild) hint.innerHTML = '<div class="hint" style="margin-bottom:12px">The tray is in the chat for the roll you have been asked to make.</div>'; }
 async function openTray(){
-  tab = 'dice'; renderSide(); trayNode.classList.remove('crit','fumble');
+  trayNode.classList.remove('crit','fumble');
+  if($('#chatTray')){ placeTray(); if(!wide()) closeDrawers(); trayNode.scrollIntoView({block:'nearest'}); return false; }
+  tab = 'dice'; renderSide();
   const d = $('#rightD'), was = d.classList.contains('open');
   if(!was){ if(!wide()) setDrawer($('#leftD'),false); setDrawer(d,true); await sleep(320); }
   return !was;
@@ -727,6 +737,7 @@ function buildMessages(c,intents){
     else if(e.role==='player') push('user',e.text+(e===lastEntry&&e.noRoll?'\n\n[App note, not written by the player: the dice gate judged that this action needs no roll. Resolve it directly.]':''));
     else if(e.role==='roll') push('user','[Dice result from the app] '+e.text);
     else if(e.role==='note') push('user','[App note, already applied to the character sheet] '+e.text);
+    else if(e.role==='aside') push('user',`[Out-of-story aside, already answered by the DM. It is not an action; do not narrate it.] The player asked: ${e.q}${e.roll?` (${e.roll})`:''} The DM answered: ${e.a}`);
   }
   if(out[out.length-1].role==='assistant') push('user','(Continue.)');
   return out;
@@ -848,31 +859,57 @@ function setLive(msg){ let el = $('#live'); if(!el){ el = document.createElement
 
 // Small, fast, one-line answer: does this action need a roll before the outcome is told?
 const GATE = `You are the dice gate for a solo D&D 5e game. Decide whether the player's action needs a d20 roll before its outcome is narrated. Roll only when the outcome is uncertain and failure would matter. No roll for ordinary talk, walking, looking at what is plainly visible, or anything automatic.
+If the player asks to roll, or asks whether they can try something that needs a roll, treat it as the attempt and answer YES.
+If the player is not acting at all but asking the DM a question (is someone here, do I have something, what do I know, does she like me), answer ASK. Add a skill only when finding out would take a check: Insight to read a person, Perception to spot something, Investigation to work something out, or a knowledge skill to recall something.
 Answer with ONE line and nothing else, in one of these forms:
 NO
 YES skill <5e skill name> <DC>
 YES save <str|dex|con|int|wis|cha> <DC>
 YES attack <target Armor Class> <damage dice with modifier, like 1d8+3>
+ASK
+ASK skill <5e skill name> <DC>
 DC guide: 10 easy, 13 moderate, 16 hard, 19 very hard.`;
+const isQuestion = t => /\?\s*$/.test(t.trim())||/^\s*(is|are|am|do|does|did|can|could|would|will|what|who|whom|whose|where|when|why|how|have|has)\b/i.test(t);
+// Returns {ask, roll}: whether this is a question for the DM rather than an action, and the roll it needs, if any.
 async function gate(c,text,signal){
   const ch = c.character, guess = hintFor(text), dm = lastOf(c,'dm');
-  const fallback = () => { const m = guess&&/\(([^)]+)\)/.exec(guess); const skill = m&&Object.keys(SKILLS).find(k=>k===m[1]); return skill?{label:skill+' check',ability:SKILLS[skill],skill,save:false,proficient:false,advantage:'none',dc:13,damage:null}:null; };
+  const check = (skill,dc) => ({label:skill+' check',ability:SKILLS[skill],skill,save:false,proficient:false,advantage:'none',dc:clamp(num(dc)||13,5,30),damage:null});
+  const fallback = () => { const m = guess&&/\(([^)]+)\)/.exec(guess), skill = m&&Object.keys(SKILLS).find(k=>k===m[1]), ask = isQuestion(text);
+    return {ask,roll:skill&&(!ask||['Insight','Perception','Investigation','History','Arcana','Nature','Religion'].includes(skill))?check(skill,13):null}; };
   let out = '';
   try{
     out = await chat([{role:'system',content:GATE},{role:'user',content:`Scene: ${dm?clip(dm.text,500):'the adventure is just beginning'}
 Character: level ${ch.level} ${ch.race} ${ch.cls}. ${ABIL.map(a=>a.toUpperCase()+' '+sgn(mod(ch.abilities[a]))).join(', ')}. Proficiency +${prof(ch.level)}. Carries: ${ch.inventory.map(i=>i.name).join(', ')||'nothing'}.
-Action: ${text}${guess?`\n(Keyword guess from the app: ${guess}.)`:''}`}],{stream:false,maxTokens:300,temperature:0,model:store.settings.gateModel,quick:true,signal});
+Player wrote: ${text}${guess?`\n(Keyword guess from the app: ${guess}.)`:''}`}],{stream:false,maxTokens:300,temperature:0,model:store.settings.gateModel,quick:true,signal});
   }catch(e){ if(e.name==='AbortError') throw e; return fallback(); }
-  const line = (out.trim().split('\n').filter(x=>/^\W*(yes|no)\b/i.test(x)).pop()||'').trim();
+  const line = (out.trim().split('\n').filter(x=>/^\W*(yes|no|ask)\b/i.test(x)).pop()||'').trim();
   if(!line) return fallback();
-  if(/^\W*no\b/i.test(line)) return null;
+  if(/^\W*no\b/i.test(line)) return {ask:false,roll:null};
+  const ask = /^\W*ask\b/i.test(line), skill = Object.keys(SKILLS).sort((a,b)=>b.length-a.length).find(k=>line.toLowerCase().includes(k.toLowerCase())), dc = /(\d{1,2})\s*$/.exec(line.replace(/\W+$/,''));
+  if(ask) return {ask:true,roll:skill?check(skill,dc&&dc[1]):null};
   let m;
   if((m = /attack\D{0,12}(\d{1,2})\D{0,6}(\d*d\d+(?:\s*[+-]\s*\d+)?)?/i.exec(line))){ const dmg = m[2]&&rollExpr(m[2])?m[2].replace(/\s/g,''):null, fin = /bow|dart|rapier|dagger|sling/i.test(text)||mod(ch.abilities.dex)>mod(ch.abilities.str);
-    return {label:'Attack',ability:fin?'dex':'str',skill:null,save:false,proficient:true,advantage:'none',dc:clamp(num(m[1]),5,30),damage:dmg||'1d6'+sgn(mod(ch.abilities[fin?'dex':'str'])).replace('−','-')}; }
-  if((m = /save\W+(str|dex|con|int|wis|cha)\w*\D{0,8}(\d{1,2})?/i.exec(line))){ const a = m[1].toLowerCase(); return {label:ABIL_NAME[a]+' saving throw',ability:a,skill:null,save:true,proficient:false,advantage:'none',dc:clamp(num(m[2])||13,5,30),damage:null}; }
-  const skill = Object.keys(SKILLS).sort((a,b)=>b.length-a.length).find(k=>line.toLowerCase().includes(k.toLowerCase()));
-  if(skill){ const d = /(\d{1,2})\s*$/.exec(line.replace(/\W+$/,'')); return {label:skill+' check',ability:SKILLS[skill],skill,save:false,proficient:false,advantage:'none',dc:clamp(num(d&&d[1])||13,5,30),damage:null}; }
+    return {ask:false,roll:{label:'Attack',ability:fin?'dex':'str',skill:null,save:false,proficient:true,advantage:'none',dc:clamp(num(m[1]),5,30),damage:dmg||'1d6'+sgn(mod(ch.abilities[fin?'dex':'str'])).replace('−','-')}}; }
+  if((m = /save\W+(str|dex|con|int|wis|cha)\w*\D{0,8}(\d{1,2})?/i.exec(line))){ const a = m[1].toLowerCase(); return {ask:false,roll:{label:ABIL_NAME[a]+' saving throw',ability:a,skill:null,save:true,proficient:false,advantage:'none',dc:clamp(num(m[2])||13,5,30),damage:null}}; }
+  if(skill) return {ask:false,roll:check(skill,dc&&dc[1])};
   return fallback();
+}
+
+// A question for the DM gets a short note back, not a scene. It stays out of the story but the narrator is told what was said.
+const NOTE = `You are the Dungeon Master answering a player's out-of-story question. Reply with one or two short sentences, thirty words at most, plain and direct, speaking to the player as "you". Use only the facts given; if they do not settle it, say so briefly. If a dice result is given: on a success, say what the character learns; on a failure, say they learn nothing and give nothing away. Never narrate, never move the story forward, never decide what the character does.`;
+async function answerAside(c,q,roll){
+  if(busy||cur!==c) return;
+  busy = true; aborter = new AbortController(); lastErr = null; renderGame(); setLive('The DM checks their notes…'); let a = '';
+  try{
+    const dm = lastOf(c,'dm'), here = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]), away = Object.keys(c.npcs||{}).filter(n=>!here.includes(n));
+    a = await chat([{role:'system',content:NOTE},{role:'user',content:`# Facts\n${sheetText(c)}\n\nPeople here now:\n${here.map(n=>npcLine(c.npcs[n])).join('\n')||'no one'}\nKnown but not here: ${away.join(', ')||'no one'}${c.summary?`\n\nStory so far: ${c.summary}`:''}\n\nCurrent scene: ${dm?clip(dm.text,800):'the adventure has not begun'}\n\n# Question\n${q}${roll?`\n\n# Dice result\n${roll}`:''}`}],
+      {stream:false,maxTokens:300,temperature:0.3,model:store.settings.checkModel,quick:true,signal:aborter.signal});
+  }catch(e){ if(e.name!=='AbortError') lastErr = e.message||String(e); }
+  busy = false; aborter = null; if(cur!==c) return;
+  a = a.trim().replace(/^["“]|["”]$/g,'').slice(0,400);
+  if(a){ c.log.push({role:'aside',q,a,roll:roll||''}); c.updated = Date.now(); }
+  else if(!lastErr) lastErr = 'The DM had no answer. Try asking again.';
+  save(); renderGame();
 }
 
 // One model per person in the scene, three at most. Each decides what its character does next and keeps that character's sheet up to date.
@@ -882,7 +919,7 @@ Reply with JSON only, in this form:
 Set "lasting" to true only for something you would never forget: a promise, a debt, a betrayal, a life saved.`;
 async function castBeat(c,signal){
   const names = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]).slice(0,3); if(!names.length) return [];
-  const ch = c.character, dm = lastOf(c,'dm'), tail = []; for(let i=c.log.length-1;i>=0&&c.log[i].role!=='dm';i--) tail.unshift(c.log[i]);
+  const ch = c.character, dm = lastOf(c,'dm'), tail = []; for(let i=c.log.length-1;i>=0&&c.log[i].role!=='dm';i--) if(c.log[i].role==='player'||c.log[i].role==='roll') tail.unshift(c.log[i]);
   const happened = `${dm?clip(dm.text,900):''}\n${tail.map(e=>e.role==='player'?`${ch.name} (the player character): ${e.text}`:`Dice: ${e.text}`).join('\n')}`;
   const out = await Promise.all(names.map(async name=>{ const n = c.npcs[name];
     try{
@@ -906,7 +943,7 @@ const EDITOR = `You are the continuity editor for a solo D&D story. You are give
 If the draft is sound, reply with exactly: OK
 Otherwise reply with the complete corrected reply in the same format (the narration, then the <state> block), changing as little as possible. No commentary.`;
 async function continuity(c,text,state,intents,signal){
-  const tail = []; for(let i=c.log.length-1;i>=0&&c.log[i].role!=='dm';i--) tail.unshift(c.log[i]);
+  const tail = []; for(let i=c.log.length-1;i>=0&&c.log[i].role!=='dm';i--) if(c.log[i].role==='player'||c.log[i].role==='roll') tail.unshift(c.log[i]);
   try{
     const out = await chat([{role:'system',content:EDITOR},{role:'user',content:`# Facts\n${sheetText(c)}\n\nPeople in the scene:\n${(c.present||[]).filter(n=>c.npcs&&c.npcs[n]).map(n=>npcLine(c.npcs[n])).join('\n')||'none'}${intents.length?`\nTheir intentions this beat:\n${intents.map(i=>`- ${i.name}: ${i.intent}`).join('\n')}`:''}\n\nLatest from the player:\n${tail.map(e=>e.role==='player'?e.text:'[Dice result] '+e.text).join('\n')||'(the adventure is opening)'}\n\n# Draft\n${text}\n\n<state>\n${JSON.stringify(state)}\n</state>`}],
       {stream:false,temperature:0.2,model:store.settings.checkModel,signal});
@@ -918,7 +955,7 @@ async function continuity(c,text,state,intents,signal){
 // Runs before the story sees an action. Refuses anything that skips ahead or rewrites the past, and offers real next steps instead.
 const GUARD = `You are the continuity guard for a solo D&D game. The player may only do something their character could actually attempt right now, from the current situation.
 DENY when the action: skips time (next day, later, after a while, once rested); jumps to another place without travelling there; declares an outcome or a success; invents facts, items, people or abilities that are not in the facts; undoes, changes or re-does something that already happened; or speaks for the narrator or for other characters.
-ALLOW anything the character can physically attempt now, however foolish or unlikely: speaking, asking, searching, fighting, setting out on a road, lying down to sleep, making camp.
+ALLOW any question put to the DM (is someone here, do I have this, can I try that), and anything the character can physically attempt now, however foolish or unlikely: speaking, asking, searching, fighting, setting out on a road, lying down to sleep, making camp.
 Reply with ONE line and nothing else:
 OK
 or
@@ -945,11 +982,13 @@ async function playerAct(text,trusted){
   const c = cur, entry = {role:'player',text}; c.log.push(entry); denied = null;
   c.suggestions = []; c.pendingRoll = null; lastErr = null; busy = true; aborter = new AbortController(); save(); renderGame();
   setLive(trusted||!store.settings.useGuard?'Asking whether the dice are needed…':'Checking this against the scene…');
-  let g = null, no = null, stopped = false;
+  let g = {ask:false,roll:null}, no = null, stopped = false;
   try{ [g,no] = await Promise.all([gate(c,text,aborter.signal),trusted?null:guard(c,text,aborter.signal)]); }catch(e){ stopped = true; }
   busy = false; aborter = null; if(cur!==c) return;
-  if(stopped||no){ const k = c.log.indexOf(entry); if(k>=0) c.log.splice(k,1); if(no) denied = {...no,text}; save(); renderGame(); const ta = $('#say'); if(ta&&!ta.value) ta.value = text; return; }
-  if(g){ c.pendingRoll = g; save(); renderGame(); return; }
+  const drop = () => { const k = c.log.indexOf(entry); if(k>=0) c.log.splice(k,1); };
+  if(stopped||(no&&!g.ask)){ drop(); if(no) denied = {...no,text}; save(); renderGame(); const ta = $('#say'); if(ta&&!ta.value) ta.value = text; return; }
+  if(g.ask){ drop(); if(g.roll){ c.pendingRoll = {...g.roll,ask:text}; save(); renderGame(); return; } save(); answerAside(c,text,null); return; }
+  if(g.roll){ c.pendingRoll = g.roll; save(); renderGame(); return; }
   entry.noRoll = true; takeTurn(null);
 }
 
@@ -990,7 +1029,7 @@ function regenerate(){
 async function summarize(c){
   const from = c.sumIdx||0; if(c.log.length-from<34||c._summing) return;
   c._summing = true; const take = c.log.slice(from,from+18);
-  const script = take.map(e=>e.role==='dm'?'DM: '+e.text:e.role==='player'?'PLAYER: '+e.text:'DICE: '+e.text).join('\n\n');
+  const script = take.map(e=>e.role==='dm'?'DM: '+e.text:e.role==='player'?'PLAYER: '+e.text:e.role==='aside'?`ASIDE: ${e.q} / ${e.a}`:e.role==='note'?'NOTE: '+e.text:'DICE: '+e.text).join('\n\n');
   try{
     const t = await chat([{role:'system',content:'You keep the running record of a solo fantasy tabletop campaign. Merge the existing summary with the new transcript into one updated summary of at most 250 words. Keep names, places, promises, debts, enemies, unresolved threads, and important choices. Plain prose, past tense, no preamble.'},
       {role:'user',content:`Existing summary:\n${c.summary||'(none)'}\n\nNew transcript:\n${script}`}],{stream:false,maxTokens:500,temperature:0.3});
@@ -1121,7 +1160,7 @@ async function resolvePending(adv){
     const dv = (await throwDice([{n:dm.rolls.length,sides:dm.sides}],true))[0], sum = Math.max(0,dv.reduce((a,x)=>a+x,0)+dm.bonus);
     t += ` Damage ${dm.text}: ${dv.join('+')}${dm.bonus?sgn(dm.bonus):''} = ${sum}.`; }
   pushTray(total,t); await sleep(1300); rolling = false; closeTray(opened);
-  if(cur===c&&c.pendingRoll===r) takeTurn({role:'roll',text:t});
+  if(cur===c&&c.pendingRoll===r){ if(r.ask){ c.pendingRoll = null; answerAside(c,r.ask,t); } else takeTurn({role:'roll',text:t}); }
 }
 async function freeRoll(label,bonus,adv){
   if(rolling||!cur) return; rolling = true; const opened = await openTray();
@@ -1313,6 +1352,7 @@ function renderLog(){
     if(e.role==='player') return `<div class="e player"><div class="bub">${md(e.text)}</div></div>`;
     if(e.role==='roll') return `<div class="e roll"><div class="bub">${DIE_SVG}<span>${esc(e.text)}</span></div></div>`;
     if(e.role==='note') return `<div class="e note"><div class="bub">${esc(e.text)}</div></div>`;
+    if(e.role==='aside') return `<div class="e aside"><div class="lbl">DM note</div><div class="q">${esc(e.q)}</div>${md(e.a)}${e.roll?`<div class="r">${esc(e.roll)}</div>`:''}</div>`;
     return `<div class="e dm"><div class="lbl">Narrator</div>${md(e.text)}${e.changes&&e.changes.length?`<div class="chg">${e.changes.map(n=>`<span class="${n.k||''}">${esc(n.t)}</span>`).join('')}</div>`:''}
       ${i===last&&e.pre&&!busy?`<div class="tools"><button data-act="regen">Retell this scene</button></div>`:''}</div>`;
   }).join('')+(lastErr?`<div class="e err"><span>${esc(lastErr)}</span><button class="btn small" data-act="retry">Try again</button><button class="btn small" data-act="settings">Settings</button></div>`:'');
@@ -1325,20 +1365,20 @@ function renderComposer(){
   if(r&&!busy){
     const ch = c.character; let b = r.ability?mod(ch.abilities[r.ability]):0;
     if((r.skill&&ch.profs.includes(r.skill))||(r.save&&r.ability&&ch.saves.includes(r.ability))||r.proficient) b += prof(ch.level);
-    h += `<div class="rollcard"><div class="t"><b>${esc(r.label)}</b><div>${r.ability?ABIL_NAME[r.ability]+(r.skill?' ('+r.skill+')':r.save?' save':'')+' · ':''}d20 ${sgn(b)}${r.dc?` against ${r.damage?'AC':'DC'} ${r.dc}`:''}${r.damage?` · damage ${esc(r.damage)}`:''}${r.advantage!=='none'?` · the narrator calls for ${r.advantage==='adv'?'advantage':'disadvantage'}`:''}</div></div>
+    h += `<div class="rollcard"><div class="t"><b>${esc(r.label)}</b>${r.ask?`<div>To find out: ${esc(r.ask)}</div>`:''}<div>${r.ability?ABIL_NAME[r.ability]+(r.skill?' ('+r.skill+')':r.save?' save':'')+' · ':''}d20 ${sgn(b)}${r.dc?` against ${r.damage?'AC':'DC'} ${r.dc}`:''}${r.damage?` · damage ${esc(r.damage)}`:''}${r.advantage!=='none'?` · the narrator calls for ${r.advantage==='adv'?'advantage':'disadvantage'}`:''}</div></div>
       <button class="btn primary" data-act="pend" data-adv="${r.advantage}">Roll</button>
-      ${r.advantage==='none'?`<button class="btn small" data-act="pend" data-adv="adv">Advantage</button><button class="btn small" data-act="pend" data-adv="dis">Disadvantage</button>`:''}</div>`;
+      ${r.advantage==='none'?`<button class="btn small" data-act="pend" data-adv="adv">Advantage</button><button class="btn small" data-act="pend" data-adv="dis">Disadvantage</button>`:''}<div id="chatTray" style="flex:1 1 100%"></div></div>`;
   }
   if(denied&&!busy) h += `<div class="deny" role="status"><b>Not from here.</b><div class="hint">${esc(denied.reason)} Nothing was added to the story.</div>${denied.steps.length?`<div class="sugg">${denied.steps.map(x=>`<button data-act="sugg">${esc(x)}</button>`).join('')}</div>`:''}</div>`;
   if(c.shop&&!busy) h += `<div class="shopcard"><div class="t"><b>${esc(c.shop.name)}</b><div>${c.shop.keeper?esc(c.shop.keeper)+' · ':''}${c.shop.items.length} things for sale · you have ${c.character.gold} gp</div></div><button class="btn primary" data-act="shop">Open shop</button></div>`;
   if(c.suggestions.length&&!busy&&!r) h += `<div class="sugg">${c.suggestions.map(s=>`<button data-act="sugg">${esc(s)}</button>`).join('')}</div>`;
   h += `<form class="send" id="sendForm"><textarea id="say" rows="1" maxlength="2000" placeholder="${busy?'The narrator is speaking…':r?'Roll, or do something else instead…':'What do you do?'}" ${busy?'disabled':''}></textarea>
     ${busy?`<button type="button" class="btn" data-act="stop" aria-label="Stop the narrator" title="Stop">&#9632;</button>`:`<button class="btn primary" aria-label="Send" title="Send">&#8593;</button>`}</form>`;
-  $('#composer').innerHTML = h; const ta = $('#say'); ta.value = keep; if(!busy&&wide()) ta.focus();
+  $('#composer').innerHTML = h; placeTray(); const ta = $('#say'); ta.value = keep; if(!busy&&wide()) ta.focus();
 }
 function renderSide(){
   const c = cur, ch = c.character, side = $('#side');
-  const tabs = [['sheet','Sheet'],['pack','Pack'],['quests','Quests'],['people','People'],['dice','Dice']];
+  const tabs = [['sheet','Sheet'],['pack','Pack'],['quests','Quests'],['people','People'],['notes','Notes'],['dice','Dice']];
   let h = `<button class="btn small ghost dclose" data-act="closeDrawers">Close &#10005;</button><div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" aria-selected="${tab===k}" data-act="tab" data-tab="${k}">${l}</button>`).join('')}</div>`;
   if(tab==='sheet'){
     const next = ch.level<20?XP[ch.level]:null;
@@ -1369,6 +1409,11 @@ function renderSide(){
       <div class="hint" style="margin-top:8px">${n.wants?`Wants: ${esc(n.wants)}<br>`:''}${stanceOf(n)[0].toUpperCase()+stanceOf(n).slice(1)} toward you${n.attitude&&n.attitude.toLowerCase()!==stanceOf(n)?` (${esc(n.attitude)})`:''}.</div></div>`).join('')
       +`<div class="card"><h4>Name colours</h4><div class="legend">${STANCES.map(k=>`<span class="st-${k}"><i class="dot"></i>${k[0].toUpperCase()+k.slice(1)}</span>`).join('')}</div></div>`
       :'<div class="card"><h4>People</h4><div class="hint">No one you have met yet. Each person who joins a scene gets their own sheet here, kept up to date by the model that plays them.</div></div>';
+  }else if(tab==='notes'){
+    const list = c.log.filter(e=>e.role==='aside'||e.role==='note').reverse();
+    h += list.length?`<div class="card"><h4>DM notes</h4>${list.map(e=>e.role==='aside'?`<div class="quest" style="opacity:1"><span>${esc(e.q)}</span><b style="font:500 14px var(--ui);margin-top:3px">${md(e.a).replace(/<\/?p>/g,'')}</b>${e.roll?`<span style="margin-top:4px;font-size:12px">${esc(e.roll)}</span>`:''}</div>`
+      :`<div class="quest" style="opacity:1;border-left-color:var(--line2)"><span>${esc(e.text)}</span></div>`).join('')}</div>`
+      :'<div class="card"><h4>DM notes</h4><div class="hint">Ask the DM a question in the chat, like "is my sister here?" or "do I have rope?", and the answer is kept here. Trades and items you use are logged here too.</div></div>';
   }else if(tab==='quests'){
     h += `<div class="card"><h4>Quests</h4>${c.quests.length?c.quests.map(q=>`<div class="quest ${q.status}"><b>${esc(q.title)}</b><span>${esc(q.note||'')}</span></div>`).join(''):'<div class="hint">Nothing asked of you yet. That will not last.</div>'}</div>
       ${c.summary?`<div class="card"><h4>The story so far</h4><div class="hint" style="color:var(--text);font-family:var(--story);font-size:14.5px">${esc(c.summary)}</div></div>`:''}`;
@@ -1379,7 +1424,7 @@ function renderSide(){
       <div class="result">${lastTray?`<b>${lastTray.total}</b><span>${esc(lastTray.text)}</span><div style="margin-top:8px"><button class="btn small" data-act="tellTray" ${busy?'disabled':''}>Tell the narrator</button></div>`:'<span>Pick a die. They roll in the tray above, and what they land on is the result.</span>'}</div>
       ${trayHist.length>1?`<div class="hist">${trayHist.slice(1).map(t=>`<div>${esc(t)}</div>`).join('')}</div>`:''}</div>`;
   }
-  side.innerHTML = h; $('#trayslot')?.appendChild(trayNode);
+  side.innerHTML = h; placeTray();
 }
 
 /* ============ shop ============ */
