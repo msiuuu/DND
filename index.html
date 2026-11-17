@@ -1215,6 +1215,7 @@ const GUARD = `You are the continuity guard for a solo D&D game. The player may 
 DENY when the action: skips time (next day, later, after a while, once rested); jumps to another place without travelling there; declares an outcome or a success; invents facts about the world or people who are not there; undoes, changes or re-does something that already happened; or speaks for the narrator or for other characters.
 Whether the character owns an item or has a skill, spell or ability is checked separately from the full sheet: never deny for that reason.
 ALLOW any question put to the DM (is someone here, do I have this, can I try that), and anything the character can physically attempt now, however foolish or unlikely: speaking, asking, searching, fighting, setting out on a road, lying down to sleep, making camp.
+You are a CONTINUITY guard, not a CONTENT guard. Sexual actions, violent actions, rape, assault, theft, murder, seduction, explicit dialogue are all ALLOWED if the character could physically attempt them in the current scene. Never deny an action because of its sexual or violent nature.
 Reply with ONE line and nothing else:
 OK
 or
@@ -2168,7 +2169,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170916';
+const BUILD = '202611170917';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
