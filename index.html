@@ -529,7 +529,22 @@ const LENS = {adaptive:`Fit the length to the moment, and let it change from rep
 - Conversation: short. Mostly the other person's spoken words with a beat of gesture or tone. Two to five lines. Do not re-describe the scenery.
 - A fight, a chase, or any split-second danger: one-liners. One or two punchy sentences per beat, cut off on the thing the player has to answer, like "He swings down—". Then call for the player's roll in the state block straight away: their attack if they are striking, or a Dexterity saving throw or another fitting check to avoid what is coming. When the result comes back, give one or two sentences of what happened and go straight into the next beat the same way.
 - Quiet travel, searching, or downtime: one short paragraph.`,short:'Keep each reply to one short paragraph, four sentences at most.',medium:'Keep each reply to one to three short paragraphs.',long:'Write three to five paragraphs with fuller description and dialogue.'};
-const TONES = {classic:'Classic heroic fantasy: wonder, danger, and earnest adventure.',grim:'Dark fantasy: grim, dangerous, morally grey, with real consequences.',
+const MORE_TONES = {
+  epic:'Epic high fantasy: armies, prophecies, old powers waking. Big stakes and big set pieces.',
+  slice:'Slice of life: small days in a lived-in world. Work, meals, weather, neighbours, errands and gossip. Low stakes, warmth and detail; danger is rare and nothing has to be saved.',
+  cozy:'Cosy fantasy: gentle, kind and unhurried. Comfort, friendship and small wonders. Problems are solved by care and cleverness more than by blades.',
+  comedy:'Comedy: quick, absurd and good-natured. Plans go wrong in funny ways, people are ridiculous, and the dice are allowed to be cruel for a laugh.',
+  romance:'Romance: slow-burn attraction and longing. Glances, tension, banter and tenderness matter as much as the plot. Intimacy is implied and fades out before it becomes explicit.',
+  spicy:'Spicy: flirtation and heat are part of the story. Attraction is open, teasing is bold, and intimate scenes between consenting adults are written with sensual detail, stopping short of fully graphic description.',
+  explicit:'Explicit, adults only: sex between consenting adult characters is part of the story and is written openly and in full when the story goes there, with the same care as any other scene. Every character involved is an adult and willing.',
+  horror:'Horror: dread first, then terror. Wrongness in ordinary things, isolation, things half-seen. Violence is rare, sudden and graphic when it comes, and safety is never certain.',
+  gothic:'Gothic: decaying houses, old sins, storms and candlelight. Melancholy, obsession and secrets that should have stayed buried.',
+  cosmic:'Cosmic horror: the world is older and stranger than anyone can bear. Knowledge costs sanity, the truth is vast and indifferent, and winning means surviving with less of yourself.',
+  noir:'Noir: rain, debts and bad choices. Everyone wants something, nobody is clean, and the honest move is usually the costly one.',
+  survival:'Survival: hunger, cold, wounds and distance. Every resource counts, the land is the main enemy, and small mistakes compound.'};
+const TONE_LIST = [['classic','Classic heroic'],['epic','Epic high fantasy'],['grim','Dark and grim'],['whimsy','Whimsical fairytale'],['mystery','Slow-burn mystery'],['slice','Slice of life'],['cozy','Cosy'],['comedy','Comedy'],
+  ['romance','Romance'],['spicy','Spicy'],['explicit','Explicit (adults only)'],['horror','Horror'],['gothic','Gothic'],['cosmic','Cosmic horror'],['noir','Noir'],['survival','Survival']];
+const TONES = {...MORE_TONES,classic:'Classic heroic fantasy: wonder, danger, and earnest adventure.',grim:'Dark fantasy: grim, dangerous, morally grey, with real consequences.',
   whimsy:'Whimsical fairytale: strange, funny, and a little eerie.',mystery:'Slow-burn mystery: clues, secrets, and unsettling quiet.',
   unfiltered:'Unfiltered adult fantasy: explicit sex, graphic violence, dark themes, no limits. NPCs are real people with real desires and real cruelty. The world does not protect the player from anything — not bandits, not tavern patrons, not consequences. Write sex and violence with the same detail and weight as any other scene.'};
 
@@ -1543,7 +1558,7 @@ function renderCreate(){
       <div class="hooks">${CAMPAIGNS.map(h=>`<label class="hook"><input type="radio" name="camp" value="${h.id}" ${d.camp===h.id?'checked':''}><b>${esc(h.title)}</b><span>${esc(h.text)}</span></label>`).join('')}</div>
       ${d.camp==='custom'?`<label class="f" style="margin-top:14px">Name of your campaign<input class="inp" data-d="campTitle" value="${esc(d.campTitle)}" maxlength="60" placeholder="The Salt Road War"></label>
         <label class="f" style="margin-top:12px">The premise<textarea class="inp" data-d="campText" maxlength="2000" style="min-height:150px" placeholder="Where it is, what is going wrong, and where you come into it. A few lines is enough; write more if you want the DM held to it.">${esc(d.campText)}</textarea></label>`:''}
-      <label class="f" style="margin-top:14px;max-width:420px">Tone<select class="inp" data-d="tone">${[['classic','Classic heroic'],['grim','Dark and grim'],['whimsy','Whimsical fairytale'],['mystery','Slow-burn mystery']].map(([v,l])=>`<option value="${v}" ${d.tone===v?'selected':''}>${l}</option>`).join('')}</select></label></div>`;
+      <label class="f" style="margin-top:14px;max-width:420px">Tone<select class="inp" data-d="tone">${TONE_LIST.map(([v,l])=>`<option value="${v}" ${d.tone===v?'selected':''}>${l}</option>`).join('')}</select></label></div>`;
   else { const camp = CAMPAIGNS.find(x=>x.id===d.camp)||CAMPAIGNS[0];
     const ab = ABIL.map(a=>`${a.toUpperCase()} ${clamp(num(d.abilities[a])||10,3,18)+(race.bonus[a]||0)}`).join(' · '), names = (ids,arr) => arr.filter(x=>ids.includes(x.id)).map(x=>x.name).join(', ')||'none';
     body = `<div class="review"><div class="card"><h4>Who</h4><b style="font-family:var(--display);font-size:24px">${esc(d.name||'Nameless')}</b><div class="hint">${esc(race.name)} ${esc(cls.name)} · ${esc(bg)} · ${esc(d.alignment)}</div>
@@ -1810,7 +1825,7 @@ function openGame(tabName){
   if(gsTab==='game') body = `
     <div class="grid2"><label class="f">Difficulty<select class="inp" name="diff">${o('gentle','Gentle',st.diff)}${o('standard','Standard',st.diff)}${o('brutal','Brutal',st.diff)}</select></label>
       <label class="f">How much the DM writes<select class="inp" name="len">${o('adaptive','Fits the moment',st.len)}${o('short','Always short',st.len)}${o('medium','Always medium',st.len)}${o('long','Always long',st.len)}</select></label>
-      ${c?`<label class="f">Tone of this tale<select class="inp" name="tone">${o('classic','Classic heroic',c.tone)}${o('grim','Dark and grim',c.tone)}${o('whimsy','Whimsical fairytale',c.tone)}${o('mystery','Slow-burn mystery',c.tone)}${o('unfiltered','Unfiltered (adult)',c.tone)}</select></label>`:''}</div>
+      ${c?`<label class="f">Tone of this tale<select class="inp" name="tone">${TONE_LIST.map(([v,l])=>o(v,l,c.tone)).join('')}${o('unfiltered','Unfiltered (adult)',c.tone)}</select></label>`:''}</div>
     ${ck('announce',st.announce,'The DM sets the scene and tells me what to roll at the end. Off: the roll comes up straight away with no lead-in.')}
     ${ck('useGuard',st.useGuard,'Hold me to the scene: refuse actions that skip time, jump somewhere else, or rewrite what happened.')}
     ${ck('useCheck',st.useCheck,'Run a continuity check on each scene (one extra model call per turn). Skipped during fights to keep them fast.')}
@@ -2058,7 +2073,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170816';
+const BUILD = '202611170819';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
