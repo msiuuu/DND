@@ -143,6 +143,17 @@ textarea.inp{resize:vertical;min-height:80px}
 .chg span{font-size:12px;font-weight:600;padding:2px 9px;border-radius:99px;background:var(--s2);color:var(--muted);border:1px solid var(--line)}
 .chg .bad{color:#ffb6a6;border-color:rgba(208,97,74,.45)}
 .chg .ok{color:var(--good);border-color:rgba(134,184,112,.35)}
+.chg .up,.chg .down{letter-spacing:.02em}
+.chg .up{color:#8fd18a;border-color:rgba(143,209,138,.45);background:rgba(143,209,138,.1)}
+.chg .down{color:#f0796a;border-color:rgba(240,121,106,.5);background:rgba(240,121,106,.1)}
+.arw{font-size:.82em;letter-spacing:.06em;margin-left:5px}
+#relbar{position:fixed;left:0;right:0;top:calc(64px + env(safe-area-inset-top,0px));z-index:24;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;padding:0 12px}
+#relbar div{background:var(--solid);border:1px solid var(--line2);border-radius:99px;padding:6px 14px;font-size:13.5px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.5);animation:relin 3.6s ease forwards;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#relbar .up{color:#8fd18a;border-color:rgba(143,209,138,.55)}#relbar .down{color:#f0796a;border-color:rgba(240,121,106,.6)}
+@keyframes relin{0%{opacity:0;transform:translateY(-10px)}8%,82%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-6px)}}
+.bondbar{display:flex;align-items:center;gap:8px}
+.bondbar i{flex:1;height:6px;border-radius:99px;background:linear-gradient(90deg,#f0796a,rgba(255,255,255,.14) 50%,#8fd18a);position:relative;display:block}
+.bondbar i::after{content:"";position:absolute;top:-3px;left:calc(var(--p) - 2px);width:4px;height:12px;border-radius:2px;background:var(--text)}
 .tools{margin-top:8px}
 .tools button{font-size:12px;background:none;border:0;color:var(--muted);padding:2px 0;text-decoration:underline;text-underline-offset:3px}
 .tools button:hover{color:var(--ember2)}
@@ -414,6 +425,7 @@ header.bar{padding-top:calc(10px + env(safe-area-inset-top,0px))}
   </header>
   <main id="main"></main>
 </div>
+<div id="relbar" role="status" aria-live="polite"></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="modalRoot"></div>
 
@@ -574,7 +586,12 @@ const STANCE_WORDS = {friendly:/friend|warm|grateful|trust|fond|loyal|amused|kin
   hostile:/hostil|angr|furious|hate|murder|venge|enraged|contempt|threat|cruel|violent|aggress/i,
   wary:/wary|suspic|guard|nervous|afraid|fear|cold|annoy|irritat|uneasy|distrust|caut|impatient|skeptic|sceptic|tense|resent/i,
   strange:/eerie|strange|unknowable|alien|inscrutable|hungry|otherworld|uncanny/i};
-const stanceOf = n => STANCES.includes(n.stance)?n.stance:(Object.keys(STANCE_WORDS).find(k=>STANCE_WORDS[k].test(n.attitude||''))||'neutral');
+const stanceOf = n => STANCES.includes(n.stance)?n.stance:(Object.keys(STANCE_WORDS).find(k=>STANCE_WORDS[k].test(n.attitude||''))||((n.bond||0)>=4?'friendly':(n.bond||0)<=-5?'hostile':(n.bond||0)<=-2?'wary':'neutral'));
+// How someone feels about the player moves in steps of one to three; the running total sits between -10 and 10.
+function shiftBond(n,by){ by = clamp(num(by),-3,3); if(!by) return null; n.bond = clamp((n.bond||0)+by,-10,10);
+  return {t:n.name,arrows:(by>0?'▲':'▼').repeat(Math.abs(by)),k:by>0?'up':'down'}; }
+function relPop(list){ const bar = $('#relbar'); if(!bar||!list.length) return;
+  for(const r of list.slice(0,4)){ const d = document.createElement('div'); d.className = r.k; d.textContent = `${r.t} ${r.arrows}`; bar.appendChild(d); setTimeout(()=>d.remove(),3700); } }
 const NAME_STOP = new Set(['the','old','young','sir','lady','lord','captain','master','mistress','brother','sister','father','mother','king','queen','and','von','van','der','little','big','mad']);
 // Words that are never a name by themselves, and words that show a phrase is a description rather than a name.
 const COMMON = new Set(('the a an and or but if then so of to in on at by for from with without into onto over under up down out off near past ago again still just only very too also not no yes '+
@@ -902,7 +919,7 @@ After the narration, end EVERY reply with one state block, exactly in this form,
 {"mood":"forest","location":"short name of the current place","hp_delta":0,"gold_delta":0,"xp_delta":0,"items_add":[{"name":"Rusty key","qty":1}],"items_remove":[{"name":"Torch","qty":1}],"conditions_add":["Poisoned"],"conditions_remove":["Poisoned"],"quests":[{"title":"Quest name","status":"active","note":"one line on the current objective"}],"present":["Marta Quill"],"npcs":[{"name":"Marta Quill","about":"caravan master in her fifties, blunt, wants her wagons through by dawn","stance":"wary","skills":["Haggling","Driving a team"]}],"shop":{"name":"Brannoch's Sundries","keeper":"Brannoch","items":[{"name":"Potion of healing","price":50,"qty":2,"desc":"Restores 2d4+2 hit points","use":{"heal":"2d4+2"}},{"name":"Rope (50 ft)","price":1,"desc":"Hempen rope"}]},"roll":{"label":"Stealth check","ability":"dex","skill":"Stealth","save":false,"proficient":false,"advantage":"none","dc":13,"damage":null},"suggestions":["a short action the player might take","another","a third"]}
 </state>
 
-Notes on the keys: "mood" colours the app to match the scene and must be exactly one of: "forest" for outdoors, daylight, travel, calm or ordinary scenes; "night" for night-time, serene, quiet, eerie or stealthy scenes; "fire" for battle, mortal danger, anger or rage. "hp_delta" is negative for damage and positive for healing. "xp_delta" awards experience for overcoming challenges (a typical early encounter is worth 25 to 100). Quest "status" is "active", "done", or "failed". "present" lists the named non-player characters who are in the scene with the player right now, three at most, most important first; send it whenever it changes, and send [] when the player is alone. "npcs" introduces a named character the first time they appear or are even just mentioned by name, with one line about who they are, any other names or titles they go by in "also" (for example ["Vesper","the clerk"]), a "stance" toward the player character (one of friendly, neutral, wary, hostile, strange) and up to four "skills" they are notably good at; send the entry again when their stance changes. "shop" opens a shop panel in the app: send it whenever the player is somewhere they can buy things (a shop, a stall, a pedlar, an inn's counter), with the place's name, its keeper, and four to ten items priced in gold pieces at fair 5e prices; "qty" is optional stock. Send "shop":null when the player leaves. The app handles buying and selling itself and tells you what was traded, so never change gold or items for a purchase made through the shop. Items in "items_add" and in a shop may carry "desc" (one line) and, for consumables that restore hit points, "use":{"heal":"2d4+2"}. In "roll", "ability" is one of str, dex, con, int, wis, cha; "skill" is a 5e skill name or null; set "save" true for saving throws; set "proficient" true for attacks with weapons or spells the character is proficient with; "advantage" is "none", "adv", or "dis". Leave "roll" out entirely when no roll is needed. Always give three short "suggestions", but the player may do anything.`;
+Notes on the keys: "mood" colours the app to match the scene and must be exactly one of: "forest" for outdoors, daylight, travel, calm or ordinary scenes; "night" for night-time, serene, quiet, eerie or stealthy scenes; "fire" for battle, mortal danger, anger or rage. "hp_delta" is negative for damage and positive for healing. "xp_delta" awards experience for overcoming challenges (a typical early encounter is worth 25 to 100). Quest "status" is "active", "done", or "failed". "bonds" lists people whose feeling toward the player character changed because of what just happened, each with a "shift" from -3 to 3 (for example [{"name":"Marta Quill","shift":-2}]): 1 is a small change, 2 a clear one, 3 only for something that changes everything; leave it out when nobody's feelings moved. "present" lists the named non-player characters who are in the scene with the player right now, three at most, most important first; send it whenever it changes, and send [] when the player is alone. "npcs" introduces a named character the first time they appear or are even just mentioned by name, with one line about who they are, any other names or titles they go by in "also" (for example ["Vesper","the clerk"]), a "stance" toward the player character (one of friendly, neutral, wary, hostile, strange) and up to four "skills" they are notably good at; send the entry again when their stance changes. "shop" opens a shop panel in the app: send it whenever the player is somewhere they can buy things (a shop, a stall, a pedlar, an inn's counter), with the place's name, its keeper, and four to ten items priced in gold pieces at fair 5e prices; "qty" is optional stock. Send "shop":null when the player leaves. The app handles buying and selling itself and tells you what was traded, so never change gold or items for a purchase made through the shop. Items in "items_add" and in a shop may carry "desc" (one line) and, for consumables that restore hit points, "use":{"heal":"2d4+2"}. In "roll", "ability" is one of str, dex, con, int, wis, cha; "skill" is a 5e skill name or null; set "save" true for saving throws; set "proficient" true for attacks with weapons or spells the character is proficient with; "advantage" is "none", "adv", or "dis". Leave "roll" out entirely when no roll is needed. Always give three short "suggestions", but the player may do anything.`;
 
 function sheetText(c){
   const ch = c.character;
@@ -1050,6 +1067,8 @@ function applyState(c,s){
       if(its.length){ c.shop = {name,keeper:String(sp.keeper||'').slice(0,50),items:its,mult:same?c.shop.mult:1,haggled:same?c.shop.haggled:false}; if(!same) note('Shop open: '+name,'ok'); } }
     else c.shop = null; }
   if(Array.isArray(s.present)) c.present = strs(s.present).map(n=>sheetFor(n.slice(0,50))).filter(Boolean).map(x=>x.name).filter((n,i,a)=>a.indexOf(n)===i).slice(0,3);
+  for(const b of (Array.isArray(s.bonds)?s.bonds:[])){ if(!b||typeof b.name!=='string') continue; const k = Object.keys(c.npcs).find(x=>x.toLowerCase()===b.name.trim().toLowerCase()||(c.npcs[x].aka||[]).some(a=>a.toLowerCase()===b.name.trim().toLowerCase()));
+    if(!k||(c._acted||[]).includes(k)) continue; const r0 = shiftBond(c.npcs[k],b.shift); if(r0) notes.push({...r0,rel:1}); }
   c.pendingRoll = null;
   const r = s.roll;
   if(r&&typeof r==='object'){
@@ -1140,8 +1159,9 @@ async function answerAside(c,q,roll){
 // One model per person in the scene, three at most. Each decides what its character does next and keeps that character's sheet up to date.
 const ACTOR = `You play exactly one non-player character in a solo D&D story. Stay strictly inside this character: what they know, what they want, how they talk. You do not narrate the world, you do not decide what the player character does, and you do not decide the result of any dice.
 Reply with JSON only, in this form:
-{"intent":"what you say and do in the next beat, one or two sentences","attitude":"one or two words for how you now feel about the player character","wants":"your current goal in a few words","stance":"friendly, neutral, wary, hostile or strange: your stance toward the player character right now","new_traits":["one to three words each, for a trait this beat revealed in you; only if genuinely new, and usually none"],"skills":["up to four things you are notably good at, only ones not already on your sheet"],"remember":"at most twelve words, in your own voice, of what you will remember about the player character from this beat; empty if nothing worth keeping","lasting":false}
-Set "lasting" to true only for something you would never forget: a promise, a debt, a betrayal, a life saved.`;
+{"intent":"what you say and do in the next beat, one or two sentences","attitude":"one or two words for how you now feel about the player character","wants":"your current goal in a few words","stance":"friendly, neutral, wary, hostile or strange: your stance toward the player character right now","new_traits":["one to three words each, for a trait this beat revealed in you; only if genuinely new, and usually none"],"skills":["up to four things you are notably good at, only ones not already on your sheet"],"remember":"at most twelve words, in your own voice, of what you will remember about the player character from this beat; empty if nothing worth keeping","lasting":false,"shift":0}
+Set "lasting" to true only for something you would never forget: a promise, a debt, a betrayal, a life saved.
+"shift" is a whole number from -3 to 3 for how much what the player character just did changed how you feel about them. 0 means no real change, and that is the usual answer. 1 or -1 is a small warming or souring, 2 or -2 a clear change, and 3 or -3 only for something that changes everything between you.`;
 async function castBeat(c,signal){
   const names = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]).slice(0,3); if(!names.length) return [];
   const ch = c.character, dm = lastOf(c,'dm'), tail = []; for(let i=c.log.length-1;i>=0&&c.log[i].role!=='dm';i--) if(c.log[i].role==='player'||c.log[i].role==='roll') tail.unshift(c.log[i]);
@@ -1158,7 +1178,7 @@ async function castBeat(c,signal){
       if(typeof j.remember==='string'&&j.remember.trim()&&!(n.memory||[]).some(m=>m.t.toLowerCase()===j.remember.trim().slice(0,140).toLowerCase())){ n.memory ||= []; n.memory.push({t:j.remember.trim().slice(0,140),k:j.lasting===true});
         const keep = n.memory.filter(m=>m.k).slice(-4), recent = n.memory.filter(m=>!m.k).slice(-8); n.memory = n.memory.filter(m=>keep.includes(m)||recent.includes(m)); }
       n.traits ||= []; for(const tr of (Array.isArray(j.new_traits)?j.new_traits:[])) if(typeof tr==='string'&&tr.trim()&&!n.traits.some(x=>x.toLowerCase()===tr.trim().toLowerCase())){ n.traits.push(tr.trim().slice(0,36)); if(n.traits.length>8) n.traits.shift(); }
-      return {name:n.name,intent:j.intent.trim().slice(0,420)};
+      return {name:n.name,intent:j.intent.trim().slice(0,420),shift:clamp(num(j.shift),-3,3)};
     }catch(e){ if(e.name==='AbortError') throw e; return null; } }));
   return out.filter(Boolean);
 }
@@ -1243,13 +1263,14 @@ async function takeTurn(entry){
   if(entry) c.log.push(entry);
   c.suggestions = []; c.pendingRoll = null; lastErr = null; busy = true; aborter = new AbortController();
   save(); renderGame();
-  const signal = aborter.signal; let raw = '', raf = 0, text = '', state = {}, fixed = false, checked = false, live = setLive('The narrator considers…');
+  const signal = aborter.signal; let shifts = [], rels = [];
+  let raw = '', raf = 0, text = '', state = {}, fixed = false, checked = false, live = setLive('The narrator considers…');
   try{
     let intents = [];
     const who = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]).slice(0,3);
     const setup = lastOf(c,'player'), calling = setup&&setup===c.log[c.log.length-1]&&setup.callRoll;
     const fight = c.mood==='fire';
-    if(who.length&&c.log.length&&!calling&&!fight){ live = setLive(`${who.join(', ').replace(/, ([^,]*)$/,' and $1')} ${who.length>1?'weigh':'weighs'} what to do…`); intents = await castBeat(c,signal); live = setLive('The narrator considers…'); }
+    if(who.length&&c.log.length&&!calling&&!fight){ live = setLive(`${who.join(', ').replace(/, ([^,]*)$/,' and $1')} ${who.length>1?'weigh':'weighs'} what to do…`); intents = await castBeat(c,signal); shifts = intents.filter(x=>x.shift); live = setLive('The narrator considers…'); }
     let ended = ''; const msgs = buildMessages(c,intents);
     raw = await chat(msgs,{signal,onEnd:f=>{ ended = f; },onText:t=>{ raw = t; if(raf) return; raf = requestAnimationFrame(()=>{ raf = 0; const v = visibleText(raw); if(v){ live.innerHTML = LBL+md(v); live.lastElementChild?.classList.add('cursor'); scrollLog(); } }); }});
     cancelAnimationFrame(raf); raf = 0;
@@ -1268,12 +1289,14 @@ async function takeTurn(entry){
   if(text){
     const pre = snapshot(c);
     c.log.forEach(e=>{ delete e.pre; });
-    const called = c.log[c.log.length-1]; const changes = applyState(c,state);
+    const called = c.log[c.log.length-1]; c._acted = shifts.map(x=>x.name); const changes = applyState(c,state); delete c._acted;
+    for(const x of shifts){ const n = c.npcs&&c.npcs[x.name], r0 = n&&shiftBond(n,x.shift); if(r0) changes.push({...r0,rel:1}); }
+    rels = changes.filter(x=>x.rel);
     if(called&&called.role==='player'&&called.callRoll){ c.pendingRoll = called.callRoll; c.suggestions = []; }
     c.log.push({role:'dm',text,state,changes,pre,...(checked?{ok:1}:{})});
     c.updated = Date.now();
   }else if(!lastErr&&!signal.aborted) lastErr = raw?'The model replied with no narration. Try again, or pick a different model.':'The model returned an empty reply. Try again, raise max tokens in Models, or pick a different model.';
-  save(); renderGame(); if(text) summarize(c);
+  save(); renderGame(); relPop(rels); if(text) summarize(c);
   if(text&&!signal.aborted) spotNames(c,text).then(ch=>{ if(!ch) return; save(); if(cur===c){ renderLog(); if(tab==='people') renderSide(); } });
 }
 function regenerate(){
@@ -1643,7 +1666,7 @@ function renderLog(){
     if(e.role==='roll') return `<div class="e roll"><div class="bub">${DIE_SVG}<span>${esc(e.text)}</span></div></div>`;
     if(e.role==='note') return `<div class="e note"><div class="bub">${esc(e.text)}</div></div>`;
     if(e.role==='aside') return `<div class="e aside"><div class="lbl">DM note</div><div class="q">${esc(e.q)}</div>${md(e.a)}${e.roll?`<div class="r">${esc(e.roll)}</div>`:''}</div>`;
-    return `<div class="e dm"><div class="lbl">Narrator</div>${md(e.text)}${chips(e.changes).length?`<div class="chg">${chips(e.changes).map(n=>`<span class="${n.k||''}">${esc(n.t)}</span>`).join('')}</div>`:''}${e.ok||(e.changes||[]).some(n=>/^Continuity pass/.test(n.t))?'<span class="ok-mark" title="Continuity checked" aria-label="Continuity checked">&#10003;</span>':''}
+    return `<div class="e dm"><div class="lbl">Narrator</div>${md(e.text)}${chips(e.changes).length?`<div class="chg">${chips(e.changes).map(n=>`<span class="${n.k||''}">${esc(n.t)}${n.arrows?`<b class="arw">${n.arrows}</b>`:''}</span>`).join('')}</div>`:''}${e.ok||(e.changes||[]).some(n=>/^Continuity pass/.test(n.t))?'<span class="ok-mark" title="Continuity checked" aria-label="Continuity checked">&#10003;</span>':''}
       ${i===last&&e.pre&&!busy?`<div class="tools"><button data-act="regen">Retell this scene</button></div>`:''}</div>`;
   }).join('')+(lastErr?`<div class="e err"><span>${esc(lastErr)}</span><button class="btn small" data-act="retry">Try again</button><button class="btn small" data-act="settings">Models</button></div>`:'');
   scrollLog();
@@ -1712,6 +1735,7 @@ function renderSide(){
     const person = n => { const st = stanceOf(n), id = 'npc-'+n.name.replace(/\W+/g,'-'), mem = (n.memory||[]).slice().reverse();
       return `<span id="${esc(id)}"></span>`+sec(id,`<i class="dot"></i><span class="nm">${esc(n.name)}</span><span class="badge">${here.includes(n.name)?'here · ':''}${st}</span>`,
         `<dl class="kv">${n.about?`<dt>Who</dt><dd>${esc(n.about)}</dd>`:''}
+          <dt>Bond</dt><dd><div class="bondbar"><i style="--p:${((n.bond||0)+10)*5}%"></i><span>${(n.bond||0)>0?'+':''}${n.bond||0}</span></div></dd>
           <dt>Toward you</dt><dd>${st[0].toUpperCase()+st.slice(1)}${n.attitude&&n.attitude.toLowerCase()!==st?`, ${esc(n.attitude)}`:''}</dd>
           ${(n.aka||[]).length?`<dt>Also called</dt><dd>${n.aka.map(esc).join(' · ')}</dd>`:''}
           ${n.wants?`<dt>Wants</dt><dd>${esc(n.wants)}</dd>`:''}
@@ -1851,7 +1875,7 @@ function openGame(tabName){
     body = `<label class="f">Person<select class="inp" id="gsWho">${names.map(x=>o(x,esc(x),gsWho)).join('')}${o('__new','Add a new person…',gsWho)}</select></label>
     <div class="grid2"><label class="f">Name<input class="inp" name="name" value="${esc(n.name)}" maxlength="50"></label>
       <label class="f">Stance toward you<select class="inp" name="stance">${STANCES.map(k=>o(k,k[0].toUpperCase()+k.slice(1),stanceOf(n))).join('')}</select></label>
-      <label class="f">Feeling, in a word or two<input class="inp" name="attitude" value="${esc(n.attitude||'')}" maxlength="40"></label><label class="f">Wants<input class="inp" name="wants" value="${esc(n.wants||'')}" maxlength="120"></label></div>
+       <label class="f">Bond (-10 to 10)<input class="inp" name="bond" type="number" min="-10" max="10" value="${n.bond||0}"></label><label class="f">Feeling, in a word or two<input class="inp" name="attitude" value="${esc(n.attitude||'')}" maxlength="40"></label><label class="f">Wants<input class="inp" name="wants" value="${esc(n.wants||'')}" maxlength="120"></label></div>
     <label class="f">Who they are<input class="inp" name="about" value="${esc(n.about||'')}" maxlength="240"></label>
     <label class="f">Also called (comma separated; these names are highlighted too)<input class="inp" name="aka" value="${esc((n.aka||[]).join(', '))}"></label>
     <label class="f">Traits (comma separated)<input class="inp" name="traits" value="${esc((n.traits||[]).join(', '))}"></label>
@@ -1883,7 +1907,7 @@ function saveGame(){
   else if(gsTab==='people'){ const name = f.name.value.trim().slice(0,50); if(!name) return; c.npcs ||= {}; c.present ||= [];
     const old = gsWho!=='__new'?c.npcs[gsWho]:null, n = old||{traits:[],skills:[],memory:[]};
     if(old&&gsWho!==name){ delete c.npcs[gsWho]; c.present = c.present.map(x=>x===gsWho?name:x); }
-    Object.assign(n,{name,stance:f.stance.value,attitude:f.attitude.value.trim().slice(0,40)||f.stance.value,wants:f.wants.value.trim().slice(0,120),about:f.about.value.trim().slice(0,240),aka:csv(f.aka.value).slice(0,6).map(x=>x.slice(0,50)),traits:csv(f.traits.value).slice(0,12).map(x=>x.slice(0,60)),skills:csv(f.skills.value).slice(0,6).map(x=>x.slice(0,40)),
+    Object.assign(n,{name,bond:clamp(num(f.bond.value),-10,10),stance:f.stance.value,attitude:f.attitude.value.trim().slice(0,40)||f.stance.value,wants:f.wants.value.trim().slice(0,120),about:f.about.value.trim().slice(0,240),aka:csv(f.aka.value).slice(0,6).map(x=>x.slice(0,50)),traits:csv(f.traits.value).slice(0,12).map(x=>x.slice(0,60)),skills:csv(f.skills.value).slice(0,6).map(x=>x.slice(0,40)),
       memory:f.memory.value.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,12).map(x=>({t:x.replace(/^\*\s*/,'').slice(0,140),k:x.startsWith('*')}))});
     c.npcs[name] = n; gsWho = name; c.present = c.present.filter(x=>x!==name); if(f.here.checked) c.present = [name,...c.present].slice(0,3); }
   else { c.location = f.location.value.trim().slice(0,80); c.mood = f.mood.value; c.summary = f.summary.value.trim();
@@ -2073,7 +2097,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170819';
+const BUILD = '202611170821';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
