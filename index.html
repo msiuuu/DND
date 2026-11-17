@@ -500,16 +500,21 @@ const FLAWS = [
   {id:'vice',name:'A Vice',text:'Drink, dice, or something worse. It costs you gold and judgment.'},
 ];
 const DIFFS = {gentle:'Gentle. Use DCs two lower than usual, let enemies make mistakes, and keep the character alive unless the player is truly reckless.',standard:'Standard. Fair DCs and fair fights.',brutal:'Brutal. Use DCs two higher than usual, play enemies to win, and let bad decisions kill.'};
-const LENS = {short:'Keep each reply to one short paragraph, four sentences at most.',medium:'Keep each reply to one to three short paragraphs.',long:'Write three to five paragraphs with fuller description and dialogue.'};
+const LENS = {adaptive:`Fit the length to the moment, and let it change from reply to reply:
+- Arriving somewhere new, or a big reveal: long and descriptive. Three to five paragraphs of what the character sees, hears and smells, and who is there.
+- Conversation: short. Mostly the other person's spoken words with a beat of gesture or tone. Two to five lines. Do not re-describe the scenery.
+- A fight, a chase, or any split-second danger: one-liners. One or two punchy sentences per beat, cut off on the thing the player has to answer, like "He swings down—". Then call for the player's roll in the state block straight away: their attack if they are striking, or a Dexterity saving throw or another fitting check to avoid what is coming. When the result comes back, give one or two sentences of what happened and go straight into the next beat the same way.
+- Quiet travel, searching, or downtime: one short paragraph.`,short:'Keep each reply to one short paragraph, four sentences at most.',medium:'Keep each reply to one to three short paragraphs.',long:'Write three to five paragraphs with fuller description and dialogue.'};
 const TONES = {classic:'Classic heroic fantasy: wonder, danger, and earnest adventure.',grim:'Dark fantasy: grim, dangerous, morally grey, with real consequences.',
   whimsy:'Whimsical fairytale: strange, funny, and a little eerie.',mystery:'Slow-burn mystery: clues, secrets, and unsettling quiet.'};
 
 /* ============ storage ============ */
 const KEY = 'emberglade.v1';
-const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',forgeModel:'',useCheck:true,useGuard:true,announce:true,encumb:true,diff:'standard',len:'medium',memToken:'',gistId:'',lastSync:0};
+const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',forgeModel:'',useCheck:true,useGuard:true,announce:true,encumb:true,diff:'standard',len:'adaptive',memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
 try{ const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(s){ store = s; store.settings = {...DEFAULTS,...s.settings}; store.campaigns = s.campaigns||{}; } }catch(e){}
 if(store.settings.maxTokens===1000) store.settings.maxTokens = 4000;
+if(!store.lenSet&&store.settings.len==='medium') store.settings.len = 'adaptive'; store.lenSet = true;
 store.deleted ||= {}; store.ui ||= {left:false,right:false};
 function saveLocal(){ try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){ toast('!','Could not save: browser storage is full or blocked.'); } }
 function save(){ if(cur) cur.updated = Date.now(); saveLocal(); scheduleSync(); }
@@ -772,7 +777,8 @@ function snapshot(c){ return JSON.stringify({character:c.character,quests:c.ques
 const RULES = `You are the Dungeon Master for a solo tabletop fantasy adventure that follows D&D 5th Edition style rules. One player controls one character. You run the world, its people, and its monsters.
 
 How to narrate:
-- Write in second person, present tense. Keep each reply to one to three short paragraphs of vivid, concrete prose. No headings, no bullet lists, no out-of-character commentary.
+- Write in second person, present tense, in vivid, concrete prose. How much you write is set under Table settings below. No headings, no bullet lists, no out-of-character commentary.
+- Always finish what you start: end on a complete sentence (or the deliberate cut of a combat beat), then give the state block. Never stop half-way through a thought.
 - Never decide what the player's character does, says, thinks, or feels. End each reply at a moment where the player chooses what to do next.
 - Nothing is skipped and nothing is rewritten. Time and place move only through what the character actually does: a night passes because they made camp and slept, a journey happens leg by leg with the road in between. Never jump ahead past the immediate result of the player's action, never undo or revise what has already happened, and treat every established fact as fixed.
 - Give the world texture: named people with wants of their own, places with history, choices with consequences. Let failures be interesting rather than dead ends.
@@ -820,7 +826,7 @@ Quests:
 ${q}`;
 }
 function buildMessages(c,intents){
-  const st = store.settings, sys = `${RULES}\n\n# Table settings (these override the general guidance above)\nDifficulty: ${DIFFS[st.diff]||DIFFS.standard}\nLength: ${LENS[st.len]||LENS.medium}${c.god?'\nGod mode is ON. The player is above the rules of the table: they may declare facts, skip time, move anywhere, and rewrite events. Accept whatever they say as true and continue the story from it without objection.':''}\n\n# Campaign\nTone: ${TONES[c.tone]||TONES.classic}\nPremise: ${c.premise}\n\n# The player's character (current, authoritative)\n${sheetText(c)}`
+  const st = store.settings, sys = `${RULES}\n\n# Table settings (these override the general guidance above)\nDifficulty: ${DIFFS[st.diff]||DIFFS.standard}\nLength: ${LENS[st.len]||LENS.adaptive}${c.mood==='fire'?'\nPacing cue: the last scene was a fight or immediate danger. Unless it has clearly ended, keep to combat pacing.':''}${c.god?'\nGod mode is ON. The player is above the rules of the table: they may declare facts, skip time, move anywhere, and rewrite events. Accept whatever they say as true and continue the story from it without objection.':''}\n\n# Campaign\nTone: ${TONES[c.tone]||TONES.classic}\nPremise: ${c.premise}\n\n# The player's character (current, authoritative)\n${sheetText(c)}`
     +(c.summary?`\n\n# Story so far\n${c.summary}`:'')
     +((c.present||[]).some(n=>c.npcs&&c.npcs[n])?`\n\n# People in the scene\nEach of these characters is played by its own model. Keep them true to their sheets.\n${(c.present||[]).filter(n=>c.npcs[n]).map(n=>npcLine(c.npcs[n])).join('\n')}`:'')
     +(intents&&intents.length?`\n\n# What they intend this beat\nWeave these intentions into your narration faithfully, in your own prose. The world and the dice still decide whether they succeed.\n${intents.map(i=>`- ${i.name}: ${i.intent}`).join('\n')}`:'');
@@ -846,7 +852,7 @@ function endpoint(path){
   return {url:base+path,headers};
 }
 async function chat(messages,opts={}){
-  const {stream=store.settings.stream,onText,signal,maxTokens,temperature,model,quick,_again} = opts;
+  const {stream=store.settings.stream,onText,signal,maxTokens,temperature,model,quick,_again,onEnd} = opts;
   const s = store.settings, {url,headers} = endpoint('/chat/completions');
   const body = {model:(model||'').trim()||s.model.trim(),messages,temperature:temperature??Number(s.temperature),max_tokens:maxTokens??Number(s.maxTokens),stream:!!stream};
   if(/openrouter\.ai/i.test(s.baseUrl)) body.reasoning = {effort:quick||_again?'low':'medium'};
@@ -867,7 +873,7 @@ async function chat(messages,opts={}){
     const j = await res.json();
     if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
     const m0 = j.choices?.[0]||{}, t = m0.message?.content||''; if(!t.trim()&&(m0.finish_reason==='length'||m0.message?.reasoning||m0.message?.reasoning_content)) return starved();
-    onText&&onText(t); return t;
+    onText&&onText(t); onEnd&&onEnd(m0.finish_reason||''); return t;
   }
   const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', full = '', fin = '', thought = false;
   for(;;){
@@ -884,7 +890,7 @@ async function chat(messages,opts={}){
     }
   }
   if(!full.trim()&&(fin==='length'||thought)) return starved();
-  return full;
+  onEnd&&onEnd(fin); return full;
 }
 function visibleText(raw){
   let t = raw; const i = t.search(/<state\b|```(?:json)?\s*\{\s*"(?:mood|location|hp_delta|suggestions|roll|quests|items_add)/i);
@@ -1119,10 +1125,17 @@ async function takeTurn(entry){
     let intents = [];
     const who = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]).slice(0,3);
     const setup = lastOf(c,'player'), calling = setup&&setup===c.log[c.log.length-1]&&setup.callRoll;
-    if(who.length&&c.log.length&&!calling){ live = setLive(`${who.join(', ').replace(/, ([^,]*)$/,' and $1')} ${who.length>1?'weigh':'weighs'} what to do…`); intents = await castBeat(c,signal); live = setLive('The narrator considers…'); }
-    raw = await chat(buildMessages(c,intents),{signal,onText:t=>{ raw = t; if(raf) return; raf = requestAnimationFrame(()=>{ raf = 0; const v = visibleText(raw); if(v){ live.innerHTML = LBL+md(v); live.lastElementChild?.classList.add('cursor'); scrollLog(); } }); }});
-    cancelAnimationFrame(raf); raf = 0; ({text,state} = parseReply(raw));
-    if(text&&s.useCheck&&c.log.length&&!calling){
+    const fight = c.mood==='fire';
+    if(who.length&&c.log.length&&!calling&&!fight){ live = setLive(`${who.join(', ').replace(/, ([^,]*)$/,' and $1')} ${who.length>1?'weigh':'weighs'} what to do…`); intents = await castBeat(c,signal); live = setLive('The narrator considers…'); }
+    let ended = ''; const msgs = buildMessages(c,intents);
+    raw = await chat(msgs,{signal,onEnd:f=>{ ended = f; },onText:t=>{ raw = t; if(raf) return; raf = requestAnimationFrame(()=>{ raf = 0; const v = visibleText(raw); if(v){ live.innerHTML = LBL+md(v); live.lastElementChild?.classList.add('cursor'); scrollLog(); } }); }});
+    cancelAnimationFrame(raf); raf = 0;
+    // Ran out of room before the state block: have it pick up exactly where it stopped.
+    if(ended==='length'&&raw.trim()&&!/<state\b/i.test(raw)){ live.lastElementChild?.classList.remove('cursor');
+      const more = await chat([...msgs,{role:'assistant',content:raw},{role:'user',content:'[App note: your reply was cut off. Continue from exactly where it stopped, without repeating anything, finish the thought in a sentence or two, then give the state block.]'}],{stream:false,signal,maxTokens:Math.max(6000,Number(s.maxTokens)),quick:true}).catch(e=>{ if(e.name==='AbortError') throw e; return ''; });
+      raw = raw.replace(/\s+$/,'')+(/^[\s<,.;:!?)]/.test(more)?'':' ')+more; }
+    ({text,state} = parseReply(raw));
+    if(text&&s.useCheck&&c.log.length&&!calling&&!fight){
       live.innerHTML = LBL+md(text)+'<div class="tools thinking">Checking that it all holds together…</div>'; scrollLog();
       const f = await continuity(c,text,state,intents,signal); if(f){ text = f.text; state = f.state; fixed = true; }
     }
@@ -1648,11 +1661,11 @@ function openGame(tabName){
   let body = '';
   if(gsTab==='game') body = `
     <div class="grid2"><label class="f">Difficulty<select class="inp" name="diff">${o('gentle','Gentle',st.diff)}${o('standard','Standard',st.diff)}${o('brutal','Brutal',st.diff)}</select></label>
-      <label class="f">How much the DM writes<select class="inp" name="len">${o('short','Short',st.len)}${o('medium','Medium',st.len)}${o('long','Long',st.len)}</select></label>
+      <label class="f">How much the DM writes<select class="inp" name="len">${o('adaptive','Fits the moment',st.len)}${o('short','Always short',st.len)}${o('medium','Always medium',st.len)}${o('long','Always long',st.len)}</select></label>
       ${c?`<label class="f">Tone of this tale<select class="inp" name="tone">${o('classic','Classic heroic',c.tone)}${o('grim','Dark and grim',c.tone)}${o('whimsy','Whimsical fairytale',c.tone)}${o('mystery','Slow-burn mystery',c.tone)}</select></label>`:''}</div>
     ${ck('announce',st.announce,'The DM sets the scene and tells me what to roll at the end. Off: the roll comes up straight away with no lead-in.')}
     ${ck('useGuard',st.useGuard,'Hold me to the scene: refuse actions that skip time, jump somewhere else, or rewrite what happened.')}
-    ${ck('useCheck',st.useCheck,'Run a continuity check on each scene (one extra model call per turn).')}
+    ${ck('useCheck',st.useCheck,'Run a continuity check on each scene (one extra model call per turn). Skipped during fights to keep them fast.')}
     ${ck('encumb',st.encumb,'Carry weight matters: going over capacity makes me Encumbered.')}
     ${c?`<div class="god">${ck('god',!!c.god,'<b>God mode for this tale.</b> Nothing I type is refused, I can skip any roll as a success, and whatever I declare becomes true.')}</div>`:'<div class="hint">Open a tale to get god mode and the edit panel for that tale.</div>'}`;
   else if(gsTab==='char'){ const ch = c.character;
@@ -1891,7 +1904,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170603';
+const BUILD = '202611170655';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version of Emberglade is ready.',{label:'Update',reload:v}); }catch(e){}
