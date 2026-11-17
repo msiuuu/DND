@@ -213,7 +213,7 @@ ul.list li button:hover{color:var(--danger)}
 .result span{font-size:13px;color:var(--muted)}
 .hist{margin-top:10px;font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:3px;max-height:150px;overflow:auto}
 
-.tray{position:relative;height:236px;border-radius:14px;overflow:hidden;margin-bottom:12px;border:1px solid var(--line2);
+.tray{position:fixed;left:-9999px;top:0;width:300px;height:230px;z-index:25;border-radius:14px;overflow:hidden;margin:0;border:1px solid var(--line2);
   background:radial-gradient(circle at 50% 40%,color-mix(in srgb,var(--ember) 20%,#1c1c1c),#0b0b0b 85%);box-shadow:inset 0 0 30px rgba(0,0,0,.7),inset 0 2px 0 rgba(255,255,255,.05);transition:border-color .3s,box-shadow .3s}
 .tray.crit{border-color:#f0c64e;box-shadow:inset 0 0 38px rgba(240,200,80,.4)}
 .tray.fumble{border-color:#c4503a;box-shadow:inset 0 0 38px rgba(200,60,40,.45)}
@@ -245,7 +245,8 @@ ul.list li button:hover{color:var(--danger)}
 .e.aside .lbl{margin-bottom:4px}
 .e.aside .q{color:var(--muted);font-size:13.5px}
 .e.aside .r{color:var(--muted);font-size:12.5px;margin-top:4px}
-.rollcard .tray{flex:1 1 100%;margin:4px 0 0;height:220px}
+#chatTray{flex:1 1 100%;height:220px;margin-top:4px}
+#trayslot{height:236px;margin-bottom:12px}
 .capbar{height:7px;border-radius:99px;background:rgba(0,0,0,.4);overflow:hidden;margin:8px 0 4px}
 .capbar i{display:block;height:100%;background:var(--ember);transition:width .3s}.capbar.over i{background:var(--danger)}
 .slots{display:grid;gap:6px;margin:10px 0 2px}
@@ -608,10 +609,10 @@ const dieSVG = sides => { const f = FACETS[sides], n = f.length;
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 const within = (pr,ms) => Promise.race([pr,new Promise((_,no)=>setTimeout(()=>no(new Error('timeout')),ms))]);
 // The tray is one lasting element that is moved into the Dice tab each time the sheet is drawn, so the 3D canvas survives re-renders.
-const trayNode = document.createElement('div'); trayNode.className = 'tray'; trayNode.innerHTML = '<div id="tray3d"></div><div class="dicerow" id="tray2d"></div>'; trayNode.title = 'Tap to roll again';
+const trayNode = document.createElement('div'); trayNode.className = 'tray'; trayNode.innerHTML = '<div id="tray3d"></div><div class="dicerow" id="tray2d"></div>'; trayNode.title = 'Tap to roll again'; document.body.appendChild(trayNode);
 // Tapping the tray rolls again: the roll you were asked for if one is waiting, otherwise the last die you threw.
 trayNode.addEventListener('click',()=>{ if(rolling||busy||!cur) return; if($('#chatTray')&&cur.pendingRoll) resolvePending(cur.pendingRoll.advantage); else if(tab==='dice'&&lastDie) trayRoll(lastDie); });
-let box = null, boxState = '';
+let box = null, boxState = '', rebuilds = 0;
 async function boxInit(){
   if(boxState) return boxState==='ok';
   try{
@@ -621,6 +622,7 @@ async function boxInit(){
     box._look = diceLook().theme;
     await within(box.init(),12000); boxState = 'ok';
   }catch(e){ boxState = 'fail'; box = null; $('#tray3d').innerHTML = ''; }
+  $('#tray3d').style.visibility = '';
   return boxState==='ok';
 }
 function flatDice(dice){
@@ -633,13 +635,31 @@ function flatDice(dice){
     setTimeout(()=>{ clearInterval(iv); els.forEach((el,i)=>{ el.lastChild.textContent = dice[i].value; el.classList.add('land'); }); setTimeout(done,calm.matches?100:300); },spin);
   });
 }
-// The tray sits in the chat while a roll is being called for, and in the Dice tab otherwise.
-function placeTray(){ const slot = $('#chatTray')||$('#trayslot'); if(slot&&trayNode.parentNode!==slot) slot.appendChild(trayNode);
-  const hint = $('#trayslot'); if(hint&&$('#chatTray')&&!hint.firstChild) hint.innerHTML = '<div class="hint" style="margin-bottom:12px">The tray is in the chat for the roll you have been asked to make.</div>'; }
+// The tray is never taken off the page: a 3D canvas that is removed and put back can stop drawing on phones.
+// It floats over whichever placeholder is showing, the roll card in the chat or the Dice tab, and is parked off-screen otherwise.
+function placeTray(){ const ts = $('#trayslot'); if(!ts) return; const inChat = !!$('#chatTray'); ts.style.height = inChat?'auto':'';
+  ts.innerHTML = inChat?'<div class="hint">The tray is in the chat for the roll you have been asked to make.</div>':''; }
+function traySlot(){
+  if(!cur||$('#modalRoot').firstChild) return null;
+  const chat = $('#chatTray'), drawerUp = !wide()&&($('#leftD')?.classList.contains('open')||$('#rightD')?.classList.contains('open'));
+  if(chat) return drawerUp?null:chat;
+  const ts = $('#trayslot'); return ts&&$('#rightD')?.classList.contains('open')?ts:null;
+}
+function syncTray(){
+  const slot = traySlot(), st = trayNode.style; let shown = false;
+  if(slot){ const r = slot.getBoundingClientRect();
+    if(r.width>20&&r.height>20){
+      const side = slot.closest('#side'), tabs = side&&side.querySelector('.tabs'), box0 = side?side.getBoundingClientRect():{top:0,left:0,right:innerWidth,bottom:innerHeight};
+      const top = Math.max(box0.top,tabs?tabs.getBoundingClientRect().bottom:0), ct = Math.max(0,top-r.top), cb = Math.max(0,r.bottom-box0.bottom);
+      if(ct+cb<r.height-4){ shown = true; st.left = r.left+'px'; st.top = r.top+'px'; st.width = r.width+'px'; st.height = r.height+'px'; st.clipPath = ct||cb?`inset(${ct}px 0 ${cb}px 0 round 14px)`:''; } } }
+  if(!shown&&st.left!=='-9999px'){ st.left = '-9999px'; st.top = '0px'; st.clipPath = ''; }
+  requestAnimationFrame(syncTray);
+}
+requestAnimationFrame(syncTray);
 async function openTray(){
   trayNode.classList.remove('crit','fumble');
-  if($('#chatTray')){ placeTray(); if(!wide()) closeDrawers(); trayNode.scrollIntoView({block:'nearest'}); return false; }
-  tab = 'dice'; renderSide();
+  if($('#chatTray')){ placeTray(); if(!wide()) closeDrawers(); $('#chatTray').scrollIntoView({block:'nearest'}); await sleep(80); return false; }
+  tab = 'dice'; renderSide(); setTimeout(()=>$('#trayslot')?.scrollIntoView({block:'nearest'}),350);
   const d = $('#rightD'), was = d.classList.contains('open');
   if(!was){ if(!wide()) setDrawer($('#leftD'),false); setDrawer(d,true); await sleep(320); }
   return !was;
@@ -649,7 +669,7 @@ function closeTray(opened){ if(!opened) return; setTimeout(()=>{ if(rolling||(wi
 // One 3D throw. With `apart`, the dice are thrown one after another and all stay on the table, which is steadier than throwing them together.
 async function roll3d(groups,keep,apart){
   const opt = diceLook(); if(box._look!==opt.theme){ await within(box.updateConfig(opt),10000); box._look = opt.theme; }
-  const call = (note,add) => within(add?box.add(note,opt):box.roll(note,opt),10000);
+  const call = (note,add) => within(add?box.add(note,opt):box.roll(note,opt),8000);
   const read = (res,gs) => { const flat = (res||[]).map(x=>x.value); let k = 0;
     const vals = gs.map(g=>{ const c = g.sides===100?1:g.n, v = flat.slice(k,k+c); k += c; return g.sides===100?v.map(x=>x===0?100:x):v; });
     return k===flat.length&&vals.every((v,i)=>v.length===(gs[i].sides===100?1:gs[i].n)&&v.every(x=>Number.isInteger(x)&&x>=1&&x<=gs[i].sides))?vals:null; };
@@ -662,12 +682,17 @@ async function roll3d(groups,keep,apart){
 async function throwDice(groups,keep,apart){
   let vals = null;
   if(await boxInit()){
-    $('#tray2d').innerHTML = '';
+    $('#tray2d').innerHTML = ''; $('#tray3d').style.visibility = '';
     // A die can land leaning or leave the tray; throw again rather than give up on the 3D dice.
-    for(let tries=0;tries<3&&!vals;tries++){ try{ box.resizeWorld(); vals = await roll3d(groups,keep,apart||tries>0); }catch(e){ vals = null; } }
+    for(let tries=0;tries<3&&!vals&&box;tries++){
+      try{ box.resizeWorld(); vals = await roll3d(groups,keep&&tries===0,apart||tries>0); }
+      catch(e){ vals = null;
+        // No answer at all means the 3D tray has stalled: build a fresh one straight away and throw on that.
+        if(rebuilds++<4){ box = null; boxState = ''; $('#tray3d').innerHTML = ''; await boxInit(); } else break; } }
   }
   if(!vals){
     if(box){ try{ box.clear(); }catch(e){} }
+    $('#tray3d').style.visibility = 'hidden';
     vals = groups.map(g=>Array.from({length:g.sides===100?1:g.n},()=>rnd(g.sides)));
     await flatDice(vals.flatMap((v,i)=>v.map(x=>({sides:groups[i].sides,value:x}))));
   }
@@ -1535,7 +1560,7 @@ function renderComposer(){
     if((r.skill&&ch.profs.includes(r.skill))||(r.save&&r.ability&&ch.saves.includes(r.ability))||r.proficient) b += prof(ch.level);
     h += `<div class="rollcard"><div class="t"><b>${esc(r.label)}</b>${r.ask?`<div>To find out: ${esc(r.ask)}</div>`:''}<div>${r.ability?ABIL_NAME[r.ability]+(r.skill?' ('+r.skill+')':r.save?' save':'')+' · ':''}d20 ${sgn(b)}${r.dc?` against ${r.damage?'AC':'DC'} ${r.dc}`:''}${r.damage?` · damage ${esc(r.damage)}`:''}${r.advantage!=='none'?` · the narrator calls for ${r.advantage==='adv'?'advantage':'disadvantage'}`:''}</div></div>
       <button class="btn primary" data-act="pend" data-adv="${r.advantage}">Roll</button>${c.god?`<button class="btn small" data-act="skipRoll">Skip it (succeed)</button>`:''}
-      ${r.advantage==='none'?`<button class="btn small" data-act="pend" data-adv="adv">Advantage</button><button class="btn small" data-act="pend" data-adv="dis">Disadvantage</button>`:''}<div id="chatTray" style="flex:1 1 100%"></div></div>`;
+      ${r.advantage==='none'?`<button class="btn small" data-act="pend" data-adv="adv">Advantage</button><button class="btn small" data-act="pend" data-adv="dis">Disadvantage</button>`:''}<div id="chatTray"></div></div>`;
   }
   if(denied&&!busy) h += `<div class="deny" role="status"><b>Not from here.</b><div class="hint">${esc(denied.reason)} Nothing was added to the story.</div>${denied.steps.length?`<div class="sugg">${denied.steps.map(x=>`<button data-act="sugg">${esc(x)}</button>`).join('')}</div>`:''}</div>`;
   if(c.shop&&!busy) h += `<div class="shopcard"><div class="t"><b>${esc(c.shop.name)}</b><div>${c.shop.keeper?esc(c.shop.keeper)+' · ':''}${c.shop.items.length} things for sale · you have ${c.character.gold} gp</div></div><button class="btn primary" data-act="shop">Open shop</button></div>`;
@@ -1944,7 +1969,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170709';
+const BUILD = '202611170718';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version of Emberglade is ready.',{label:'Update',reload:v}); }catch(e){}
