@@ -27,6 +27,7 @@
   --r:14px;color-scheme:dark;
 }
 body[data-mood=night]{--bg:#090d18;--solid:#0d1322;--ember:#8fb0ee;--ember2:#bccff7;--emberdeep:#5574b8}
+body[data-mood=hearth]{--bg:#16100c;--solid:#1b140f;--ember:#e9b27a;--ember2:#f5d3a8;--emberdeep:#a9713f}
 body[data-mood=fire]{--bg:#140b09;--solid:#1a0f0c;--ember:#f08a4b;--ember2:#f8b98a;--emberdeep:#b84a22}
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -39,8 +40,15 @@ button{cursor:pointer}
 .bgl{position:fixed;inset:0;z-index:0;opacity:0;transition:opacity 1.8s ease;pointer-events:none}
 #bg-forest{background:radial-gradient(1000px 520px at 50% -12%,rgba(150,190,120,.17),transparent 62%),radial-gradient(800px 600px at 0% 110%,rgba(60,120,80,.16),transparent 60%),linear-gradient(180deg,#111b15,#0b120e)}
 #bg-night{background:radial-gradient(900px 520px at 70% -12%,rgba(120,150,230,.20),transparent 62%),radial-gradient(800px 600px at 0% 110%,rgba(50,70,150,.18),transparent 60%),linear-gradient(180deg,#0d1424,#070a13)}
+#bg-hearth{background:radial-gradient(1000px 560px at 50% 108%,rgba(236,170,110,.22),transparent 62%),radial-gradient(700px 460px at 18% -10%,rgba(214,140,120,.12),transparent 60%),linear-gradient(180deg,#1b1410,#120d0a)}
 #bg-fire{background:radial-gradient(1100px 560px at 50% 112%,rgba(240,110,50,.30),transparent 62%),radial-gradient(800px 480px at 50% -14%,rgba(200,60,40,.14),transparent 60%),linear-gradient(180deg,#1a0f0c,#110908)}
-body[data-mood=forest] #bg-forest,body[data-mood=night] #bg-night,body[data-mood=fire] #bg-fire{opacity:1}
+body[data-mood=forest] #bg-forest,body[data-mood=night] #bg-night,body[data-mood=fire] #bg-fire,body[data-mood=hearth] #bg-hearth{opacity:1}
+#alarm{position:fixed;inset:0;z-index:45;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 38%,rgba(214,36,28,.62) 100%);display:grid;place-items:start center}
+#alarm.on{animation:alarm 1.5s ease-out}
+#alarm b{margin-top:calc(92px + env(safe-area-inset-top,0px));background:rgba(120,14,10,.92);border:1px solid #ff8a7a;color:#fff;border-radius:10px;padding:9px 18px;font:700 14px var(--ui);letter-spacing:.14em;text-transform:uppercase;max-width:88vw;text-align:center;box-shadow:0 10px 40px rgba(180,20,10,.6)}
+@keyframes alarm{0%{opacity:0}10%{opacity:1}26%{opacity:.35}42%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){#alarm{background:none}#alarm.on{animation:alarmcalm 2.2s linear!important}}
+@keyframes alarmcalm{0%,100%{opacity:0}8%,85%{opacity:1}}
 #flies{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;color:var(--ember2)}
 #flies i{position:absolute;width:3px;height:3px;border-radius:50%;background:currentColor;box-shadow:0 0 9px 2px currentColor;opacity:0;animation:fly 14s ease-in-out infinite}
 @keyframes fly{0%{opacity:0;transform:translate(0,0)}15%{opacity:.55}50%{opacity:.15;transform:translate(40px,-60px)}70%{opacity:.5}100%{opacity:0;transform:translate(-30px,-130px)}}
@@ -442,7 +450,7 @@ header.bar{padding-top:calc(10px + env(safe-area-inset-top,0px))}
 </style>
 </head>
 <body data-mood="forest">
-<div class="bgl" id="bg-forest"></div><div class="bgl" id="bg-night"></div><div class="bgl" id="bg-fire"></div>
+<div class="bgl" id="bg-forest"></div><div class="bgl" id="bg-night"></div><div class="bgl" id="bg-fire"></div><div class="bgl" id="bg-hearth"></div>
 <div id="flies" aria-hidden="true"></div>
 <div id="app">
   <header class="bar">
@@ -459,6 +467,7 @@ header.bar{padding-top:calc(10px + env(safe-area-inset-top,0px))}
   </header>
   <main id="main"></main>
 </div>
+<div id="alarm" role="alert"></div>
 <div id="relbar" role="status" aria-live="polite"></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="modalRoot"></div>
@@ -711,7 +720,7 @@ function d20(adv){ const a = rnd(20), b = rnd(20); const pick = adv==='adv'?Math
 
 const TRAY_SCALE = 12;
 // Carved wood in the forest, carved stone tinted by the mood at night and in a fight.
-const diceLook = () => { const m = document.body.dataset.mood; return {theme:m==='forest'?'wooden':'rock',themeColor:m==='night'?'#7f9fe0':'#e0703a'}; };
+const diceLook = () => { const m = document.body.dataset.mood; return {theme:m==='forest'||m==='hearth'?'wooden':'rock',themeColor:m==='night'?'#7f9fe0':'#e0703a'}; };
 const calm = matchMedia('(prefers-reduced-motion: reduce)');
 // Each die is drawn as the facets you would see looking at it face-on; the last facet listed is the one facing you.
 const FACETS = (()=>{
@@ -910,8 +919,10 @@ const useOf = it => it.use||(KNOWN_USE.find(([re])=>re.test(it.name))||[])[1]||n
 function addAka(c,sh,list){ sh.aka ||= []; const taken = new Set(Object.values(c.npcs||{}).flatMap(n=>n===sh?[]:[n.name,...(n.aka||[])]).map(x=>x.toLowerCase()));
   for(const a of (Array.isArray(list)?list:String(list||'').split(','))){ const v = String(a||'').trim().slice(0,50), k = v.toLowerCase();
     if(v.length>=2&&okName(v)&&k!==sh.name.toLowerCase()&&!taken.has(k)&&!sh.aka.some(x=>x.toLowerCase()===k)&&sh.aka.length<6&&k!==c.character.name.toLowerCase()) sh.aka.push(v); } }
-const MOODS = ['forest','night','fire'];
-function setMood(m){ m = MOODS.includes(m)?m:'forest'; document.body.dataset.mood = m; document.querySelector('meta[name=theme-color]')?.setAttribute('content',{forest:'#0d1410',night:'#090d18',fire:'#140b09'}[m]); }
+const MOODS = ['forest','night','fire','hearth'];
+// A red flash and a banner when a foe turns up or a fight breaks out.
+function alarm(text){ const a = $('#alarm'); if(!a) return; a.innerHTML = `<b>${esc(text)}</b>`; a.classList.remove('on'); void a.offsetWidth; a.classList.add('on'); }
+function setMood(m){ m = MOODS.includes(m)?m:'forest'; document.body.dataset.mood = m; document.querySelector('meta[name=theme-color]')?.setAttribute('content',{forest:'#0d1410',night:'#090d18',hearth:'#16100c',fire:'#140b09'}[m]); }
 let rolling = false;
 let busy = false, aborter = null, tab = 'sheet', lastErr = null, trayHist = [], lastTray = null;
 
@@ -960,6 +971,7 @@ How to narrate:
 - Always finish what you start: end on a complete sentence (or the deliberate cut of a combat beat), then give the state block. Never stop half-way through a thought.
 - What the player states is always an attempt, never a result. "I shoot the giant in the eye" means the character reaches for the bow, draws and looses at the eye; it does not mean the arrow lands. Where a step is genuinely in doubt, let it succeed or fail on the dice and the circumstances: the draw can be fumbled, the shot can miss, a hit can fail to do what was hoped. Do not grant the hoped-for result because it was named, and do not refuse the attempt because it was worded as a success. Steps that anyone could do without trouble simply happen.
 - Never decide what the player's character does, says, thinks, or feels. End each reply at a moment where the player chooses what to do next.
+- Stay in the kind of scene that is under way. A quiet evening stays quiet, a cosy scene stays cosy, a conversation stays a conversation, an intimate scene stays intimate, a fight stays a fight, until the player or the events already in motion change it. Do not cut away, do not interrupt it with an unrelated threat, do not reach for a battle, a villain or a plot twist to raise the stakes, and do not treat one kind of scene with the language of another: no combat pacing, dread or grand stakes in a scene that is none of those things. The tone set for this tale decides how the whole story feels; follow it in every reply.
 - Nothing is skipped and nothing is rewritten. Time and place move only through what the character actually does: a night passes because they made camp and slept, a journey happens leg by leg with the road in between. Never jump ahead past the immediate result of the player's action, never undo or revise what has already happened, and treat every established fact as fixed.
 - Give the world texture where it earns its place: people with wants of their own, places with some history. Let a failure lead somewhere instead of to a dead end.
 - Stay consistent with the character sheet, inventory, quests, and the story so far given below. The player cannot use items or abilities they do not have.
@@ -983,10 +995,10 @@ State block:
 After the narration, end EVERY reply with one state block, exactly in this form, containing valid JSON. Include only the keys that changed, plus "mood" and "suggestions", which go in every reply. The player does not see this block.
 
 <state>
-{"mood":"forest","location":"short name of the current place","hp_delta":0,"gold_delta":0,"xp_delta":0,"items_add":[{"name":"Rusty key","qty":1}],"items_remove":[{"name":"Torch","qty":1}],"conditions_add":["Poisoned"],"conditions_remove":["Poisoned"],"quests":[{"title":"Quest name","status":"active","note":"one line on the current objective"}],"present":["Marta Quill"],"npcs":[{"name":"Marta Quill","about":"caravan master in her fifties, blunt, wants her wagons through by dawn","stance":"wary","skills":["Haggling","Driving a team"]}],"shop":{"name":"Brannoch's Sundries","keeper":"Brannoch","items":[{"name":"Potion of healing","price":50,"qty":2,"desc":"Restores 2d4+2 hit points","use":{"heal":"2d4+2"}},{"name":"Rope (50 ft)","price":1,"desc":"Hempen rope"}]},"roll":{"label":"Stealth check","ability":"dex","skill":"Stealth","save":false,"proficient":false,"advantage":"none","dc":13,"damage":null},"suggestions":["a short action the player might take","another","a third"]}
+{"mood":"forest","encounter":null,"location":"short name of the current place","hp_delta":0,"gold_delta":0,"xp_delta":0,"items_add":[{"name":"Rusty key","qty":1}],"items_remove":[{"name":"Torch","qty":1}],"conditions_add":["Poisoned"],"conditions_remove":["Poisoned"],"quests":[{"title":"Quest name","status":"active","note":"one line on the current objective"}],"present":["Marta Quill"],"npcs":[{"name":"Marta Quill","about":"caravan master in her fifties, blunt, wants her wagons through by dawn","stance":"wary","skills":["Haggling","Driving a team"]}],"shop":{"name":"Brannoch's Sundries","keeper":"Brannoch","items":[{"name":"Potion of healing","price":50,"qty":2,"desc":"Restores 2d4+2 hit points","use":{"heal":"2d4+2"}},{"name":"Rope (50 ft)","price":1,"desc":"Hempen rope"}]},"roll":{"label":"Stealth check","ability":"dex","skill":"Stealth","save":false,"proficient":false,"advantage":"none","dc":13,"damage":null},"suggestions":["a short action the player might take","another","a third"]}
 </state>
 
-Notes on the keys: "mood" colours the app to match the scene and must be exactly one of: "forest" for outdoors, daylight, travel, calm or ordinary scenes; "night" for night-time, serene, quiet, eerie or stealthy scenes; "fire" for battle, mortal danger, anger or rage. "hp_delta" is negative for damage and positive for healing. "xp_delta" awards experience for overcoming challenges (a typical early encounter is worth 25 to 100). Quest "status" is "active", "done", or "failed". "bonds" lists people whose feeling toward the player character changed because of what just happened, each with a "shift" from -3 to 3 (for example [{"name":"Marta Quill","shift":-2}]): 1 is a small change, 2 a clear one, 3 only for something that changes everything; leave it out when nobody's feelings moved. "present" lists the named non-player characters who are in the scene with the player right now, three at most, most important first; send it whenever it changes, and send [] when the player is alone. "npcs" introduces a named character the first time they appear or are even just mentioned by name, with one line about who they are, any other names or titles they go by in "also" (for example ["Vesper","the clerk"]), a "stance" toward the player character (one of friendly, neutral, wary, hostile, strange) and up to four "skills" they are notably good at; send the entry again when their stance changes. "shop" opens a shop panel in the app: send it whenever the player is somewhere they can buy things (a shop, a stall, a pedlar, an inn's counter), with the place's name, its keeper, and four to ten items priced in gold pieces at fair 5e prices; "qty" is optional stock. Send "shop":null when the player leaves. The app handles buying and selling itself and tells you what was traded, so never change gold or items for a purchase made through the shop. Items in "items_add" and in a shop may carry "desc" (one line) and, for consumables that restore hit points, "use":{"heal":"2d4+2"}. In "roll", "ability" is one of str, dex, con, int, wis, cha; "skill" is a 5e skill name or null; set "save" true for saving throws; set "proficient" true for attacks with weapons or spells the character is proficient with; "advantage" is "none", "adv", or "dis". Leave "roll" out entirely when no roll is needed. Always give three short "suggestions", but the player may do anything.`;
+Notes on the keys: "mood" colours the app to match the scene and must be exactly one of: "forest" for outdoors, daylight, travel, calm or ordinary scenes; "night" for night-time, serene, quiet, eerie or stealthy scenes; "hearth" for warm indoor scenes: home, an inn, a bed, a meal, anything cosy, domestic, tender or intimate; "fire" only while a fight or real mortal danger is actually happening, never for strong feelings or heated scenes that are not a fight. "encounter" names a foe at the moment they first confront the player or a fight breaks out (for example "Garrow, a brigand"); send it once, at that moment, and never for someone who is merely unfriendly. "hp_delta" is negative for damage and positive for healing. "xp_delta" awards experience for overcoming challenges (a typical early encounter is worth 25 to 100). Quest "status" is "active", "done", or "failed". "bonds" lists people whose feeling toward the player character changed because of what just happened, each with a "shift" from -3 to 3 (for example [{"name":"Marta Quill","shift":-2}]): 1 is a small change, 2 a clear one, 3 only for something that changes everything; leave it out when nobody's feelings moved. "present" lists the named non-player characters who are in the scene with the player right now, three at most, most important first; send it whenever it changes, and send [] when the player is alone. "npcs" introduces a named character the first time they appear or are even just mentioned by name, with one line about who they are, any other names or titles they go by in "also" (for example ["Vesper","the clerk"]), a "stance" toward the player character (one of friendly, neutral, wary, hostile, strange) and up to four "skills" they are notably good at; send the entry again when their stance changes. "shop" opens a shop panel in the app: send it whenever the player is somewhere they can buy things (a shop, a stall, a pedlar, an inn's counter), with the place's name, its keeper, and four to ten items priced in gold pieces at fair 5e prices; "qty" is optional stock. Send "shop":null when the player leaves. The app handles buying and selling itself and tells you what was traded, so never change gold or items for a purchase made through the shop. Items in "items_add" and in a shop may carry "desc" (one line) and, for consumables that restore hit points, "use":{"heal":"2d4+2"}. In "roll", "ability" is one of str, dex, con, int, wis, cha; "skill" is a 5e skill name or null; set "save" true for saving throws; set "proficient" true for attacks with weapons or spells the character is proficient with; "advantage" is "none", "adv", or "dis". Leave "roll" out entirely when no roll is needed. Always give three short "suggestions", but the player may do anything.`;
 
 function sheetText(c){
   const ch = c.character;
@@ -1100,7 +1112,8 @@ function parseReply(raw){
 function applyState(c,s){
   const ch = c.character, notes = [];
   const note = (t,k)=>notes.push({t,k});
-  if(MOODS.includes(s.mood)) c.mood = s.mood;
+  const wasMood = c.mood; if(MOODS.includes(s.mood)) c.mood = s.mood;
+  if(typeof s.encounter==='string'&&s.encounter.trim()){ c._alarm = s.encounter.trim().slice(0,60); note('Encounter: '+c._alarm,'bad'); } else if(c.mood==='fire'&&wasMood!=='fire') c._alarm = 'A fight breaks out';
   if(typeof s.location==='string'&&s.location.trim()) c.location = s.location.trim().slice(0,80);
   const hp = num(s.hp_delta); if(hp){ const b = ch.hp; ch.hp = clamp(ch.hp+hp,0,ch.maxHp); if(ch.hp!==b) note(`${sgn(ch.hp-b)} HP`,hp<0?'bad':'ok'); }
   const g = num(s.gold_delta); if(g){ const b = ch.gold; ch.gold = Math.max(0,ch.gold+g); if(ch.gold!==b) note(`${sgn(ch.gold-b)} gold`,g<0?'':'ok'); }
@@ -1388,7 +1401,7 @@ async function takeTurn(entry){
     c.log.push({role:'dm',text,state,changes,pre,...(checked?{ok:1}:{})});
     c.updated = Date.now();
   }else if(!lastErr&&!signal.aborted) lastErr = raw?'The model replied with no narration. Try again, or pick a different model.':'The model returned an empty reply. Try again, raise max tokens in Models, or pick a different model.';
-  save(); renderGame(); relPop(rels); if(text) summarize(c);
+  save(); renderGame(); relPop(rels); if(c._alarm){ alarm(c._alarm==='A fight breaks out'?c._alarm:'Encounter: '+c._alarm); delete c._alarm; } if(text) summarize(c);
   if(text&&!signal.aborted) spotNames(c,text).then(ch=>{ if(!ch) return; save(); if(cur===c){ renderLog(); if(tab==='people') renderSide(); } });
 }
 // Each scene keeps a snapshot of the sheet and the world from just before it, for the most recent scenes, so a scene can be redone with everything put back.
@@ -1441,7 +1454,7 @@ async function gh(path,opt={}){
 }
 const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','announce','encumb','vulgar','lore','loreSize','diff','len','voice','trouble','temperature','maxTokens','stream'];
 const memCore = o => JSON.stringify([o.last||null,o.deleted||{},o.campaigns||{},o.prefs||null,o.prefsAt||0,o.lore||null,o.loreAt||0]);
-function memData(){ const campaigns = {}; for(const [id,c] of Object.entries(store.campaigns)){ const {_summing,_lore,_acted,...rest} = c; campaigns[id] = rest; }
+function memData(){ const campaigns = {}; for(const [id,c] of Object.entries(store.campaigns)){ const {_summing,_lore,_acted,_alarm,...rest} = c; campaigns[id] = rest; }
   return {app:'calis-tavern',version:1,savedAt:Date.now(),last:store.last||null,deleted:store.deleted,campaigns,prefs:Object.fromEntries(PREFS.map(k=>[k,store.settings[k]])),prefsAt:store.prefsAt||0,lore:store.lore,loreAt:store.loreAt||0}; }
 function mergeRemote(r){
   let changed = false;
@@ -2067,7 +2080,7 @@ function openGame(tabName){
     ${ck('here',(c.present||[]).includes(n.name),'In the scene with me right now')}
     ${gsWho!=='__new'?`<div class="actions" style="justify-content:flex-start"><button type="button" class="btn small danger" data-act="gsDelWho">Remove this person from the tale</button></div>`:''}`; }
   else body = `<div class="grid2"><label class="f">Where you are<input class="inp" name="location" value="${esc(c.location||'')}" maxlength="80"></label>
-      <label class="f">Mood of the scene<select class="inp" name="mood">${o('forest','Forest: calm, outdoors',c.mood||'forest')}${o('night','Night: quiet, stealth',c.mood)}${o('fire','Fire: battle, anger',c.mood)}</select></label></div>
+      <label class="f">Mood of the scene<select class="inp" name="mood">${o('forest','Forest: calm, outdoors',c.mood||'forest')}${o('night','Night: quiet, stealth',c.mood)}${o('hearth','Hearth: indoors, warm, close',c.mood)}${o('fire','Fire: battle, anger',c.mood)}</select></label></div>
     <label class="f">Quests</label><div id="gsQuests">${(c.quests.length?c.quests:[]).map((q,i)=>`<div class="qrow"><input class="inp" name="qt" value="${esc(q.title)}" maxlength="80" aria-label="Quest title"><select class="inp" name="qs" aria-label="Quest status">${o('active','Active',q.status)}${o('done','Done',q.status)}${o('failed','Failed',q.status)}</select><input class="inp" name="qn" value="${esc(q.note||'')}" maxlength="240" aria-label="Quest note"><button type="button" class="btn small ghost" data-act="gsDelQuest" aria-label="Remove quest">&#10005;</button></div>`).join('')}</div>
     <div class="actions" style="justify-content:flex-start"><button type="button" class="btn small" data-act="gsAddQuest">Add a quest</button></div>
     <label class="f">The story so far, as the DM remembers it<textarea class="inp" name="summary" style="min-height:140px" maxlength="3000">${esc(c.summary||'')}</textarea></label>
@@ -2328,7 +2341,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611171812';
+const BUILD = '202611171815';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
