@@ -221,6 +221,28 @@ ul.list li button:hover{color:var(--danger)}
 #tray3d canvas{width:100%;height:100%;display:block}
 #tray2d{position:absolute;inset:0;align-items:center;align-content:center;gap:12px;padding:0 10px;pointer-events:none}
 .tray .dw{width:54px;height:54px}.tray .d3{zoom:.63}
+.npc{font-weight:600;color:var(--nc);border:0;border-bottom:1px dotted var(--nc);background:none;padding:0;font-size:inherit;line-height:inherit;cursor:pointer}
+.npc:hover{background:color-mix(in srgb,var(--nc) 16%,transparent)}
+.st-friendly{--nc:#8fd18a}.st-neutral{--nc:#a9bfd6}.st-wary{--nc:#e6c15c}.st-hostile{--nc:#f0796a}.st-strange{--nc:#c59af0}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--nc);margin-right:7px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.legend span{display:flex;align-items:center}
+.e.note .bub{font-size:13.5px;line-height:1.45;background:var(--s1);border:1px dashed var(--line2);color:var(--muted);border-radius:14px;padding:6px 14px}
+.e.note{display:flex;justify-content:center}
+.shopcard{background:var(--s2);border:1px solid var(--line2);border-radius:14px;padding:10px 14px;margin-bottom:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.shopcard .t{flex:1;min-width:160px}.shopcard .t b{font-family:var(--display);font-size:19px;color:var(--ember2)}.shopcard .t div{font-size:13px;color:var(--muted)}
+.item{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:9px 10px;border-radius:10px;background:rgba(0,0,0,.22)}
+.item b{font-size:14px;font-weight:600}.item b em{font-style:normal;color:var(--muted);font-weight:400;margin-left:6px}
+.item small{grid-column:1/-1;color:var(--muted);font-size:12.5px;line-height:1.4}
+.item .acts{display:flex;gap:6px}
+.items{display:flex;flex-direction:column;gap:6px}
+.shop .box{width:min(820px,100%)}
+.shop .head{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.shop .purse{font-family:var(--display);font-size:24px;color:var(--ember2);white-space:nowrap}
+.shop .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+.shop h4{margin:0 0 8px;font:600 11px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ember)}
+.price{font-variant-numeric:tabular-nums;white-space:nowrap}
+@media (max-width:700px){.shop .cols{grid-template-columns:1fr}}
 /* rolling dice */
 #diceStage{position:fixed;left:0;right:0;bottom:150px;z-index:35;display:flex;flex-direction:column;align-items:center;gap:14px;pointer-events:none;opacity:0;transition:opacity .35s}
 #diceStage.on{opacity:1}
@@ -427,8 +449,25 @@ const prof = lvl => 2+Math.floor((lvl-1)/4);
 const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
 const num = v => { const n = Number(v); return Number.isFinite(n)?Math.trunc(n):0; };
 function rnd(sides){ const a = new Uint32Array(1); const lim = Math.floor(0x100000000/sides)*sides; do{ crypto.getRandomValues(a); }while(a[0]>=lim); return a[0]%sides+1; }
+const STANCES = ['friendly','neutral','wary','hostile','strange'];
+const STANCE_WORDS = {friendly:/friend|warm|grateful|trust|fond|loyal|amused|kind|protective|affection|admir|respect|helpful|pleased|charmed|relieved/i,
+  hostile:/hostil|angr|furious|hate|murder|venge|enraged|contempt|threat|cruel|violent|aggress/i,
+  wary:/wary|suspic|guard|nervous|afraid|fear|cold|annoy|irritat|uneasy|distrust|caut|impatient|skeptic|sceptic|tense|resent/i,
+  strange:/eerie|strange|unknowable|alien|inscrutable|hungry|otherworld|uncanny/i};
+const stanceOf = n => STANCES.includes(n.stance)?n.stance:(Object.keys(STANCE_WORDS).find(k=>STANCE_WORDS[k].test(n.attitude||''))||'neutral');
+const NAME_STOP = new Set(['the','old','young','sir','lady','lord','captain','master','mistress','brother','sister','father','mother','king','queen','and','von','van','der','little','big','mad']);
+// Wraps every known person's name (full name, or a distinctive part of it) in a coloured, clickable span.
+function markNames(html){
+  const all = cur&&cur.npcs?Object.values(cur.npcs):[]; if(!all.length) return html;
+  const map = new Map(), count = {};
+  for(const n of all) for(const w of n.name.split(/\s+/)){ const k = w.toLowerCase(); count[k] = (count[k]||0)+1; }
+  for(const n of all){ map.set(esc(n.name).toLowerCase(),n);
+    if(/\s/.test(n.name)) for(const w of n.name.split(/\s+/)){ const k = w.toLowerCase(); if(w.length>=3&&count[k]===1&&!NAME_STOP.has(k)&&!map.has(esc(w).toLowerCase())) map.set(esc(w).toLowerCase(),n); } }
+  const alts = [...map.keys()].sort((a,b)=>b.length-a.length).map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+  return html.replace(new RegExp(`(^|[^\\w;])(${alts.join('|')})(?![\\w])`,'gi'),(m,pre,name)=>{ const n = map.get(name.toLowerCase()); return n?`${pre}<button type="button" class="npc st-${stanceOf(n)}" data-act="npc" data-n="${esc(n.name)}">${name}</button>`:m; });
+}
 function md(t){
-  return esc(t).replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>')
+  return markNames(esc(t)).replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>')
     .split(/\n{2,}/).filter(p=>p.trim()).map(p=>'<p>'+p.trim().replace(/\n/g,'<br>')+'</p>').join('');
 }
 const LBL = '<div class="lbl">Narrator</div>';
@@ -529,6 +568,16 @@ async function throwDice(groups,keep){
 
 /* ============ state ============ */
 let cur = null;       // active campaign
+function cleanItem(i){ const o = {name:String(i.name).trim().slice(0,60),qty:Math.max(1,num(i.qty)||1)};
+  if(typeof i.desc==='string'&&i.desc.trim()) o.desc = i.desc.trim().slice(0,160);
+  if(num(i.price)>0) o.price = Math.min(100000,num(i.price));
+  if(i.use&&typeof i.use==='object'&&typeof i.use.heal==='string'&&rollExpr(i.use.heal)) o.use = {heal:i.use.heal.replace(/\s/g,'')};
+  return o; }
+function addItem(ch,it){ const f = ch.inventory.find(x=>x.name.toLowerCase()===it.name.toLowerCase());
+  if(f){ f.qty += it.qty; for(const k of ['desc','price','use']) if(it[k]&&!f[k]) f[k] = it[k]; } else ch.inventory.push({...it}); }
+// What using an item does when the app can settle it without the narrator.
+const KNOWN_USE = [[/superior (healing|potion)|potion of superior healing/i,{heal:'8d4+8'}],[/greater (healing|potion)|potion of greater healing/i,{heal:'4d4+4'}],[/healing potion|potion of healing|healing draught|healing salve/i,{heal:'2d4+2'}],[/healer'?s kit|bandage/i,{heal:'1d4'}]];
+const useOf = it => it.use||(KNOWN_USE.find(([re])=>re.test(it.name))||[])[1]||null;
 const MOODS = ['forest','night','fire'];
 function setMood(m){ m = MOODS.includes(m)?m:'forest'; document.body.dataset.mood = m; document.querySelector('meta[name=theme-color]')?.setAttribute('content',{forest:'#0d1410',night:'#090d18',fire:'#140b09'}[m]); }
 let rolling = false;
@@ -551,7 +600,7 @@ function newCharacter(f){
 }
 function skillMod(ch,skill){ return mod(ch.abilities[SKILLS[skill]])+(ch.profs.includes(skill)?prof(ch.level):0); }
 function saveMod(ch,a){ return mod(ch.abilities[a])+(ch.saves.includes(a)?prof(ch.level):0); }
-function snapshot(c){ return JSON.stringify({character:c.character,quests:c.quests,location:c.location,npcs:c.npcs||{},present:c.present||[],mood:c.mood}); }
+function snapshot(c){ return JSON.stringify({character:c.character,quests:c.quests,location:c.location,npcs:c.npcs||{},present:c.present||[],mood:c.mood,shop:c.shop||null}); }
 
 /* ============ the narrator ============ */
 const RULES = `You are the Dungeon Master for a solo tabletop fantasy adventure that follows D&D 5th Edition style rules. One player controls one character. You run the world, its people, and its monsters.
@@ -574,10 +623,10 @@ State block:
 After the narration, end EVERY reply with one state block, exactly in this form, containing valid JSON. Include only the keys that changed, plus "mood" and "suggestions", which go in every reply. The player does not see this block.
 
 <state>
-{"mood":"forest","location":"short name of the current place","hp_delta":0,"gold_delta":0,"xp_delta":0,"items_add":[{"name":"Rusty key","qty":1}],"items_remove":[{"name":"Torch","qty":1}],"conditions_add":["Poisoned"],"conditions_remove":["Poisoned"],"quests":[{"title":"Quest name","status":"active","note":"one line on the current objective"}],"present":["Marta Quill"],"npcs":[{"name":"Marta Quill","about":"caravan master in her fifties, blunt, wants her wagons through by dawn"}],"roll":{"label":"Stealth check","ability":"dex","skill":"Stealth","save":false,"proficient":false,"advantage":"none","dc":13,"damage":null},"suggestions":["a short action the player might take","another","a third"]}
+{"mood":"forest","location":"short name of the current place","hp_delta":0,"gold_delta":0,"xp_delta":0,"items_add":[{"name":"Rusty key","qty":1}],"items_remove":[{"name":"Torch","qty":1}],"conditions_add":["Poisoned"],"conditions_remove":["Poisoned"],"quests":[{"title":"Quest name","status":"active","note":"one line on the current objective"}],"present":["Marta Quill"],"npcs":[{"name":"Marta Quill","about":"caravan master in her fifties, blunt, wants her wagons through by dawn","stance":"wary","skills":["Haggling","Driving a team"]}],"shop":{"name":"Brannoch's Sundries","keeper":"Brannoch","items":[{"name":"Potion of healing","price":50,"qty":2,"desc":"Restores 2d4+2 hit points","use":{"heal":"2d4+2"}},{"name":"Rope (50 ft)","price":1,"desc":"Hempen rope"}]},"roll":{"label":"Stealth check","ability":"dex","skill":"Stealth","save":false,"proficient":false,"advantage":"none","dc":13,"damage":null},"suggestions":["a short action the player might take","another","a third"]}
 </state>
 
-Notes on the keys: "mood" colours the app to match the scene and must be exactly one of: "forest" for outdoors, daylight, travel, calm or ordinary scenes; "night" for night-time, serene, quiet, eerie or stealthy scenes; "fire" for battle, mortal danger, anger or rage. "hp_delta" is negative for damage and positive for healing. "xp_delta" awards experience for overcoming challenges (a typical early encounter is worth 25 to 100). Quest "status" is "active", "done", or "failed". "present" lists the named non-player characters who are in the scene with the player right now, three at most, most important first; send it whenever it changes, and send [] when the player is alone. "npcs" introduces a named character the first time they appear, with one line about who they are. In "roll", "ability" is one of str, dex, con, int, wis, cha; "skill" is a 5e skill name or null; set "save" true for saving throws; set "proficient" true for attacks with weapons or spells the character is proficient with; "advantage" is "none", "adv", or "dis". Leave "roll" out entirely when no roll is needed. Always give three short "suggestions", but the player may do anything.`;
+Notes on the keys: "mood" colours the app to match the scene and must be exactly one of: "forest" for outdoors, daylight, travel, calm or ordinary scenes; "night" for night-time, serene, quiet, eerie or stealthy scenes; "fire" for battle, mortal danger, anger or rage. "hp_delta" is negative for damage and positive for healing. "xp_delta" awards experience for overcoming challenges (a typical early encounter is worth 25 to 100). Quest "status" is "active", "done", or "failed". "present" lists the named non-player characters who are in the scene with the player right now, three at most, most important first; send it whenever it changes, and send [] when the player is alone. "npcs" introduces a named character the first time they appear or are even just mentioned by name, with one line about who they are, a "stance" toward the player character (one of friendly, neutral, wary, hostile, strange) and up to four "skills" they are notably good at; send the entry again when their stance changes. "shop" opens a shop panel in the app: send it whenever the player is somewhere they can buy things (a shop, a stall, a pedlar, an inn's counter), with the place's name, its keeper, and four to ten items priced in gold pieces at fair 5e prices; "qty" is optional stock. Send "shop":null when the player leaves. The app handles buying and selling itself and tells you what was traded, so never change gold or items for a purchase made through the shop. Items in "items_add" and in a shop may carry "desc" (one line) and, for consumables that restore hit points, "use":{"heal":"2d4+2"}. In "roll", "ability" is one of str, dex, con, int, wis, cha; "skill" is a 5e skill name or null; set "save" true for saving throws; set "proficient" true for attacks with weapons or spells the character is proficient with; "advantage" is "none", "adv", or "dis". Leave "roll" out entirely when no roll is needed. Always give three short "suggestions", but the player may do anything.`;
 
 function sheetText(c){
   const ch = c.character;
@@ -613,6 +662,7 @@ function buildMessages(c,intents){
     if(e.role==='dm') push('assistant',e.text+'\n\n<state>\n'+JSON.stringify(e.state||{})+'\n</state>');
     else if(e.role==='player') push('user',e.text+(e===lastEntry&&e.noRoll?'\n\n[App note, not written by the player: the dice gate judged that this action needs no roll. Resolve it directly.]':''));
     else if(e.role==='roll') push('user','[Dice result from the app] '+e.text);
+    else if(e.role==='note') push('user','[App note, already applied to the character sheet] '+e.text);
   }
   if(out[out.length-1].role==='assistant') push('user','(Continue.)');
   return out;
@@ -683,8 +733,8 @@ function applyState(c,s){
   const hp = num(s.hp_delta); if(hp){ const b = ch.hp; ch.hp = clamp(ch.hp+hp,0,ch.maxHp); if(ch.hp!==b) note(`${sgn(ch.hp-b)} HP`,hp<0?'bad':'ok'); }
   const g = num(s.gold_delta); if(g){ const b = ch.gold; ch.gold = Math.max(0,ch.gold+g); if(ch.gold!==b) note(`${sgn(ch.gold-b)} gold`,g<0?'':'ok'); }
   const ac = num(s.ac); if(ac>=5&&ac<=30&&ac!==ch.ac){ ch.ac = ac; note('AC '+ac); }
-  const items = v => (Array.isArray(v)?v:[]).map(i=>typeof i==='string'?{name:i,qty:1}:i).filter(i=>i&&typeof i.name==='string'&&i.name.trim()).map(i=>({name:i.name.trim().slice(0,60),qty:Math.max(1,num(i.qty)||1)}));
-  for(const it of items(s.items_add)){ const f = ch.inventory.find(x=>x.name.toLowerCase()===it.name.toLowerCase()); if(f) f.qty += it.qty; else ch.inventory.push(it); note(`+ ${it.name}${it.qty>1?' ×'+it.qty:''}`,'ok'); }
+  const items = v => (Array.isArray(v)?v:[]).map(i=>typeof i==='string'?{name:i,qty:1}:i).filter(i=>i&&typeof i.name==='string'&&i.name.trim()).map(cleanItem);
+  for(const it of items(s.items_add)){ addItem(ch,it); note(`+ ${it.name}${it.qty>1?' ×'+it.qty:''}`,'ok'); }
   for(const it of items(s.items_remove)){ const k = ch.inventory.findIndex(x=>x.name.toLowerCase()===it.name.toLowerCase()); if(k<0) continue; ch.inventory[k].qty -= it.qty; if(ch.inventory[k].qty<=0) ch.inventory.splice(k,1); note(`− ${it.name}${it.qty>1?' ×'+it.qty:''}`); }
   const strs = v => (Array.isArray(v)?v:[]).filter(x=>typeof x==='string'&&x.trim()).map(x=>x.trim().slice(0,160));
   for(const x of strs(s.conditions_add)) if(!ch.conditions.some(y=>y.toLowerCase()===x.toLowerCase())){ ch.conditions.push(x); note(x,'bad'); }
@@ -702,7 +752,15 @@ function applyState(c,s){
   const sheetFor = name => { const k = Object.keys(c.npcs).find(x=>x.toLowerCase()===name.toLowerCase()); if(k) return c.npcs[k];
     if(Object.keys(c.npcs).length>=40) return null; return c.npcs[name] = {name,about:'',traits:[],wants:'',attitude:'neutral'}; };
   for(const n of (Array.isArray(s.npcs)?s.npcs:[])){ if(!n||typeof n.name!=='string'||!n.name.trim()) continue; const isNew = !Object.keys(c.npcs).some(x=>x.toLowerCase()===n.name.trim().toLowerCase());
-    const sh = sheetFor(n.name.trim().slice(0,50)); if(!sh) continue; if(typeof n.about==='string'&&n.about.trim()) sh.about = n.about.trim().slice(0,240); if(isNew) note('Met '+sh.name,'ok'); }
+    const sh = sheetFor(n.name.trim().slice(0,50)); if(!sh) continue; if(typeof n.about==='string'&&n.about.trim()) sh.about = n.about.trim().slice(0,240);
+    if(STANCES.includes(n.stance)) sh.stance = n.stance;
+    sh.skills ||= []; for(const k of strs(n.skills)) if(sh.skills.length<6&&!sh.skills.some(x=>x.toLowerCase()===k.toLowerCase())) sh.skills.push(k.slice(0,40));
+    if(isNew) note('Met '+sh.name,'ok'); }
+  if('shop' in s){ const sp = s.shop;
+    if(sp&&typeof sp==='object'&&Array.isArray(sp.items)){ const its = sp.items.filter(i=>i&&typeof i.name==='string'&&i.name.trim()&&num(i.price)>=0).slice(0,14).map(i=>{ const o = cleanItem(i); o.price = Math.max(0,num(i.price)); o.stock = num(i.qty)>0?num(i.qty):null; delete o.qty; return o; });
+      const name = String(sp.name||'Shop').slice(0,60), same = c.shop&&c.shop.name===name;
+      if(its.length){ c.shop = {name,keeper:String(sp.keeper||'').slice(0,50),items:its,mult:same?c.shop.mult:1,haggled:same?c.shop.haggled:false}; if(!same) note('Shop open: '+name,'ok'); } }
+    else c.shop = null; }
   if(Array.isArray(s.present)) c.present = strs(s.present).map(n=>sheetFor(n.slice(0,50))).filter(Boolean).map(x=>x.name).filter((n,i,a)=>a.indexOf(n)===i).slice(0,3);
   c.pendingRoll = null;
   const r = s.roll;
@@ -718,7 +776,7 @@ function applyState(c,s){
 }
 
 /* ============ the cast of models: dice gate, character players, continuity ============ */
-const npcLine = n => `- ${n.name}: ${n.about||'not yet described'}. Traits: ${(n.traits||[]).join(', ')||'none noted yet'}. Wants: ${n.wants||'unclear'}. Feels ${n.attitude||'neutral'} toward the player character.`;
+const npcLine = n => `- ${n.name}: ${n.about||'not yet described'}. Traits: ${(n.traits||[]).join(', ')||'none noted yet'}. Skills: ${(n.skills||[]).join(', ')||'none noted'}. Wants: ${n.wants||'unclear'}. Stance toward the player character: ${stanceOf(n)} (${n.attitude||'neutral'}).`;
 const clip = (t,n) => t.length>n?'…'+t.slice(-n):t;
 const lastOf = (c,role) => { for(let i=c.log.length-1;i>=0;i--) if(c.log[i].role===role) return c.log[i]; return null; };
 function jsonIn(t){ const a = t.indexOf('{'), b = t.lastIndexOf('}'); if(a<0||b<=a) return null; const j = t.slice(a,b+1); try{ return JSON.parse(j); }catch(e){ try{ return JSON.parse(j.replace(/,\s*([}\]])/g,'$1')); }catch(e2){ return null; } } }
@@ -756,18 +814,20 @@ Action: ${text}${guess?`\n(Keyword guess from the app: ${guess}.)`:''}`}],{strea
 // One model per person in the scene, three at most. Each decides what its character does next and keeps that character's sheet up to date.
 const ACTOR = `You play exactly one non-player character in a solo D&D story. Stay strictly inside this character: what they know, what they want, how they talk. You do not narrate the world, you do not decide what the player character does, and you do not decide the result of any dice.
 Reply with JSON only, in this form:
-{"intent":"what you say and do in the next beat, one or two sentences","attitude":"one or two words for how you now feel about the player character","wants":"your current goal in a few words","new_traits":["a short trait this beat revealed or developed in you, only if it is genuinely new"]}`;
+{"intent":"what you say and do in the next beat, one or two sentences","attitude":"one or two words for how you now feel about the player character","wants":"your current goal in a few words","stance":"friendly, neutral, wary, hostile or strange: your stance toward the player character right now","new_traits":["a short trait this beat revealed or developed in you, only if it is genuinely new"],"skills":["up to four things you are notably good at, only ones not already on your sheet"]}`;
 async function castBeat(c,signal){
   const names = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]).slice(0,3); if(!names.length) return [];
   const ch = c.character, dm = lastOf(c,'dm'), tail = []; for(let i=c.log.length-1;i>=0&&c.log[i].role!=='dm';i--) tail.unshift(c.log[i]);
   const happened = `${dm?clip(dm.text,900):''}\n${tail.map(e=>e.role==='player'?`${ch.name} (the player character): ${e.text}`:`Dice: ${e.text}`).join('\n')}`;
   const out = await Promise.all(names.map(async name=>{ const n = c.npcs[name];
     try{
-      const t = await chat([{role:'system',content:ACTOR},{role:'user',content:`Your sheet:\nName: ${n.name}\nAbout: ${n.about||'not yet described; define yourself through how you act'}\nTraits: ${(n.traits||[]).join(', ')||'none noted yet'}\nWants: ${n.wants||'unclear'}\nFeeling toward the player character: ${n.attitude||'neutral'}\n\nThe player character: ${ch.name}, a ${ch.race} ${ch.cls}. ${ch.appearance||''}\nOthers present: ${names.filter(x=>x!==name).join(', ')||'no one else'}\n\nWhat just happened:\n${happened}`}],
+      const t = await chat([{role:'system',content:ACTOR},{role:'user',content:`Your sheet:\nName: ${n.name}\nAbout: ${n.about||'not yet described; define yourself through how you act'}\nTraits: ${(n.traits||[]).join(', ')||'none noted yet'}\nSkills: ${(n.skills||[]).join(', ')||'none noted yet'}\nWants: ${n.wants||'unclear'}\nFeeling toward the player character: ${n.attitude||'neutral'}\n\nThe player character: ${ch.name}, a ${ch.race} ${ch.cls}. ${ch.appearance||''}\nOthers present: ${names.filter(x=>x!==name).join(', ')||'no one else'}\n\nWhat just happened:\n${happened}`}],
         {stream:false,maxTokens:400,temperature:0.8,model:store.settings.charModel,quick:true,signal});
       const j = jsonIn(t); if(!j||typeof j.intent!=='string'||!j.intent.trim()) return null;
       if(typeof j.attitude==='string'&&j.attitude.trim()) n.attitude = j.attitude.trim().slice(0,40);
       if(typeof j.wants==='string'&&j.wants.trim()) n.wants = j.wants.trim().slice(0,120);
+      if(STANCES.includes(String(j.stance||'').toLowerCase().trim())) n.stance = String(j.stance).toLowerCase().trim(); else if(typeof j.attitude==='string'&&j.attitude.trim()) delete n.stance;
+      n.skills ||= []; for(const k of (Array.isArray(j.skills)?j.skills:[])) if(typeof k==='string'&&k.trim()&&n.skills.length<6&&!n.skills.some(x=>x.toLowerCase()===k.trim().toLowerCase())) n.skills.push(k.trim().slice(0,40));
       n.traits ||= []; for(const tr of (Array.isArray(j.new_traits)?j.new_traits:[])) if(typeof tr==='string'&&tr.trim()&&!n.traits.some(x=>x.toLowerCase()===tr.trim().toLowerCase())){ n.traits.push(tr.trim().slice(0,60)); if(n.traits.length>12) n.traits.shift(); }
       return {name:n.name,intent:j.intent.trim().slice(0,420)};
     }catch(e){ if(e.name==='AbortError') throw e; return null; } }));
@@ -1095,6 +1155,7 @@ function renderLog(){
   $('#log').innerHTML = c.log.map((e,i)=>{
     if(e.role==='player') return `<div class="e player"><div class="bub">${md(e.text)}</div></div>`;
     if(e.role==='roll') return `<div class="e roll"><div class="bub">${DIE_SVG}<span>${esc(e.text)}</span></div></div>`;
+    if(e.role==='note') return `<div class="e note"><div class="bub">${esc(e.text)}</div></div>`;
     return `<div class="e dm"><div class="lbl">Narrator</div>${md(e.text)}${e.changes&&e.changes.length?`<div class="chg">${e.changes.map(n=>`<span class="${n.k||''}">${esc(n.t)}</span>`).join('')}</div>`:''}
       ${i===last&&e.pre&&!busy?`<div class="tools"><button data-act="regen">Retell this scene</button></div>`:''}</div>`;
   }).join('')+(lastErr?`<div class="e err"><span>${esc(lastErr)}</span><button class="btn small" data-act="retry">Try again</button><button class="btn small" data-act="settings">Settings</button></div>`:'');
@@ -1111,6 +1172,7 @@ function renderComposer(){
       <button class="btn primary" data-act="pend" data-adv="${r.advantage}">Roll</button>
       ${r.advantage==='none'?`<button class="btn small" data-act="pend" data-adv="adv">Advantage</button><button class="btn small" data-act="pend" data-adv="dis">Disadvantage</button>`:''}</div>`;
   }
+  if(c.shop&&!busy) h += `<div class="shopcard"><div class="t"><b>${esc(c.shop.name)}</b><div>${c.shop.keeper?esc(c.shop.keeper)+' · ':''}${c.shop.items.length} things for sale · you have ${c.character.gold} gp</div></div><button class="btn primary" data-act="shop">Open shop</button></div>`;
   if(c.suggestions.length&&!busy&&!r) h += `<div class="sugg">${c.suggestions.map(s=>`<button data-act="sugg">${esc(s)}</button>`).join('')}</div>`;
   h += `<form class="send" id="sendForm"><textarea id="say" rows="1" maxlength="2000" placeholder="${busy?'The narrator is speaking…':r?'Roll, or do something else instead…':'What do you do?'}" ${busy?'disabled':''}></textarea>
     ${busy?`<button type="button" class="btn" data-act="stop" aria-label="Stop the narrator" title="Stop">&#9632;</button>`:`<button class="btn primary" aria-label="Send" title="Send">&#8593;</button>`}</form>`;
@@ -1135,13 +1197,18 @@ function renderSide(){
     ${(ch.boons||[]).length||(ch.flaws||[]).length?`<div class="card"><h4>Boons and flaws</h4>${(ch.boons||[]).map(x=>`<div class="quest done" style="opacity:1"><b style="text-decoration:none">${esc(x.name)}</b><span>${esc(x.text)}</span></div>`).join('')}${(ch.flaws||[]).map(x=>`<div class="quest failed" style="opacity:1"><b>${esc(x.name)}</b><span>${esc(x.text)}</span></div>`).join('')}</div>`:''}
     ${ch.alignment||ch.appearance||ch.backstory?`<div class="card"><h4>About</h4><div class="hint" style="color:var(--text)">${[ch.alignment,ch.appearance,ch.backstory].filter(Boolean).map(esc).join('<br><br>')}</div></div>`:''}`;
   }else if(tab==='pack'){
-    h += `<div class="card"><h4>Pack · ${ch.gold} gold</h4>${ch.inventory.length?`<ul class="list">${ch.inventory.map((i,k)=>`<li><span>${esc(i.name)}</span>${i.qty>1?`<em>×${i.qty}</em>`:''}<button data-act="drop" data-k="${k}" aria-label="Drop ${esc(i.name)}">×</button></li>`).join('')}</ul>`:'<div class="hint">Your pack is empty.</div>'}
+    h += `<div class="card"><h4>Pack · ${ch.gold} gold</h4>${ch.inventory.length?`<div class="items">${ch.inventory.map((i,k)=>{ const u = useOf(i); return `<div class="item"><b>${esc(i.name)}${i.qty>1?`<em>×${i.qty}</em>`:''}</b>
+        <span class="acts"><button class="btn small primary" data-act="use" data-k="${k}" ${busy?'disabled':''}>Use</button><button class="btn small ghost" data-act="drop" data-k="${k}" aria-label="Drop ${esc(i.name)}">Drop</button></span>
+        ${i.desc||u?`<small>${esc(i.desc||'')}${u&&u.heal&&!i.desc?`Restores ${esc(u.heal)} hit points`:''}</small>`:''}</div>`; }).join('')}</div>`:'<div class="hint">Your pack is empty.</div>'}
+      <div class="hint" style="margin-top:10px">Use settles healing items on the spot with a real roll. Anything else is handed to the narrator as your action.</div>
       <form class="addrow" id="addItem"><input class="inp" name="item" maxlength="60" placeholder="Add an item"><button class="btn small">Add</button></form></div>`;
   }else if(tab==='people'){
     const all = Object.values(c.npcs||{}), here = c.present||[]; all.sort((a,b)=>here.includes(b.name)-here.includes(a.name));
-    h += all.length?all.map(n=>`<div class="card"><h4>${here.includes(n.name)?'In the scene':'Met before'}</h4><div class="who"><h3 style="font-size:21px">${esc(n.name)}</h3><div class="sub">${esc(n.about||'Not much known yet.')}</div></div>
+    h += all.length?all.map(n=>`<div class="card"><h4>${here.includes(n.name)?'In the scene':'Met or heard of'}</h4><div class="who st-${stanceOf(n)}" id="npc-${esc(n.name.replace(/\W+/g,'-'))}"><h3 style="font-size:21px;color:var(--nc)"><i class="dot"></i>${esc(n.name)}</h3><div class="sub">${esc(n.about||'Not much known yet.')}</div></div>
       ${(n.traits||[]).length?`<div class="tags" style="margin-top:10px">${n.traits.map(t=>`<span class="tag" style="background:var(--s2);border-color:var(--line2);color:var(--text)">${esc(t)}</span>`).join('')}</div>`:''}
-      <div class="hint" style="margin-top:10px">${n.wants?`Wants: ${esc(n.wants)}<br>`:''}Feels ${esc(n.attitude||'neutral')} toward you.</div></div>`).join('')
+      ${(n.skills||[]).length?`<div class="hint" style="margin-top:10px;color:var(--text)"><span style="color:var(--muted)">Skilled at:</span> ${n.skills.map(esc).join(', ')}</div>`:''}
+      <div class="hint" style="margin-top:8px">${n.wants?`Wants: ${esc(n.wants)}<br>`:''}${stanceOf(n)[0].toUpperCase()+stanceOf(n).slice(1)} toward you${n.attitude&&n.attitude.toLowerCase()!==stanceOf(n)?` (${esc(n.attitude)})`:''}.</div></div>`).join('')
+      +`<div class="card"><h4>Name colours</h4><div class="legend">${STANCES.map(k=>`<span class="st-${k}"><i class="dot"></i>${k[0].toUpperCase()+k.slice(1)}</span>`).join('')}</div></div>`
       :'<div class="card"><h4>People</h4><div class="hint">No one you have met yet. Each person who joins a scene gets their own sheet here, kept up to date by the model that plays them.</div></div>';
   }else if(tab==='quests'){
     h += `<div class="card"><h4>Quests</h4>${c.quests.length?c.quests.map(q=>`<div class="quest ${q.status}"><b>${esc(q.title)}</b><span>${esc(q.note||'')}</span></div>`).join(''):'<div class="hint">Nothing asked of you yet. That will not last.</div>'}</div>
@@ -1154,6 +1221,47 @@ function renderSide(){
       ${trayHist.length>1?`<div class="hist">${trayHist.slice(1).map(t=>`<div>${esc(t)}</div>`).join('')}</div>`:''}</div>`;
   }
   side.innerHTML = h; $('#trayslot')?.appendChild(trayNode);
+}
+
+/* ============ shop ============ */
+let shopTrades = [];
+const shopPrice = it => Math.max(it.price?1:0,Math.round(it.price*(cur.shop.mult||1)));
+const worth = it => it.price||(/potion/i.test(it.name)?50:/mail|armor|armour/i.test(it.name)?40:/sword|axe|bow|mace|rapier|scimitar|staff|crossbow/i.test(it.name)?12:/shield|spellbook|focus|symbol|tools|lute/i.test(it.name)?10:2);
+const sellValue = it => Math.max(1,Math.floor(worth(it)/2));
+function openShop(){
+  const c = cur, sp = c&&c.shop; if(!sp) return; const ch = c.character;
+  $('#modalRoot').innerHTML = `<div class="modal shop" data-act="shopCloseBg"><div class="box" role="dialog" aria-modal="true" aria-label="${esc(sp.name)}">
+    <div class="head"><div><h3>${esc(sp.name)}</h3><div class="hint">${sp.keeper?`Kept by ${md(sp.keeper).replace(/^<p>|<\/p>$/g,'')}. `:''}${sp.mult<1?'Your haggling won a discount.':sp.mult>1?'Your haggling soured the keeper; prices are up.':'Prices in gold pieces.'}</div></div>
+      <div class="purse">${ch.gold} gp</div></div>
+    <div class="cols"><div><h4>For sale</h4><div class="items">${sp.items.length?sp.items.map((it,k)=>{ const pr = shopPrice(it); return `<div class="item"><b>${esc(it.name)}${it.stock?`<em>${it.stock} left</em>`:''}</b>
+        <span class="acts"><span class="price">${pr} gp</span><button class="btn small primary" data-act="buy" data-k="${k}" ${pr>ch.gold?'disabled':''}>Buy</button></span>${it.desc?`<small>${esc(it.desc)}</small>`:''}</div>`; }).join(''):'<div class="hint">Sold out.</div>'}</div></div>
+      <div><h4>Your pack · sell</h4><div class="items">${ch.inventory.length?ch.inventory.map((it,k)=>`<div class="item"><b>${esc(it.name)}${it.qty>1?`<em>×${it.qty}</em>`:''}</b>
+        <span class="acts"><span class="price">${sellValue(it)} gp</span><button class="btn small" data-act="sell" data-k="${k}">Sell</button></span></div>`).join(''):'<div class="hint">Nothing to sell.</div>'}</div></div></div>
+    <div class="actions" style="margin-top:18px"><button class="btn ghost" data-act="haggle" ${sp.haggled?'disabled':''}>${sp.haggled?'Already haggled':'Haggle (Persuasion)'}</button><button class="btn primary" data-act="shopClose">Done</button></div></div></div>`;
+}
+function closeShop(){
+  closeModal(); if(!cur) return;
+  if(shopTrades.length){ cur.log.push({role:'note',text:`Trade at ${cur.shop?cur.shop.name:'the shop'}: ${shopTrades.join('; ')}. Purse now ${cur.character.gold} gp.`}); shopTrades = []; save(); }
+  renderGame();
+}
+async function haggle(){
+  const c = cur, sp = c.shop; if(!sp||sp.haggled||rolling) return; const bonus = skillMod(c.character,'Persuasion');
+  closeModal(); rolling = true; const opened = await openTray();
+  const pick = (await throwDice([{n:1,sides:20}]))[0][0], total = pick+bonus; flare(pick);
+  sp.haggled = true; sp.mult = total>=18?0.75:total>=13?0.9:total<=7?1.1:1;
+  const t = `Haggling at ${sp.name}: Persuasion d20 rolled ${pick} ${sgn(bonus)} = ${total}. ${sp.mult<1?`Prices drop by ${Math.round((1-sp.mult)*100)}%.`:sp.mult>1?'The keeper takes offence; prices rise by 10%.':'The keeper will not budge.'}`;
+  pushTray(total,t); c.log.push({role:'note',text:t}); save(); await sleep(1300); rolling = false; closeTray(opened); renderGame(); openShop();
+}
+// Healing items are settled here with a real roll. Everything else becomes the player's action for the narrator to resolve.
+async function useItem(k){
+  const c = cur, ch = c.character, it = ch.inventory[k]; if(!it||busy||rolling) return; const u = useOf(it);
+  if(!u||!u.heal){ if(!wide()) closeDrawers(); playerAct(`I use my ${it.name}.`); return; }
+  if(ch.hp>=ch.maxHp){ toast('!',`You are at full health. The ${it.name} stays in your pack.`); return; }
+  const d = rollExpr(u.heal); rolling = true; const opened = await openTray();
+  const vals = (await throwDice([{n:d.rolls.length,sides:d.sides}]))[0], sum = Math.max(1,vals.reduce((a,x)=>a+x,0)+d.bonus), before = ch.hp;
+  ch.hp = clamp(ch.hp+sum,0,ch.maxHp); const at = ch.inventory.indexOf(it); if(at>=0){ it.qty -= 1; if(it.qty<=0) ch.inventory.splice(at,1); }
+  const t = `Used ${it.name}: ${d.text} rolled ${vals.join('+')}${d.bonus?sgn(d.bonus):''} = ${sum}. Healed ${ch.hp-before} hit points (now ${ch.hp}/${ch.maxHp}).`;
+  pushTray(sum,t); c.log.push({role:'note',text:t}); save(); await sleep(1100); rolling = false; closeTray(opened); renderGame();
 }
 
 /* ============ settings ============ */
@@ -1223,6 +1331,17 @@ document.addEventListener('click',async ev=>{
     case 'regen': regenerate(); break;
     case 'hp': c.character.hp = clamp(c.character.hp+num(el.dataset.d),0,c.character.maxHp); save(); renderSide(); break;
     case 'drop': c.character.inventory.splice(num(el.dataset.k),1); save(); renderSide(); break;
+    case 'use': useItem(num(el.dataset.k)); break;
+    case 'npc': { tab = 'people'; renderSide(); setDrawer($('#rightD'),true); if(!wide()) setDrawer($('#leftD'),false); document.getElementById('npc-'+el.dataset.n.replace(/\W+/g,'-'))?.scrollIntoView({block:'center'}); break; }
+    case 'shop': shopTrades = shopTrades||[]; openShop(); break;
+    case 'shopClose': closeShop(); break;
+    case 'shopCloseBg': if(ev.target===el) closeShop(); break;
+    case 'haggle': haggle(); break;
+    case 'buy': { const sp = c.shop, it = sp&&sp.items[num(el.dataset.k)]; if(!it) break; const pr = shopPrice(it); if(pr>c.character.gold) break;
+      c.character.gold -= pr; const {stock,...rest} = it; addItem(c.character,{...rest,qty:1}); if(it.stock){ it.stock -= 1; if(it.stock<=0) sp.items.splice(num(el.dataset.k),1); }
+      shopTrades.push(`bought ${it.name} for ${pr} gp`); save(); openShop(); break; }
+    case 'sell': { const inv = c.character.inventory, it = inv[num(el.dataset.k)]; if(!it||!c.shop) break; const v = sellValue(it);
+      c.character.gold += v; it.qty -= 1; if(it.qty<=0) inv.splice(num(el.dataset.k),1); shopTrades.push(`sold ${it.name} for ${v} gp`); save(); openShop(); break; }
     case 'abil': freeRoll(ABIL_NAME[el.dataset.a]+' check',mod(c.character.abilities[el.dataset.a])); break;
     case 'save': freeRoll(ABIL_NAME[el.dataset.a]+' save',saveMod(c.character,el.dataset.a)); break;
     case 'skill': freeRoll(el.dataset.s+' check',skillMod(c.character,el.dataset.s)); break;
@@ -1294,7 +1413,7 @@ document.addEventListener('input',ev=>{
 });
 document.addEventListener('keydown',ev=>{
   if(ev.target.id==='say'&&ev.key==='Enter'&&!ev.shiftKey&&!ev.isComposing){ ev.preventDefault(); $('#sendForm').requestSubmit(); }
-  if(ev.key==='Escape'){ if($('#modalRoot').firstChild) closeModal(); else if(!wide()&&$('#game')) closeDrawers(); }
+  if(ev.key==='Escape'){ if($('.modal.shop')) closeShop(); else if($('#modalRoot').firstChild) closeModal(); else if(!wide()&&$('#game')) closeDrawers(); }
 });
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
