@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emberglade — a solo adventure by firelight</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Spectral:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0c130f; --bg2:#121c16; --moss:#18261d; --moss2:#213527; --moss3:#2c4633;
+  --line:rgba(222,196,140,.16); --line2:rgba(222,196,140,.3);
+  --ember:#e8a14a; --ember2:#f4c97f; --emberdeep:#b96a24;
+  --parch:#efe4c9; --parch2:#e3d3ae; --ink:#2b2117; --inksoft:#665440;
+  --text:#ebe4d2; --muted:#9dab93; --danger:#d0614a; --good:#86b870;
+  --display:"Cormorant Garamond",Georgia,serif;
+  --story:"Spectral",Georgia,serif;
+  --ui:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;font-family:var(--ui);font-size:15px;color:var(--text);background:var(--bg);
+  background-image:
+    radial-gradient(900px 520px at 50% -8%,rgba(232,161,74,.20),transparent 62%),
+    radial-gradient(700px 600px at 8% 105%,rgba(72,120,74,.20),transparent 60%),
+    radial-gradient(700px 600px at 96% 100%,rgba(48,92,70,.22),transparent 60%),
+    linear-gradient(180deg,#0f1812 0%,#0b110d 100%);
+  background-attachment:fixed;overflow:hidden;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+[hidden]{display:none!important}
+
+/* fireflies */
+#flies{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+#flies i{position:absolute;width:4px;height:4px;border-radius:50%;background:var(--ember2);
+  box-shadow:0 0 10px 3px rgba(244,201,127,.55);opacity:0;animation:fly 14s ease-in-out infinite}
+@keyframes fly{0%{opacity:0;transform:translate(0,0)}15%{opacity:.9}50%{opacity:.25;transform:translate(40px,-60px)}
+  70%{opacity:.8}100%{opacity:0;transform:translate(-30px,-130px)}}
+@media (prefers-reduced-motion:reduce){#flies{display:none}*{animation:none!important;transition:none!important}}
+
+/* shell */
+#app{position:relative;z-index:1;height:100dvh;display:flex;flex-direction:column}
+header.bar{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--line);
+  background:rgba(12,19,15,.72);backdrop-filter:blur(10px)}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:700;font-size:24px;
+  letter-spacing:.02em;color:var(--ember2);background:none;border:0;padding:0}
+.brand svg{width:26px;height:26px}
+.bar .where{flex:1;min-width:0;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .where b{color:var(--text);font-weight:600}
+.btn{border:1px solid var(--line2);background:rgba(33,53,39,.6);color:var(--text);border-radius:10px;
+  padding:8px 14px;font-weight:500;font-size:14px;transition:.15s background,.15s border-color,.15s transform}
+.btn:hover{background:var(--moss3);border-color:var(--ember)}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:linear-gradient(180deg,var(--ember2),var(--ember));color:#2a1a08;border-color:transparent;font-weight:600}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.ghost{background:transparent}
+.btn.small{padding:5px 10px;font-size:13px;border-radius:8px}
+.btn.danger:hover{border-color:var(--danger);color:#ffb6a6}
+:focus-visible{outline:2px solid var(--ember2);outline-offset:2px}
+main{flex:1;min-height:0;overflow:auto}
+
+/* home */
+.wrap{max-width:980px;margin:0 auto;padding:40px 20px 60px}
+.hero{text-align:center;padding:26px 0 34px}
+.hero h1{font-family:var(--display);font-weight:700;font-size:clamp(44px,8vw,76px);margin:0;line-height:1;
+  color:var(--parch);text-shadow:0 0 44px rgba(232,161,74,.4)}
+.hero p{font-family:var(--story);font-style:italic;font-size:19px;color:var(--muted);max-width:560px;margin:16px auto 26px}
+.notice{border:1px dashed var(--line2);background:rgba(232,161,74,.08);border-radius:var(--r);padding:12px 16px;
+  display:flex;gap:12px;align-items:center;justify-content:space-between;margin:0 0 24px;color:var(--ember2);flex-wrap:wrap}
+h2.sec{font-family:var(--display);font-size:26px;font-weight:600;margin:28px 0 12px;color:var(--parch)}
+.saves{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+.save{border:1px solid var(--line);background:linear-gradient(180deg,rgba(33,53,39,.75),rgba(24,38,29,.75));
+  border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:8px}
+.save h3{margin:0;font-family:var(--display);font-size:22px;color:var(--ember2)}
+.save .meta{color:var(--muted);font-size:13px}
+.save .row{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.empty{color:var(--muted);font-family:var(--story);font-style:italic;padding:18px;border:1px dashed var(--line);border-radius:var(--r);text-align:center}
+
+/* forms */
+.panel{border:1px solid var(--line);background:rgba(24,38,29,.8);border-radius:var(--r);padding:20px;margin-bottom:16px}
+.panel h3{margin:0 0 14px;font-family:var(--display);font-size:22px;color:var(--ember2);font-weight:600}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.inp{background:rgba(8,13,10,.6);border:1px solid var(--line2);border-radius:9px;padding:9px 11px;color:var(--text);
+  font-size:15px;letter-spacing:0;text-transform:none;width:100%}
+.inp:focus{border-color:var(--ember);outline:none}
+select.inp option{background:#121c16}
+textarea.inp{resize:vertical;min-height:80px;font-family:var(--story);font-size:16px}
+.abil{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.abil label{align-items:center;text-align:center}
+.abil input{text-align:center;font-size:20px;font-family:var(--display);font-weight:700;padding:6px 2px}
+.abil small{color:var(--ember2);letter-spacing:0;font-size:13px}
+.hooks{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.hook{position:relative;border:1px solid var(--line);border-radius:12px;padding:14px;background:rgba(8,13,10,.4);cursor:pointer;display:block}
+.hook input{position:absolute;opacity:0}
+.hook b{display:block;font-family:var(--display);font-size:20px;color:var(--parch);margin-bottom:4px}
+.hook span{font-family:var(--story);color:var(--muted);font-size:14.5px;line-height:1.45}
+.hook:has(input:checked){border-color:var(--ember);background:rgba(232,161,74,.1);box-shadow:0 0 0 1px var(--ember) inset}
+.hook:has(input:focus-visible){outline:2px solid var(--ember2)}
+.actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.hint{color:var(--muted);font-size:13px;line-height:1.5}
+
+/* game */
+#game{height:100%;display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:18px;padding:18px;max-width:1380px;margin:0 auto}
+.page{min-height:0;display:flex;flex-direction:column;border-radius:var(--r);color:var(--ink);overflow:hidden;
+  background-color:var(--parch);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .25 0 0 0 0 .12 0 0 0 .11 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(120% 90% at 50% 0%,#f6edd6 0%,var(--parch) 45%,var(--parch2) 100%);
+  box-shadow:0 22px 60px rgba(0,0,0,.5),0 0 0 1px rgba(90,62,24,.5),inset 0 0 70px rgba(122,84,36,.22)}
+#log{flex:1;min-height:0;overflow:auto;padding:30px clamp(18px,4vw,48px) 14px;font-family:var(--story);font-size:18px;line-height:1.68;scroll-behavior:smooth}
+#log::-webkit-scrollbar,.side::-webkit-scrollbar,main::-webkit-scrollbar{width:10px}
+#log::-webkit-scrollbar-thumb{background:rgba(90,62,24,.35);border-radius:8px}
+.side::-webkit-scrollbar-thumb,main::-webkit-scrollbar-thumb{background:rgba(222,196,140,.2);border-radius:8px}
+.e{margin:0 0 18px;max-width:68ch}
+.e p{margin:0 0 .8em}.e p:last-child{margin-bottom:0}
+.e.dm:first-child p:first-child::first-letter{font-family:var(--display);font-weight:700;font-size:3.3em;float:left;line-height:.82;padding:6px 8px 0 0;color:var(--emberdeep)}
+.e.player{border-left:3px solid var(--emberdeep);padding:2px 0 2px 14px;font-style:italic;color:#4a3826}
+.e.player::before{content:"You";display:block;font:600 11px var(--ui);letter-spacing:.12em;text-transform:uppercase;color:var(--emberdeep);font-style:normal}
+.e.roll{font:500 14px var(--ui);background:var(--moss);color:var(--parch);border-radius:10px;padding:9px 13px;display:flex;gap:10px;align-items:center;width:fit-content;max-width:100%}
+.e.roll svg{width:18px;height:18px;flex:none;color:var(--ember2)}
+.e.err{font:500 14px var(--ui);background:#5a2318;color:#ffd9cf;border-radius:10px;padding:10px 13px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.chg{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chg span{font:600 12px var(--ui);padding:3px 9px;border-radius:99px;background:rgba(90,62,24,.14);color:#5a3e18;border:1px solid rgba(90,62,24,.25)}
+.chg .bad{color:#8f2f1c;border-color:rgba(143,47,28,.35);background:rgba(143,47,28,.1)}
+.chg .ok{color:#35602a;border-color:rgba(53,96,42,.35);background:rgba(53,96,42,.1)}
+.tools{display:flex;gap:8px;margin-top:8px}
+.tools button{font:500 12px var(--ui);background:none;border:0;color:var(--inksoft);padding:2px 0;text-decoration:underline;text-underline-offset:3px}
+.tools button:hover{color:var(--emberdeep)}
+.cursor::after{content:"";display:inline-block;width:.5em;height:1em;background:var(--emberdeep);vertical-align:-.15em;margin-left:2px;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.thinking{font-style:italic;color:var(--inksoft)}
+
+.composer{border-top:1px solid rgba(90,62,24,.3);padding:12px clamp(14px,3vw,28px) 16px;background:rgba(227,211,174,.75)}
+.sugg{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.sugg button{font:500 13.5px var(--ui);text-align:left;border:1px solid rgba(90,62,24,.4);background:rgba(255,250,236,.6);color:var(--ink);border-radius:99px;padding:6px 13px}
+.sugg button:hover{background:#fff8e6;border-color:var(--emberdeep)}
+.rollcard{background:var(--moss);color:var(--text);border-radius:12px;padding:12px 14px;margin-bottom:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;border:1px solid var(--ember)}
+.rollcard .t{flex:1;min-width:200px}
+.rollcard .t b{font-family:var(--display);font-size:20px;color:var(--ember2)}
+.rollcard .t div{font-size:13px;color:var(--muted)}
+.send{display:flex;gap:10px;align-items:flex-end}
+.send textarea{flex:1;border:1px solid rgba(90,62,24,.45);background:rgba(255,251,240,.8);color:var(--ink);border-radius:12px;padding:11px 13px;
+  font:17px var(--story);resize:none;min-height:48px;max-height:160px}
+.send textarea:focus{outline:none;border-color:var(--emberdeep);box-shadow:0 0 0 3px rgba(185,106,36,.2)}
+.send textarea::placeholder{color:#8a7558}
+.send .btn{height:48px;color:var(--ink);background:rgba(255,250,236,.6);border-color:rgba(90,62,24,.45)}
+.send .btn.primary{color:#2a1a08;background:linear-gradient(180deg,var(--ember2),var(--ember))}
+
+/* sidebar */
+.side{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:rgba(8,13,10,.5);padding:4px;border-radius:12px;border:1px solid var(--line);position:sticky;top:0;z-index:2;backdrop-filter:blur(8px)}
+.tabs button{border:0;background:none;border-radius:9px;padding:8px 4px;font-size:13px;font-weight:600;color:var(--muted)}
+.tabs button[aria-selected=true]{background:var(--moss3);color:var(--ember2)}
+.card{border:1px solid var(--line);background:rgba(24,38,29,.82);border-radius:var(--r);padding:14px}
+.card h4{margin:0 0 10px;font:600 11px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ember)}
+.who h3{margin:0;font-family:var(--display);font-size:26px;color:var(--parch);line-height:1.1}
+.who .sub{color:var(--muted);font-size:13px;margin-top:3px}
+.vitals{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px}
+.vital{background:rgba(8,13,10,.5);border-radius:10px;padding:8px;text-align:center;border:1px solid var(--line)}
+.vital b{display:block;font-family:var(--display);font-size:24px;color:var(--parch);line-height:1.1}
+.vital span{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.hpbar{height:8px;border-radius:99px;background:rgba(8,13,10,.7);overflow:hidden;margin-top:12px;border:1px solid var(--line)}
+.hpbar i{display:block;height:100%;background:linear-gradient(90deg,#b5452f,#e8a14a 55%,#86b870);transition:width .4s}
+.hprow{display:flex;align-items:center;justify-content:space-between;margin-top:6px;font-size:13px;color:var(--muted)}
+.hprow .btn{padding:1px 9px}
+.xp{font-size:12px;color:var(--muted);margin-top:8px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:rgba(8,13,10,.5);border:1px solid var(--line);border-radius:10px;padding:8px 4px;text-align:center;color:inherit}
+.stat:hover,.skill:hover{border-color:var(--ember);background:rgba(232,161,74,.1)}
+.stat span{display:block;font-size:10.5px;letter-spacing:.14em;color:var(--muted)}
+.stat b{display:block;font-family:var(--display);font-size:25px;line-height:1.05;color:var(--parch)}
+.stat small{color:var(--ember2);font-size:12px}
+.skills{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.skill{display:flex;justify-content:space-between;gap:6px;background:none;border:1px solid transparent;border-radius:8px;padding:4px 7px;font-size:13px;text-align:left;color:var(--text)}
+.skill.prof{color:var(--ember2)}
+.skill.prof::before{content:"◆";font-size:8px;margin-right:4px;align-self:center}
+.skill span{flex:1}.skill em{font-style:normal;color:var(--muted)}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:12px;padding:3px 9px;border-radius:99px;background:rgba(208,97,74,.18);border:1px solid rgba(208,97,74,.4);color:#ffc1b3}
+ul.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+ul.list li{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:rgba(8,13,10,.4);font-size:14px}
+ul.list li span{flex:1}ul.list li em{font-style:normal;color:var(--muted);font-size:13px}
+ul.list li button{background:none;border:0;color:var(--muted);padding:0 4px;font-size:16px;line-height:1}
+ul.list li button:hover{color:var(--danger)}
+.addrow{display:flex;gap:6px;margin-top:10px}
+.quest{padding:9px 10px;border-radius:10px;background:rgba(8,13,10,.4);border-left:3px solid var(--ember);margin-bottom:8px}
+.quest b{display:block;font-family:var(--display);font-size:18px;color:var(--parch)}
+.quest span{font-size:13px;color:var(--muted);line-height:1.4;display:block}
+.quest.done{border-color:var(--good);opacity:.7}.quest.done b{text-decoration:line-through}
+.quest.failed{border-color:var(--danger);opacity:.7}
+.dice{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.die{aspect-ratio:1;border:1px solid var(--line2);border-radius:12px;background:radial-gradient(circle at 35% 25%,var(--moss3),var(--moss));
+  font-family:var(--display);font-weight:700;font-size:19px;color:var(--parch)}
+.die:hover{border-color:var(--ember);color:var(--ember2);transform:translateY(-2px) rotate(-4deg)}
+.dopts{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:8px;margin-top:10px}
+.result{margin-top:12px;text-align:center;padding:14px 10px;border-radius:12px;background:rgba(8,13,10,.55);border:1px solid var(--line);min-height:96px}
+.result b{display:block;font-family:var(--display);font-size:52px;line-height:1;color:var(--ember2)}
+.result b.pop{animation:pop .35s ease-out}
+@keyframes pop{0%{transform:scale(.4) rotate(-25deg);opacity:0}70%{transform:scale(1.15)}100%{transform:none;opacity:1}}
+.result span{font-size:13px;color:var(--muted)}
+.hist{margin-top:10px;font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:3px;max-height:150px;overflow:auto}
+.hist div b{color:var(--text)}
+
+/* toast + modal */
+#toast{position:fixed;left:12px;right:12px;margin:0 auto;width:fit-content;bottom:26px;transform:translateY(30px);opacity:0;pointer-events:none;z-index:40;
+  background:#101a14;border:1px solid var(--ember);border-radius:14px;padding:11px 16px;display:flex;gap:14px;align-items:center;
+  box-shadow:0 14px 40px rgba(0,0,0,.6);transition:.25s;max-width:560px}
+#toast.on{opacity:1;transform:none;pointer-events:auto}
+#toast b{font-family:var(--display);font-size:28px;color:var(--ember2);line-height:1}
+#toast span{font-size:13.5px;color:var(--text)}
+.modal{position:fixed;inset:0;z-index:30;background:rgba(4,8,6,.72);backdrop-filter:blur(4px);display:grid;place-items:center;padding:16px}
+.modal .box{width:min(560px,100%);max-height:92dvh;overflow:auto;border:1px solid var(--line2);background:#121c16;border-radius:16px;padding:22px}
+.modal h3{font-family:var(--display);font-size:28px;margin:0 0 4px;color:var(--ember2)}
+.modal .stack{display:flex;flex-direction:column;gap:14px;margin-top:16px}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--text)}
+.check input{margin-top:3px;accent-color:var(--ember)}
+#testout{font-size:13px;min-height:18px}
+.sideToggle{display:none}
+
+@media (max-width:960px){
+  #game{grid-template-columns:1fr;padding:10px;gap:0}
+  .side{position:fixed;top:0;right:0;bottom:0;width:min(370px,94vw);z-index:20;background:#0f1812;padding:14px;border-left:1px solid var(--line2);
+    transform:translateX(102%);transition:transform .25s}
+  .side.open{transform:none;box-shadow:-30px 0 80px rgba(0,0,0,.6)}
+  .sideToggle{display:inline-block}
+  header.bar{padding:10px 12px;gap:8px}
+  .brand span{display:none}
+  #log{font-size:17px}
+  .abil{grid-template-columns:repeat(3,1fr)}
+}
+</style>
+</head>
+<body>
+<div id="flies" aria-hidden="true"></div>
+<div id="app">
+  <header class="bar">
+    <button class="brand" data-act="home" title="Campaigns">
+      <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M16 2 29 9.5v13L16 30 3 22.500v-13z"/><path d="M16 2 9 12h14zM9 12 3 22.500M23 12l6 10.500M9 12l7 12 7-12M16 24v6M3 9.500 9 12M29 9.500 23 12" opacity=".75"/></svg>
+      <span>Emberglade</span>
+    </button>
+    <div class="where" id="where"></div>
+    <button class="btn small sideToggle" data-act="toggleSide" hidden id="sideBtn">Sheet</button>
+    <button class="btn small ghost" data-act="home" id="homeBtn" hidden>Campaigns</button>
+    <button class="btn small" data-act="settings">Settings</button>
+  </header>
+  <main id="main"></main>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="modalRoot"></div>
+
+<script>
+'use strict';
+/* ============ data ============ */
+const ABIL = ['str','dex','con','int','wis','cha'];
+const ABIL_NAME = {str:'Strength',dex:'Dexterity',con:'Constitution',int:'Intelligence',wis:'Wisdom',cha:'Charisma'};
+const SKILLS = {Acrobatics:'dex','Animal Handling':'wis',Arcana:'int',Athletics:'str',Deception:'cha',History:'int',Insight:'wis',
+  Intimidation:'cha',Investigation:'int',Medicine:'wis',Nature:'int',Perception:'wis',Performance:'cha',Persuasion:'cha',
+  Religion:'int','Sleight of Hand':'dex',Stealth:'dex',Survival:'wis'};
+const XP = [0,300,900,2700,6500,14000,23000,34000,48000,64000,85000,100000,120000,140000,165000,195000,225000,265000,305000,355000];
+const m2 = d => Math.min(d,2);
+const CLASSES = {
+  Barbarian:{hd:12,saves:['str','con'],prio:['str','con','dex','wis','cha','int'],skills:['Athletics','Perception'],feat:'Rage, Unarmored Defense',
+    gear:[['Greataxe',1],['Handaxe',2],['Javelin',4]],ac:m=>10+m.dex+m.con},
+  Bard:{hd:8,saves:['dex','cha'],prio:['cha','dex','con','wis','int','str'],skills:['Performance','Persuasion','Deception'],feat:'Bard spellcasting, Bardic Inspiration',
+    gear:[['Rapier',1],['Dagger',1],['Lute',1],['Leather armor',1]],ac:m=>11+m.dex},
+  Cleric:{hd:8,saves:['wis','cha'],prio:['wis','con','str','cha','dex','int'],skills:['Medicine','Insight'],feat:'Cleric spellcasting, Divine Domain',
+    gear:[['Mace',1],['Scale mail',1],['Shield',1],['Holy symbol',1]],ac:m=>16+m2(m.dex)},
+  Druid:{hd:8,saves:['int','wis'],prio:['wis','con','dex','int','cha','str'],skills:['Nature','Animal Handling'],feat:'Druid spellcasting, Druidic',
+    gear:[['Scimitar',1],['Wooden shield',1],['Leather armor',1],['Druidic focus',1]],ac:m=>13+m.dex},
+  Fighter:{hd:10,saves:['str','con'],prio:['str','con','dex','wis','cha','int'],skills:['Athletics','Intimidation'],feat:'Fighting Style, Second Wind',
+    gear:[['Longsword',1],['Shield',1],['Chain mail',1],['Light crossbow',1],['Crossbow bolt',20]],ac:()=>18},
+  Monk:{hd:8,saves:['str','dex'],prio:['dex','wis','con','str','int','cha'],skills:['Acrobatics','Stealth'],feat:'Martial Arts, Unarmored Defense',
+    gear:[['Shortsword',1],['Dart',10]],ac:m=>10+m.dex+m.wis},
+  Paladin:{hd:10,saves:['wis','cha'],prio:['str','cha','con','wis','dex','int'],skills:['Athletics','Persuasion'],feat:'Divine Sense, Lay on Hands',
+    gear:[['Longsword',1],['Shield',1],['Chain mail',1],['Javelin',5],['Holy symbol',1]],ac:()=>18},
+  Ranger:{hd:10,saves:['str','dex'],prio:['dex','wis','con','str','int','cha'],skills:['Survival','Stealth','Perception'],feat:'Favored Enemy, Natural Explorer',
+    gear:[['Longbow',1],['Arrow',20],['Shortsword',2],['Scale mail',1]],ac:m=>14+m2(m.dex)},
+  Rogue:{hd:8,saves:['dex','int'],prio:['dex','int','con','cha','wis','str'],skills:['Stealth','Sleight of Hand','Deception','Perception'],feat:'Sneak Attack (1d6), Expertise, Thieves\' Cant',
+    gear:[['Rapier',1],['Shortbow',1],['Arrow',20],['Dagger',2],['Leather armor',1],['Thieves\' tools',1]],ac:m=>11+m.dex},
+  Sorcerer:{hd:6,saves:['con','cha'],prio:['cha','con','dex','wis','int','str'],skills:['Arcana','Persuasion'],feat:'Sorcerer spellcasting, Sorcerous Origin',
+    gear:[['Light crossbow',1],['Crossbow bolt',20],['Dagger',2],['Arcane focus',1]],ac:m=>10+m.dex},
+  Warlock:{hd:8,saves:['wis','cha'],prio:['cha','con','dex','wis','int','str'],skills:['Arcana','Deception'],feat:'Pact Magic, Otherworldly Patron',
+    gear:[['Light crossbow',1],['Crossbow bolt',20],['Dagger',2],['Leather armor',1],['Arcane focus',1]],ac:m=>11+m.dex},
+  Wizard:{hd:6,saves:['int','wis'],prio:['int','con','dex','wis','cha','str'],skills:['Arcana','History'],feat:'Wizard spellcasting, Arcane Recovery',
+    gear:[['Quarterstaff',1],['Spellbook',1],['Arcane focus',1]],ac:m=>10+m.dex},
+};
+const RACES = {Human:{str:1,dex:1,con:1,int:1,wis:1,cha:1},Elf:{dex:2,wis:1},Dwarf:{con:2,wis:1},Halfling:{dex:2,cha:1},'Half-Elf':{cha:2,dex:1,con:1},
+  'Half-Orc':{str:2,con:1},Gnome:{int:2,con:1},Tiefling:{cha:2,int:1},Dragonborn:{str:2,cha:1}};
+const NAMES = ['Wren Ashdown','Corin Vale','Tamsin Roe','Bram Oakhollow','Isolde Fenn','Garrick Thorne','Maeve Underbough','Ode Larkspur','Renna Vesk','Hale Briarwood','Sable Quill','Dunmar Stonewake'];
+const HOOKS = [
+  {id:'lantern',title:'The Lantern Road',text:'You signed on to guard a caravan through the old forest. The road is lined with ever-burning lanterns, and tonight they are going out, one by one, behind you.'},
+  {id:'well',title:'Hollow Under Thistlewick',text:'The village well ran dry a week ago. Since then, on quiet nights, something at the bottom has been singing the names of the villagers.'},
+  {id:'stag',title:"The Stag King's Debt",text:'You wake in a moonlit clearing with an antler-shaped brand on your palm and no memory of the bargain that put it there. Someone has come to collect.'},
+  {id:'keep',title:'Ashes of Brambleholt',text:'A map bought for three coppers leads to a keep swallowed by thorns. You are not the only one who bought a copy.'},
+  {id:'moth',title:'The Moth Market',text:'On moonless nights a market unfolds between the trees, selling things that were never meant to be sold. Tonight, one of the stalls is selling something of yours.'},
+  {id:'surprise',title:'Surprise me',text:'Let the narrator invent the premise. You will find out where you are when you open your eyes.'},
+  {id:'custom',title:'Write my own',text:'Describe your own setting, premise, or opening scene.'},
+];
+const TONES = {classic:'Classic heroic fantasy: wonder, danger, and earnest adventure.',grim:'Dark fantasy: grim, dangerous, morally grey, with real consequences.',
+  whimsy:'Whimsical fairytale: strange, funny, and a little eerie.',mystery:'Slow-burn mystery: clues, secrets, and unsettling quiet.'};
+
+/* ============ storage ============ */
+const KEY = 'emberglade.v1';
+const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:1000,stream:true,localProxy:false};
+let store = {settings:{...DEFAULTS},campaigns:{}};
+try{ const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(s){ store = s; store.settings = {...DEFAULTS,...s.settings}; store.campaigns = s.campaigns||{}; } }catch(e){}
+function save(){ try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){ toast('!','Could not save: browser storage is full or blocked.'); } }
+
+/* ============ helpers ============ */
+const $ = (s,r=document)=>r.querySelector(s);
+const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const mod = v => Math.floor((v-10)/2);
+const sgn = n => (n>=0?'+':'−')+Math.abs(n);
+const prof = lvl => 2+Math.floor((lvl-1)/4);
+const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
+const num = v => { const n = Number(v); return Number.isFinite(n)?Math.trunc(n):0; };
+function rnd(sides){ const a = new Uint32Array(1); const lim = Math.floor(0x100000000/sides)*sides; do{ crypto.getRandomValues(a); }while(a[0]>=lim); return a[0]%sides+1; }
+function md(t){
+  return esc(t).replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>')
+    .split(/\n{2,}/).filter(p=>p.trim()).map(p=>'<p>'+p.trim().replace(/\n/g,'<br>')+'</p>').join('');
+}
+const DIE_SVG = '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M16 2 29 9.500v13L16 30 3 22.500v-13z"/><path d="M9 12h14l-7 12z"/></svg>';
+let toastT;
+function toast(big,text,action){
+  const t = $('#toast');
+  t.innerHTML = `<b>${esc(big)}</b><span>${esc(text)}</span>`+(action?`<button class="btn small primary" data-act="toastAct">${esc(action.label)}</button>`:'');
+  t._action = action; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('on'),action?9000:3500);
+}
+
+/* ============ dice ============ */
+function rollExpr(expr,crit){
+  const m = /^\s*(\d*)\s*d\s*(\d+)\s*([+-]\s*\d+)?\s*$/i.exec(String(expr||''));
+  if(!m) return null;
+  let n = clamp(num(m[1]||1),1,40); const sides = clamp(num(m[2]),2,1000); const bonus = m[3]?num(m[3].replace(/\s/g,'')):0;
+  if(crit) n*=2;
+  const rolls = Array.from({length:n},()=>rnd(sides));
+  return {rolls,bonus,total:Math.max(0,rolls.reduce((a,b)=>a+b,0)+bonus),text:`${n}d${sides}${bonus?sgn(bonus):''}`};
+}
+function d20(adv){ const a = rnd(20), b = rnd(20); const pick = adv==='adv'?Math.max(a,b):adv==='dis'?Math.min(a,b):a; return {pick,rolls:adv&&adv!=='none'?[a,b]:[a]}; }
+
+/* ============ state ============ */
+let cur = null;       // active campaign
+let busy = false, aborter = null, tab = 'sheet', lastErr = null, trayHist = [], lastTray = null;
+
+function newCharacter(f){
+  const cls = CLASSES[f.cls], race = RACES[f.race]||{};
+  const ab = {}; ABIL.forEach(a=>ab[a]=clamp(num(f.abilities[a])||10,3,18)+(race[a]||0));
+  const mods = {}; ABIL.forEach(a=>mods[a]=mod(ab[a]));
+  const maxHp = Math.max(1,cls.hd+mods.con);
+  const inv = cls.gear.map(([name,qty])=>({name,qty}));
+  inv.push({name:'Rations (day)',qty:5},{name:'Waterskin',qty:1},{name:'Torch',qty:3},{name:'Bedroll',qty:1});
+  return {name:f.name,race:f.race,cls:f.cls,background:f.background,level:1,xp:0,hp:maxHp,maxHp,ac:cls.ac(mods),abilities:ab,
+    profs:[...cls.skills],saves:[...cls.saves],features:cls.feat,inventory:inv,gold:15,conditions:[]};
+}
+function skillMod(ch,skill){ return mod(ch.abilities[SKILLS[skill]])+(ch.profs.includes(skill)?prof(ch.level):0); }
+function saveMod(ch,a){ return mod(ch.abilities[a])+(ch.saves.includes(a)?prof(ch.level):0); }
+function snapshot(c){ return JSON.stringify({character:c.character,quests:c.quests,location:c.location}); }
+
+/* ============ the narrator ============ */
+const RULES = `You are the Dungeon Master for a solo tabletop fantasy adventure that follows D&D 5th Edition style rules. One player controls one character. You run the world, its people, and its monsters.
+
+How to narrate:
+- Write in second person, present tense. Keep each reply to one to three short paragraphs of vivid, concrete prose. No headings, no bullet lists, no out-of-character commentary.
+- Never decide what the player's character does, says, thinks, or feels. End each reply at a moment where the player chooses what to do next.
+- Give the world texture: named people with wants of their own, places with history, choices with consequences. Let failures be interesting rather than dead ends.
+- Stay consistent with the character sheet, inventory, quests, and the story so far given below. The player cannot use items or abilities they do not have.
+
+Dice:
+- You never roll dice for the player and never invent the result of a player roll. When the outcome of something the character attempts is uncertain and failure would matter, stop the narration just before the outcome and request a roll in the state block. The app rolls real dice and tells you the result in the next message. Then narrate what happens, honouring the result.
+- Use sensible DCs: 5 trivial, 10 easy, 13 moderate, 16 hard, 19 very hard, 22+ heroic. Do not ask for rolls for trivial or automatic actions. Request at most one roll per reply.
+- For a player attack, request a roll with "dc" set to the target's Armor Class and "damage" set to the weapon or spell damage dice including modifiers (for example "1d8+3"). The app rolls damage automatically on a hit.
+- You resolve monster and NPC rolls yourself, fairly, against the character's AC and saves. Apply damage to the player with "hp_delta".
+
+State block:
+After the narration, end EVERY reply with one state block, exactly in this form, containing valid JSON. Include only the keys that changed, plus "suggestions". The player does not see this block.
+
+<state>
+{"location":"short name of the current place","hp_delta":0,"gold_delta":0,"xp_delta":0,"items_add":[{"name":"Rusty key","qty":1}],"items_remove":[{"name":"Torch","qty":1}],"conditions_add":["Poisoned"],"conditions_remove":["Poisoned"],"quests":[{"title":"Quest name","status":"active","note":"one line on the current objective"}],"roll":{"label":"Stealth check","ability":"dex","skill":"Stealth","save":false,"proficient":false,"advantage":"none","dc":13,"damage":null},"suggestions":["a short action the player might take","another","a third"]}
+</state>
+
+Notes on the keys: "hp_delta" is negative for damage and positive for healing. "xp_delta" awards experience for overcoming challenges (a typical early encounter is worth 25 to 100). Quest "status" is "active", "done", or "failed". In "roll", "ability" is one of str, dex, con, int, wis, cha; "skill" is a 5e skill name or null; set "save" true for saving throws; set "proficient" true for attacks with weapons or spells the character is proficient with; "advantage" is "none", "adv", or "dis". Leave "roll" out entirely when no roll is needed. Always give three short "suggestions", but the player may do anything.`;
+
+function sheetText(c){
+  const ch = c.character;
+  const ab = ABIL.map(a=>`${a.toUpperCase()} ${ch.abilities[a]} (${sgn(mod(ch.abilities[a]))})`).join(', ');
+  const inv = ch.inventory.map(i=>i.qty>1?`${i.name} x${i.qty}`:i.name).join(', ')||'nothing';
+  const q = c.quests.length?c.quests.map(x=>`- [${x.status}] ${x.title}${x.note?': '+x.note:''}`).join('\n'):'- none yet';
+  return `Name: ${ch.name}. ${ch.race} ${ch.cls}, level ${ch.level} (${ch.xp} XP). Background: ${ch.background||'unknown'}.
+HP ${ch.hp}/${ch.maxHp}. AC ${ch.ac}. Proficiency bonus +${prof(ch.level)}.
+Abilities: ${ab}.
+Skill proficiencies: ${ch.profs.join(', ')}. Saving throw proficiencies: ${ch.saves.map(s=>s.toUpperCase()).join(', ')}.
+Class features: ${ch.features}.
+Conditions: ${ch.conditions.join(', ')||'none'}.
+Gold: ${ch.gold} gp. Inventory: ${inv}.
+Current location: ${c.location||'not yet established'}.
+Quests:
+${q}`;
+}
+function buildMessages(c){
+  const sys = `${RULES}\n\n# Campaign\nTone: ${TONES[c.tone]||TONES.classic}\nPremise: ${c.premise}\n\n# The player's character (current, authoritative)\n${sheetText(c)}`
+    +(c.summary?`\n\n# Story so far\n${c.summary}`:'');
+  const out = [{role:'system',content:sys}];
+  const push = (role,content)=>{ const l = out[out.length-1]; if(l.role===role) l.content += '\n\n'+content; else out.push({role,content}); };
+  const from = c.sumIdx||0;
+  push('user',from?'(The adventure continues from the story so far.)':'Begin the adventure. Open with a scene that drops my character into the premise, makes clear where I am, and ends with a choice.');
+  for(const e of c.log.slice(from)){
+    if(e.role==='dm') push('assistant',e.text+'\n\n<state>\n'+JSON.stringify(e.state||{})+'\n</state>');
+    else if(e.role==='player') push('user',e.text);
+    else if(e.role==='roll') push('user','[Dice result from the app] '+e.text);
+  }
+  if(out[out.length-1].role==='assistant') push('user','(Continue.)');
+  return out;
+}
+function endpoint(path){
+  const s = store.settings, base = s.baseUrl.trim().replace(/\/+$/,'');
+  const headers = {'Content-Type':'application/json'};
+  if(s.apiKey) headers.Authorization = 'Bearer '+s.apiKey.trim();
+  if(s.localProxy){ headers['X-Target-Base'] = base; return {url:'/proxy'+path,headers}; }
+  return {url:base+path,headers};
+}
+async function chat(messages,{stream=store.settings.stream,onText,signal,maxTokens,temperature}={}){
+  const s = store.settings, {url,headers} = endpoint('/chat/completions');
+  const body = {model:s.model.trim(),messages,temperature:temperature??Number(s.temperature),max_tokens:maxTokens??Number(s.maxTokens),stream:!!stream};
+  let res;
+  try{ res = await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal}); }
+  catch(e){ if(e.name==='AbortError') throw e; throw new Error('Could not reach the model endpoint. Check the proxy URL in Settings'+(s.localProxy?'':' (if your proxy blocks browser requests, try the local server option)')+'.'); }
+  if(!res.ok){
+    let msg = res.status+' '+res.statusText;
+    try{ const j = await res.json(); msg = (j.error&&(j.error.message||j.error))||j.message||msg; if(typeof msg!=='string') msg = JSON.stringify(msg); }catch(e){}
+    if(res.status===401) msg = 'The endpoint rejected the API key (401). '+msg;
+    throw new Error(msg);
+  }
+  const ctype = res.headers.get('content-type')||'';
+  if(!stream||!res.body||ctype.includes('application/json')){
+    const j = await res.json();
+    if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
+    const t = j.choices?.[0]?.message?.content||''; onText&&onText(t); return t;
+  }
+  const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', full = '';
+  for(;;){
+    const {done,value} = await reader.read(); if(done) break;
+    buf += dec.decode(value,{stream:true});
+    let i; while((i = buf.indexOf('\n'))>=0){
+      const line = buf.slice(0,i).trim(); buf = buf.slice(i+1);
+      if(!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim(); if(!data||data==='[DONE]') continue;
+      let j; try{ j = JSON.parse(data); }catch(e){ continue; }
+      if(j.error) throw new Error(j.error.message||JSON.stringify(j.error));
+      const d = j.choices?.[0]?.delta?.content; if(d){ full += d; onText&&onText(full); }
+    }
+  }
+  return full;
+}
+function visibleText(raw){
+  let t = raw; const i = t.search(/<state\b|```(?:json)?\s*\{\s*"(?:location|hp_delta|suggestions|roll|quests|items_add)/i);
+  if(i>=0) t = t.slice(0,i);
+  else { const k = t.lastIndexOf('<'); if(k>=0&&t.length-k<8&&'<state>'.startsWith(t.slice(k).toLowerCase())) t = t.slice(0,k); }
+  return t.trim();
+}
+function parseReply(raw){
+  const text = visibleText(raw); let state = {};
+  const m = /<state\b[^>]*>([\s\S]*?)(?:<\/state>|$)/i.exec(raw) || /```(?:json)?\s*(\{[\s\S]*\})\s*```?\s*$/i.exec(raw);
+  if(m){
+    let j = m[1].replace(/```(?:json)?/gi,'').trim();
+    const a = j.indexOf('{'), b = j.lastIndexOf('}');
+    if(a>=0&&b>a){ j = j.slice(a,b+1); try{ state = JSON.parse(j); }catch(e){ try{ state = JSON.parse(j.replace(/,\s*([}\]])/g,'$1')); }catch(e2){ state = {}; } } }
+  }
+  if(!state||typeof state!=='object'||Array.isArray(state)) state = {};
+  return {text,state};
+}
+function applyState(c,s){
+  const ch = c.character, notes = [];
+  const note = (t,k)=>notes.push({t,k});
+  if(typeof s.location==='string'&&s.location.trim()) c.location = s.location.trim().slice(0,80);
+  const hp = num(s.hp_delta); if(hp){ const b = ch.hp; ch.hp = clamp(ch.hp+hp,0,ch.maxHp); if(ch.hp!==b) note(`${sgn(ch.hp-b)} HP`,hp<0?'bad':'ok'); }
+  const g = num(s.gold_delta); if(g){ const b = ch.gold; ch.gold = Math.max(0,ch.gold+g); if(ch.gold!==b) note(`${sgn(ch.gold-b)} gold`,g<0?'':'ok'); }
+  const ac = num(s.ac); if(ac>=5&&ac<=30&&ac!==ch.ac){ ch.ac = ac; note('AC '+ac); }
+  const items = v => (Array.isArray(v)?v:[]).map(i=>typeof i==='string'?{name:i,qty:1}:i).filter(i=>i&&typeof i.name==='string'&&i.name.trim()).map(i=>({name:i.name.trim().slice(0,60),qty:Math.max(1,num(i.qty)||1)}));
+  for(const it of items(s.items_add)){ const f = ch.inventory.find(x=>x.name.toLowerCase()===it.name.toLowerCase()); if(f) f.qty += it.qty; else ch.inventory.push(it); note(`+ ${it.name}${it.qty>1?' ×'+it.qty:''}`,'ok'); }
+  for(const it of items(s.items_remove)){ const k = ch.inventory.findIndex(x=>x.name.toLowerCase()===it.name.toLowerCase()); if(k<0) continue; ch.inventory[k].qty -= it.qty; if(ch.inventory[k].qty<=0) ch.inventory.splice(k,1); note(`− ${it.name}${it.qty>1?' ×'+it.qty:''}`); }
+  const strs = v => (Array.isArray(v)?v:[]).filter(x=>typeof x==='string'&&x.trim()).map(x=>x.trim().slice(0,160));
+  for(const x of strs(s.conditions_add)) if(!ch.conditions.some(y=>y.toLowerCase()===x.toLowerCase())){ ch.conditions.push(x); note(x,'bad'); }
+  for(const x of strs(s.conditions_remove)){ const k = ch.conditions.findIndex(y=>y.toLowerCase()===x.toLowerCase()); if(k>=0){ ch.conditions.splice(k,1); note('No longer '+x.toLowerCase(),'ok'); } }
+  for(const q of (Array.isArray(s.quests)?s.quests:[])){
+    if(!q||typeof q.title!=='string'||!q.title.trim()) continue;
+    const status = ['active','done','failed'].includes(q.status)?q.status:'active', title = q.title.trim().slice(0,80);
+    const f = c.quests.find(x=>x.title.toLowerCase()===title.toLowerCase());
+    if(f){ if(f.status!==status) note(`Quest ${status==='done'?'complete':status}: ${title}`,status==='failed'?'bad':'ok'); f.status = status; if(typeof q.note==='string') f.note = q.note.slice(0,240); }
+    else{ c.quests.push({title,status,note:typeof q.note==='string'?q.note.slice(0,240):''}); note('New quest: '+title,'ok'); }
+  }
+  const xp = num(s.xp_delta); if(xp>0){ ch.xp += xp; note(`+${xp} XP`,'ok');
+    while(ch.level<20&&ch.xp>=XP[ch.level]){ ch.level++; const gain = Math.max(1,CLASSES[ch.cls].hd/2+1+mod(ch.abilities.con)); ch.maxHp += gain; ch.hp += gain; note(`Level ${ch.level}! +${gain} max HP`,'ok'); } }
+  c.pendingRoll = null;
+  const r = s.roll;
+  if(r&&typeof r==='object'){
+    const ability = ABIL.includes(String(r.ability||'').toLowerCase().slice(0,3))?String(r.ability).toLowerCase().slice(0,3):null;
+    const skill = Object.keys(SKILLS).find(k=>k.toLowerCase()===String(r.skill||'').toLowerCase())||null;
+    const dmg = typeof r.damage==='string'&&rollExpr(r.damage)?r.damage.replace(/\s/g,''):null;
+    c.pendingRoll = {label:String(r.label||skill||(ability?ABIL_NAME[ability]+' check':'Roll')).slice(0,60),ability:ability||(skill?SKILLS[skill]:null),skill,
+      save:r.save===true,proficient:r.proficient===true,advantage:['adv','dis'].includes(r.advantage)?r.advantage:'none',dc:clamp(num(r.dc),0,40)||null,damage:dmg};
+  }
+  c.suggestions = strs(s.suggestions).slice(0,4);
+  return notes;
+}
+
+async function takeTurn(entry){
+  if(busy||!cur) return;
+  const c = cur, s = store.settings;
+  if(!s.apiKey&&/openrouter\.ai/i.test(s.baseUrl)){ openSettings('Add your OpenRouter API key first, so the narrator has a voice.'); return; }
+  if(entry) c.log.push(entry);
+  c.suggestions = []; c.pendingRoll = null; lastErr = null; busy = true; aborter = new AbortController();
+  save(); renderGame();
+  const live = document.createElement('div'); live.className = 'e dm'; live.innerHTML = '<p class="thinking">The narrator considers…</p>';
+  $('#log').appendChild(live); scrollLog();
+  let raw = '', raf = 0;
+  try{
+    raw = await chat(buildMessages(c),{signal:aborter.signal,onText:t=>{ raw = t; if(raf) return; raf = requestAnimationFrame(()=>{ raf = 0; const v = visibleText(raw); if(v){ live.innerHTML = md(v); live.lastElementChild?.classList.add('cursor'); scrollLog(); } }); }});
+  }catch(e){ if(e.name!=='AbortError'){ raw = ''; lastErr = e.message||String(e); } }
+  cancelAnimationFrame(raf); busy = false; aborter = null;
+  if(cur!==c) return;
+  const {text,state} = parseReply(raw);
+  if(text){
+    const pre = snapshot(c);
+    c.log.forEach(e=>{ delete e.pre; });
+    const changes = applyState(c,state);
+    c.log.push({role:'dm',text,state,changes,pre});
+    c.updated = Date.now();
+  }else if(!lastErr) lastErr = raw?'The model replied with no narration. Try again, or pick a different model.':'The model returned an empty reply. Try again, raise max tokens in Settings, or pick a different model.';
+  save(); renderGame(); if(text) summarize(c);
+}
+function regenerate(){
+  if(busy||!cur) return; const last = cur.log[cur.log.length-1];
+  if(!last||last.role!=='dm'||!last.pre) return;
+  Object.assign(cur,JSON.parse(last.pre)); cur.log.pop(); takeTurn(null);
+}
+async function summarize(c){
+  const from = c.sumIdx||0; if(c.log.length-from<34||c._summing) return;
+  c._summing = true; const take = c.log.slice(from,from+18);
+  const script = take.map(e=>e.role==='dm'?'DM: '+e.text:e.role==='player'?'PLAYER: '+e.text:'DICE: '+e.text).join('\n\n');
+  try{
+    const t = await chat([{role:'system',content:'You keep the running record of a solo fantasy tabletop campaign. Merge the existing summary with the new transcript into one updated summary of at most 250 words. Keep names, places, promises, debts, enemies, unresolved threads, and important choices. Plain prose, past tense, no preamble.'},
+      {role:'user',content:`Existing summary:\n${c.summary||'(none)'}\n\nNew transcript:\n${script}`}],{stream:false,maxTokens:500,temperature:0.3});
+    if(t&&t.trim()){ c.summary = t.trim(); c.sumIdx = from+take.length; save(); }
+  }catch(e){}
+  delete c._summing;
+}
+
+/* ============ rolls ============ */
+function resolvePending(adv){
+  const c = cur, r = c.pendingRoll; if(!r||busy) return; const ch = c.character;
+  let bonus = r.ability?mod(ch.abilities[r.ability]):0;
+  if((r.skill&&ch.profs.includes(r.skill))||(r.save&&r.ability&&ch.saves.includes(r.ability))||r.proficient) bonus += prof(ch.level);
+  const d = d20(adv), total = d.pick+bonus;
+  let t = `${r.label}: d20 rolled ${d.pick}${d.rolls.length>1?` (${d.rolls.join(' and ')}, ${adv==='adv'?'advantage':'disadvantage'})`:''} ${sgn(bonus)} = ${total}`;
+  let hit = null;
+  if(r.dc){ hit = r.damage?(d.pick===20||(d.pick!==1&&total>=r.dc)):total>=r.dc; t += ` vs ${r.damage?'AC':'DC'} ${r.dc}. ${hit?(r.damage?'Hit':'Success'):(r.damage?'Miss':'Failure')}`; }
+  if(d.pick===20) t += ' (natural 20!)'; else if(d.pick===1) t += ' (natural 1)';
+  t += '.';
+  if(r.damage&&hit!==false){ const dm = rollExpr(r.damage,d.pick===20); t += ` Damage ${dm.text}: ${dm.rolls.join('+')}${dm.bonus?sgn(dm.bonus):''} = ${dm.total}.`; }
+  takeTurn({role:'roll',text:t});
+}
+function freeRoll(label,bonus,adv){
+  const d = d20(adv), total = d.pick+bonus;
+  const text = `${label}: d20 rolled ${d.pick}${d.rolls.length>1?` (${d.rolls.join(' and ')})`:''} ${sgn(bonus)} = ${total}${d.pick===20?' (natural 20!)':d.pick===1?' (natural 1)':''}.`;
+  pushTray(total,text); toast(String(total),text,cur?{label:'Tell the narrator',text}:null);
+}
+function pushTray(total,text){ lastTray = {total,text}; trayHist.unshift(text); trayHist = trayHist.slice(0,12); if(cur&&tab==='dice') renderSide(); }
+function trayRoll(sides){
+  const n = clamp(num($('#dN')?.value)||1,1,20), b = num($('#dB')?.value), adv = $('#dA')?.value||'none';
+  let rolls, total, label;
+  if(sides===20&&n===1&&adv!=='none'){ const d = d20(adv); rolls = d.rolls; total = d.pick+b; label = `d20 ${adv==='adv'?'advantage':'disadvantage'}`; }
+  else{ rolls = Array.from({length:n},()=>rnd(sides)); total = rolls.reduce((a,x)=>a+x,0)+b; label = `${n}d${sides}`; }
+  pushTray(total,`${label}${b?sgn(b):''}: ${rolls.join(', ')}${b?' '+sgn(b):''} = ${total}.`);
+  if(tab!=='dice'||!cur) toast(String(total),lastTray.text,cur?{label:'Tell the narrator',text:lastTray.text}:null);
+  else $('.result b')?.classList.add('pop');
+}
+
+/* ============ views ============ */
+const main = $('#main');
+function chrome(inGame){
+  $('#homeBtn').hidden = !inGame; $('#sideBtn').hidden = !inGame;
+  $('#where').innerHTML = inGame&&cur?`<b>${esc(cur.title)}</b>${cur.location?' · '+esc(cur.location):''}`:'';
+}
+function renderHome(){
+  cur = null; chrome(false);
+  const list = Object.values(store.campaigns).sort((a,b)=>b.updated-a.updated), s = store.settings;
+  const needKey = !s.apiKey&&/openrouter\.ai/i.test(s.baseUrl);
+  main.innerHTML = `<div class="wrap">
+    <section class="hero"><h1>Emberglade</h1>
+      <p>Pull a stump up to the fire. The forest is listening, the dice are warm, and tonight the story is yours alone.</p>
+      <button class="btn primary" data-act="create" style="font-size:16px;padding:12px 26px">Begin a new tale</button></section>
+    ${needKey?`<div class="notice"><span>No narrator connected yet. Add an API key and pick a model to play.</span><button class="btn small" data-act="settings">Open settings</button></div>`:''}
+    <h2 class="sec">Your tales</h2>
+    ${list.length?`<div class="saves">${list.map(c=>`<article class="save"><h3>${esc(c.title)}</h3>
+      <div class="meta">${esc(c.character.name)} · level ${c.character.level} ${esc(c.character.race)} ${esc(c.character.cls)}</div>
+      <div class="meta">${esc(c.location||'Not yet begun')} · ${c.log.filter(e=>e.role==='dm').length} scenes · ${new Date(c.updated).toLocaleDateString()}</div>
+      <div class="row"><button class="btn small primary" data-act="open" data-id="${c.id}">Continue</button>
+        <button class="btn small" data-act="export" data-id="${c.id}">Export</button>
+        <button class="btn small danger" data-act="del" data-id="${c.id}">Delete</button></div></article>`).join('')}</div>`
+      :`<div class="empty">No tales yet. Every campaign starts differently, so start one.</div>`}
+    <div class="actions" style="margin-top:16px"><button class="btn small ghost" data-act="import">Import a saved tale</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
+  </div>`;
+}
+function renderCreate(){
+  cur = null; chrome(false);
+  const opt = o => Object.keys(o).map(k=>`<option>${k}</option>`).join('');
+  main.innerHTML = `<div class="wrap"><h2 class="sec" style="margin-top:0;font-size:36px">A new tale</h2>
+  <form id="createForm">
+    <div class="panel"><h3>Who are you?</h3><div class="grid2">
+      <label class="f">Name<span style="display:flex;gap:6px"><input class="inp" name="name" required maxlength="40" placeholder="Wren Ashdown"><button type="button" class="btn small" data-act="randName" title="Random name">Random</button></span></label>
+      <label class="f">Ancestry<select class="inp" name="race">${opt(RACES)}</select></label>
+      <label class="f">Class<select class="inp" name="cls">${opt(CLASSES)}</select></label>
+      <label class="f">Background<input class="inp" name="background" maxlength="60" placeholder="Outlander, ex-soldier, runaway scribe…"></label></div></div>
+    <div class="panel"><h3>Ability scores</h3>
+      <div class="abil">${ABIL.map(a=>`<label class="f">${a}<input class="inp" type="number" name="ab_${a}" min="3" max="18" value="10"><small id="m_${a}"></small></label>`).join('')}</div>
+      <div class="actions" style="justify-content:flex-start;margin-top:14px"><button type="button" class="btn small" data-act="rollStats">Roll 4d6, drop lowest</button><button type="button" class="btn small" data-act="stdArray">Standard array</button></div>
+      <p class="hint" style="margin-bottom:0">Scores are placed to suit your class, and you can edit them. Ancestry bonuses are added on top when you begin.</p></div>
+    <div class="panel"><h3>Where does it begin?</h3>
+      <div class="hooks">${HOOKS.map((h,i)=>`<label class="hook"><input type="radio" name="hook" value="${h.id}" ${i===0?'checked':''}><b>${esc(h.title)}</b><span>${esc(h.text)}</span></label>`).join('')}</div>
+      <label class="f" id="customWrap" hidden style="margin-top:14px">Your premise<textarea class="inp" name="custom" maxlength="1500" placeholder="A drowned city, a heist at the solstice fair, a letter from a dead friend…"></textarea></label>
+      <label class="f" style="margin-top:14px;max-width:420px">Tone<select class="inp" name="tone"><option value="classic">Classic heroic</option><option value="grim">Dark and grim</option><option value="whimsy">Whimsical fairytale</option><option value="mystery">Slow-burn mystery</option></select></label></div>
+    <div class="actions"><button type="button" class="btn ghost" data-act="home">Cancel</button><button class="btn primary">Step into the clearing</button></div>
+  </form></div>`;
+  fillStats([15,14,13,12,10,8]);
+}
+function fillStats(vals){
+  const f = $('#createForm'); if(!f) return; const prio = CLASSES[f.cls.value].prio; const sorted = [...vals].sort((a,b)=>b-a);
+  prio.forEach((a,i)=>{ f['ab_'+a].value = sorted[i]; }); showMods();
+}
+function showMods(){ const f = $('#createForm'); if(!f) return; ABIL.forEach(a=>{ const r = (RACES[f.race.value]||{})[a]||0; $('#m_'+a).textContent = sgn(mod(clamp(num(f['ab_'+a].value)||10,3,18)+r))+(r?` (+${r})`:''); }); }
+
+function renderGame(){
+  if(!cur) return renderHome();
+  chrome(true);
+  if(!$('#game')){ main.innerHTML = `<div id="game"><section class="page"><div id="log" aria-live="polite"></div><div class="composer" id="composer"></div></section><aside class="side" id="side"></aside></div>`; }
+  renderLog(); renderComposer(); renderSide();
+}
+function renderLog(){
+  const c = cur, last = c.log.length-1;
+  $('#log').innerHTML = c.log.map((e,i)=>{
+    if(e.role==='player') return `<div class="e player">${md(e.text)}</div>`;
+    if(e.role==='roll') return `<div class="e roll">${DIE_SVG}<span>${esc(e.text)}</span></div>`;
+    return `<div class="e dm">${md(e.text)}${e.changes&&e.changes.length?`<div class="chg">${e.changes.map(n=>`<span class="${n.k||''}">${esc(n.t)}</span>`).join('')}</div>`:''}
+      ${i===last&&e.pre&&!busy?`<div class="tools"><button data-act="regen">Retell this scene</button></div>`:''}</div>`;
+  }).join('')+(lastErr?`<div class="e err"><span>${esc(lastErr)}</span><button class="btn small" data-act="retry">Try again</button><button class="btn small" data-act="settings">Settings</button></div>`:'');
+  scrollLog();
+}
+function scrollLog(){ const l = $('#log'); if(l) l.scrollTop = l.scrollHeight; }
+function renderComposer(){
+  const c = cur, r = c.pendingRoll, keep = $('#say')?.value||'';
+  let h = '';
+  if(r&&!busy){
+    const ch = c.character; let b = r.ability?mod(ch.abilities[r.ability]):0;
+    if((r.skill&&ch.profs.includes(r.skill))||(r.save&&r.ability&&ch.saves.includes(r.ability))||r.proficient) b += prof(ch.level);
+    h += `<div class="rollcard"><div class="t"><b>${esc(r.label)}</b><div>d20 ${sgn(b)}${r.dc?` against ${r.damage?'AC':'DC'} ${r.dc}`:''}${r.damage?` · damage ${esc(r.damage)}`:''}${r.advantage!=='none'?` · the narrator calls for ${r.advantage==='adv'?'advantage':'disadvantage'}`:''}</div></div>
+      <button class="btn primary" data-act="pend" data-adv="${r.advantage}">Roll</button>
+      ${r.advantage==='none'?`<button class="btn small" data-act="pend" data-adv="adv">Advantage</button><button class="btn small" data-act="pend" data-adv="dis">Disadvantage</button>`:''}</div>`;
+  }
+  if(c.suggestions.length&&!busy&&!r) h += `<div class="sugg">${c.suggestions.map(s=>`<button data-act="sugg">${esc(s)}</button>`).join('')}</div>`;
+  h += `<form class="send" id="sendForm"><textarea id="say" rows="1" maxlength="2000" placeholder="${busy?'The narrator is speaking…':r?'Roll, or do something else instead…':'What do you do?'}" ${busy?'disabled':''}></textarea>
+    ${busy?`<button type="button" class="btn" data-act="stop">Stop</button>`:`<button class="btn primary">Act</button>`}</form>`;
+  $('#composer').innerHTML = h; const ta = $('#say'); ta.value = keep; if(!busy&&matchMedia('(min-width:961px)').matches) ta.focus();
+}
+function renderSide(){
+  const c = cur, ch = c.character, side = $('#side'), open = side.classList.contains('open');
+  const tabs = [['sheet','Sheet'],['pack','Pack'],['quests','Quests'],['dice','Dice']];
+  let h = `<div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" aria-selected="${tab===k}" data-act="tab" data-tab="${k}">${l}</button>`).join('')}</div>`;
+  if(tab==='sheet'){
+    const next = ch.level<20?XP[ch.level]:null;
+    h += `<div class="card who"><h3>${esc(ch.name)}</h3><div class="sub">Level ${ch.level} ${esc(ch.race)} ${esc(ch.cls)}${ch.background?' · '+esc(ch.background):''}</div>
+      <div class="vitals"><div class="vital"><b>${ch.ac}</b><span>Armor</span></div><div class="vital"><b>+${prof(ch.level)}</b><span>Prof.</span></div><div class="vital"><b>${ch.gold}</b><span>Gold</span></div></div>
+      <div class="hpbar"><i style="width:${ch.hp/ch.maxHp*100}%"></i></div>
+      <div class="hprow"><span><b style="color:var(--text);font-size:15px">${ch.hp}</b> / ${ch.maxHp} hit points</span><span><button class="btn small" data-act="hp" data-d="-1" aria-label="Lose 1 hit point">−</button> <button class="btn small" data-act="hp" data-d="1" aria-label="Gain 1 hit point">+</button></span></div>
+      <div class="xp">${ch.xp} XP${next?` · next level at ${next}`:''}</div></div>
+    ${ch.conditions.length?`<div class="card"><h4>Conditions</h4><div class="tags">${ch.conditions.map(x=>`<span class="tag">${esc(x)}</span>`).join('')}</div></div>`:''}
+    <div class="card"><h4>Abilities · tap to roll</h4><div class="stats">${ABIL.map(a=>`<button class="stat" data-act="abil" data-a="${a}" title="Roll ${ABIL_NAME[a]}"><span>${a.toUpperCase()}</span><b>${ch.abilities[a]}</b><small>${sgn(mod(ch.abilities[a]))}</small></button>`).join('')}</div></div>
+    <div class="card"><h4>Saving throws</h4><div class="skills">${ABIL.map(a=>`<button class="skill ${ch.saves.includes(a)?'prof':''}" data-act="save" data-a="${a}"><span>${ABIL_NAME[a]}</span><em>${sgn(saveMod(ch,a))}</em></button>`).join('')}</div></div>
+    <div class="card"><h4>Skills</h4><div class="skills">${Object.keys(SKILLS).map(s=>`<button class="skill ${ch.profs.includes(s)?'prof':''}" data-act="skill" data-s="${s}"><span>${s}</span><em>${sgn(skillMod(ch,s))}</em></button>`).join('')}</div></div>
+    <div class="card"><h4>Class features</h4><div class="hint" style="color:var(--text)">${esc(ch.features)}</div></div>`;
+  }else if(tab==='pack'){
+    h += `<div class="card"><h4>Pack · ${ch.gold} gold</h4>${ch.inventory.length?`<ul class="list">${ch.inventory.map((i,k)=>`<li><span>${esc(i.name)}</span>${i.qty>1?`<em>×${i.qty}</em>`:''}<button data-act="drop" data-k="${k}" aria-label="Drop ${esc(i.name)}">×</button></li>`).join('')}</ul>`:'<div class="hint">Your pack is empty.</div>'}
+      <form class="addrow" id="addItem"><input class="inp" name="item" maxlength="60" placeholder="Add an item"><button class="btn small">Add</button></form></div>`;
+  }else if(tab==='quests'){
+    h += `<div class="card"><h4>Quests</h4>${c.quests.length?c.quests.map(q=>`<div class="quest ${q.status}"><b>${esc(q.title)}</b><span>${esc(q.note||'')}</span></div>`).join(''):'<div class="hint">Nothing asked of you yet. That will not last.</div>'}</div>
+      ${c.summary?`<div class="card"><h4>The story so far</h4><div class="hint" style="color:var(--text);font-family:var(--story);font-size:14.5px">${esc(c.summary)}</div></div>`:''}`;
+  }else{
+    h += `<div class="card"><h4>Dice tray</h4><div class="dice">${[4,6,8,10,12,20,100].map(d=>`<button class="die" data-act="die" data-d="${d}">d${d}</button>`).join('')}</div>
+      <div class="dopts"><label class="f">Count<input class="inp" id="dN" type="number" min="1" max="20" value="${esc($('#dN')?.value||1)}"></label><label class="f">Bonus<input class="inp" id="dB" type="number" value="${esc($('#dB')?.value||0)}"></label>
+        <label class="f">d20 mode<select class="inp" id="dA"><option value="none">Normal</option><option value="adv" ${$('#dA')?.value==='adv'?'selected':''}>Advantage</option><option value="dis" ${$('#dA')?.value==='dis'?'selected':''}>Disadvantage</option></select></label></div>
+      <div class="result">${lastTray?`<b>${lastTray.total}</b><span>${esc(lastTray.text)}</span><div style="margin-top:8px"><button class="btn small" data-act="tellTray" ${busy?'disabled':''}>Tell the narrator</button></div>`:'<span>Pick a die. These are real rolls, not the narrator\'s guess.</span>'}</div>
+      ${trayHist.length>1?`<div class="hist">${trayHist.slice(1).map(t=>`<div>${esc(t)}</div>`).join('')}</div>`:''}</div>`;
+  }
+  side.innerHTML = h; side.classList.toggle('open',open);
+}
+
+/* ============ settings ============ */
+function openSettings(msg){
+  const s = store.settings;
+  $('#modalRoot').innerHTML = `<div class="modal" data-act="closeModalBg"><div class="box" role="dialog" aria-modal="true" aria-label="Settings">
+    <h3>The narrator</h3><div class="hint">${esc(msg||'Point Emberglade at OpenRouter or any OpenAI-compatible proxy, then name the model you want telling the story.')}</div>
+    <form id="setForm" class="stack">
+      <label class="f">Proxy / API base URL<input class="inp" name="baseUrl" value="${esc(s.baseUrl)}" placeholder="https://openrouter.ai/api/v1" required></label>
+      <label class="f">API key<input class="inp" name="apiKey" type="password" value="${esc(s.apiKey)}" placeholder="sk-or-…" autocomplete="off"></label>
+      <label class="f">Model<span style="display:flex;gap:6px"><input class="inp" name="model" value="${esc(s.model)}" list="modelList" placeholder="openrouter/auto" required><button type="button" class="btn small" data-act="loadModels">Load list</button></span><datalist id="modelList"></datalist></label>
+      <div class="grid2"><label class="f">Temperature<input class="inp" name="temperature" type="number" min="0" max="2" step="0.05" value="${esc(s.temperature)}"></label>
+        <label class="f">Max tokens per reply<input class="inp" name="maxTokens" type="number" min="200" max="8000" step="50" value="${esc(s.maxTokens)}"></label></div>
+      <label class="check"><input type="checkbox" name="stream" ${s.stream?'checked':''}><span>Stream the narration as it is written</span></label>
+      <label class="check"><input type="checkbox" name="localProxy" ${s.localProxy?'checked':''}><span>Route through the local server. Only works when you run <code>node server.js</code>; use it if your proxy refuses requests from a browser.</span></label>
+      <div class="hint">Your key is kept in this browser's local storage and sent only to the URL above.</div>
+      <div id="testout"></div>
+      <div class="actions"><button type="button" class="btn ghost" data-act="test">Test connection</button><button type="button" class="btn ghost" data-act="closeModal">Cancel</button><button class="btn primary">Save</button></div>
+    </form></div></div>`;
+  $('#setForm input').focus();
+}
+function readSettings(){ const f = $('#setForm'); if(!f) return; Object.assign(store.settings,{baseUrl:f.baseUrl.value.trim()||DEFAULTS.baseUrl,apiKey:f.apiKey.value.trim(),model:f.model.value.trim()||DEFAULTS.model,
+  temperature:clamp(Number(f.temperature.value)||0,0,2),maxTokens:clamp(num(f.maxTokens.value)||1000,200,8000),stream:f.stream.checked,localProxy:f.localProxy.checked}); }
+function closeModal(){ $('#modalRoot').innerHTML = ''; }
+
+/* ============ events ============ */
+function go(){ const id = location.hash.slice(1); if(id==='new') return renderCreate(); if(store.campaigns[id]){ cur = store.campaigns[id]; lastErr = null; main.innerHTML = ''; renderGame(); if(!cur.log.length) takeTurn(null); return; } renderHome(); }
+window.addEventListener('hashchange',()=>{ if(aborter) aborter.abort(); busy = false; go(); });
+
+document.addEventListener('click',async ev=>{
+  const el = ev.target.closest('[data-act]'); if(!el) return; const act = el.dataset.act, c = cur;
+  switch(act){
+    case 'home': location.hash = ''; if(!location.hash) go(); break;
+    case 'create': location.hash = 'new'; break;
+    case 'open': location.hash = el.dataset.id; break;
+    case 'settings': openSettings(); break;
+    case 'closeModal': closeModal(); break;
+    case 'closeModalBg': if(ev.target===el) closeModal(); break;
+    case 'toggleSide': $('#side')?.classList.toggle('open'); break;
+    case 'del': { const x = store.campaigns[el.dataset.id]; if(x&&confirm(`Delete "${x.title}"? This cannot be undone.`)){ delete store.campaigns[el.dataset.id]; save(); renderHome(); } break; }
+    case 'export': { const x = store.campaigns[el.dataset.id]; if(!x) break; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(x,null,2)],{type:'application/json'}));
+      a.download = x.title.replace(/[^\w-]+/g,'_')+'.emberglade.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); break; }
+    case 'import': $('#importFile').click(); break;
+    case 'randName': $('#createForm').name.value = NAMES[rnd(NAMES.length)-1]; break;
+    case 'rollStats': fillStats(Array.from({length:6},()=>{ const d = [rnd(6),rnd(6),rnd(6),rnd(6)].sort((a,b)=>a-b); return d[1]+d[2]+d[3]; })); break;
+    case 'stdArray': fillStats([15,14,13,12,10,8]); break;
+    case 'tab': tab = el.dataset.tab; renderSide(); break;
+    case 'sugg': if(!busy) takeTurn({role:'player',text:el.textContent}); break;
+    case 'pend': resolvePending(el.dataset.adv); break;
+    case 'stop': if(aborter) aborter.abort(); break;
+    case 'retry': takeTurn(null); break;
+    case 'regen': regenerate(); break;
+    case 'hp': c.character.hp = clamp(c.character.hp+num(el.dataset.d),0,c.character.maxHp); save(); renderSide(); break;
+    case 'drop': c.character.inventory.splice(num(el.dataset.k),1); save(); renderSide(); break;
+    case 'abil': freeRoll(ABIL_NAME[el.dataset.a]+' check',mod(c.character.abilities[el.dataset.a])); break;
+    case 'save': freeRoll(ABIL_NAME[el.dataset.a]+' save',saveMod(c.character,el.dataset.a)); break;
+    case 'skill': freeRoll(el.dataset.s+' check',skillMod(c.character,el.dataset.s)); break;
+    case 'die': trayRoll(num(el.dataset.d)); break;
+    case 'tellTray': if(lastTray&&!busy) takeTurn({role:'roll',text:lastTray.text}); break;
+    case 'toastAct': { const t = $('#toast'); t.classList.remove('on'); if(t._action&&cur&&!busy) takeTurn({role:'roll',text:t._action.text}); break; }
+    case 'loadModels': { readSettings(); const out = $('#testout'); out.textContent = 'Fetching models…'; out.style.color = 'var(--muted)';
+      try{ const {url,headers} = endpoint('/models'); const r = await fetch(url,{headers}); if(!r.ok) throw new Error(r.status+' '+r.statusText); const j = await r.json();
+        const ids = (j.data||j.models||[]).map(m=>m.id||m.name).filter(Boolean).sort(); $('#modelList').innerHTML = ids.map(i=>`<option value="${esc(i)}">`).join('');
+        out.textContent = ids.length?`${ids.length} models loaded. Start typing in the model box to search.`:'The endpoint returned no models. Type the model id by hand.'; out.style.color = 'var(--good)';
+      }catch(e){ out.textContent = 'Could not load the list ('+e.message+'). You can still type a model id by hand.'; out.style.color = 'var(--danger)'; } break; }
+    case 'test': { readSettings(); const out = $('#testout'); out.textContent = 'Asking the narrator to clear their throat…'; out.style.color = 'var(--muted)';
+      try{ const t = await chat([{role:'user',content:'Reply with the single word: ready'}],{stream:false,maxTokens:200,temperature:0}); out.textContent = 'Connected. The model answered: '+(t.trim().slice(0,80)||'(empty reply)'); out.style.color = 'var(--good)'; }
+      catch(e){ out.textContent = e.message; out.style.color = 'var(--danger)'; } break; }
+  }
+});
+document.addEventListener('submit',ev=>{
+  ev.preventDefault(); const f = ev.target;
+  if(f.id==='sendForm'){ const t = $('#say').value.trim(); if(t&&!busy){ $('#say').value = ''; takeTurn({role:'player',text:t}); } }
+  else if(f.id==='setForm'){ readSettings(); save(); closeModal(); if(!cur) renderHome(); else if(!cur.log.length&&!busy) takeTurn(null); }
+  else if(f.id==='addItem'){ const v = f.item.value.trim(); if(v){ cur.character.inventory.push({name:v,qty:1}); save(); renderSide(); } }
+  else if(f.id==='createForm'){
+    const hook = HOOKS.find(h=>h.id===f.hook.value), custom = f.custom.value.trim();
+    if(hook.id==='custom'&&!custom){ f.custom.focus(); return; }
+    const abilities = {}; ABIL.forEach(a=>abilities[a]=f['ab_'+a].value);
+    const character = newCharacter({name:f.name.value.trim(),race:f.race.value,cls:f.cls.value,background:f.background.value.trim(),abilities});
+    const premise = hook.id==='custom'?custom:hook.id==='surprise'?'Invent an original premise of your own and surprise the player. Do not explain it up front; reveal it through the opening scene.':`${hook.title}. ${hook.text}`;
+    const id = 'c'+Date.now().toString(36)+rnd(1e6).toString(36);
+    store.campaigns[id] = {id,title:hook.id==='custom'||hook.id==='surprise'?`${character.name}'s tale`:hook.title,created:Date.now(),updated:Date.now(),premise,tone:f.tone.value,character,
+      quests:[],location:'',summary:'',sumIdx:0,log:[],suggestions:[],pendingRoll:null};
+    save(); location.hash = id;
+  }
+});
+document.addEventListener('change',ev=>{
+  const t = ev.target;
+  if(t.name==='hook') $('#customWrap').hidden = t.value!=='custom';
+  if(t.name==='cls'&&t.form?.id==='createForm') fillStats(ABIL.map(a=>num(t.form['ab_'+a].value)||10));
+  if(t.name==='race'&&t.form?.id==='createForm') showMods();
+  if(t.id==='importFile'&&t.files[0]){ t.files[0].text().then(txt=>{ const x = JSON.parse(txt); if(!x.character||!Array.isArray(x.log)) throw 0;
+    x.id = 'c'+Date.now().toString(36)+rnd(1e6).toString(36); x.updated = Date.now(); x.quests ||= []; x.suggestions ||= []; store.campaigns[x.id] = x; save(); renderHome(); toast('✓','Tale imported.'); })
+    .catch(()=>toast('!','That file is not an Emberglade save.')); }
+});
+document.addEventListener('input',ev=>{
+  if(ev.target.name?.startsWith('ab_')) showMods();
+  if(ev.target.id==='say'){ const t = ev.target; t.style.height = 'auto'; t.style.height = Math.min(160,t.scrollHeight+2)+'px'; }
+});
+document.addEventListener('keydown',ev=>{
+  if(ev.target.id==='say'&&ev.key==='Enter'&&!ev.shiftKey&&!ev.isComposing){ ev.preventDefault(); $('#sendForm').requestSubmit(); }
+  if(ev.key==='Escape'){ if($('#modalRoot').firstChild) closeModal(); else $('#side')?.classList.remove('open'); }
+});
+
+/* fireflies */
+(function(){ const f = $('#flies'); for(let i=0;i<16;i++){ const s = document.createElement('i'); s.style.left = Math.random()*100+'%'; s.style.top = 25+Math.random()*75+'%';
+  s.style.animationDelay = (-Math.random()*14)+'s'; s.style.animationDuration = 10+Math.random()*10+'s'; f.appendChild(s); } })();
+go();
+</script>
+</body>
+</html>
