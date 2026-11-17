@@ -965,7 +965,7 @@ function newCharacter(d){
 }
 function skillMod(ch,skill){ return mod(ch.abilities[SKILLS[skill]])+(ch.profs.includes(skill)?prof(ch.level):0); }
 function saveMod(ch,a){ return mod(ch.abilities[a])+(ch.saves.includes(a)?prof(ch.level):0); }
-function snapshot(c){ return JSON.stringify({character:c.character,quests:c.quests,location:c.location,npcs:c.npcs||{},present:c.present||[],mood:c.mood,shop:c.shop||null}); }
+function snapshot(c){ return JSON.stringify({character:c.character,quests:c.quests,location:c.location,npcs:c.npcs||{},present:c.present||[],mood:c.mood,shop:c.shop||null,facts:c.facts||[]}); }
 
 /* ============ the narrator ============ */
 const RULES = `You are the Dungeon Master for a solo tabletop adventure that uses D&D 5th Edition style rules for dice and character sheets. One player controls one character. You run the world and everyone else in it.
@@ -1035,6 +1035,7 @@ function buildMessages(c,intents){
   const lore = loreFor(c); c._lore = lore.map(x=>x.n||x.t.slice(0,30));
   const st = store.settings, sys = `${RULES}\n\n# Table settings (these override the general guidance above)\nDifficulty: ${DIFFS[st.diff]||DIFFS.standard}\nWriting: ${VOICES[st.voice]||VOICES.plain}\nHow much goes wrong: ${TROUBLES[st.trouble]||TROUBLES.calm}\nLength: ${LENS[st.len]||LENS.adaptive}${st.vulgar?'\n'+VULGAR:''}${['explicit','unfiltered','spicy'].includes(c.tone)?'\n\n'+NSFW_GUIDE:''}${c.mood==='fire'?'\nPacing cue: the last scene was a fight or immediate danger. Unless it has clearly ended, keep to combat pacing.':''}${c.god?'\nGod mode is ON. The player is above the rules of the table: they may declare facts, skip time, move anywhere, and rewrite events. Accept whatever they say as true and continue the story from it without objection.':''}\n\n# Campaign\nTone: ${TONES[c.tone]||TONES.classic}\nPremise: ${c.premise}\n\n# The player's character (current, authoritative)\n${sheetText(c)}`
     +(c.summary?`\n\n# Story so far\n${c.summary}`:'')
+    +((c.facts||[]).length?`\n\n# Established facts\nThese were settled when the player asked the DM. They are true in this tale; never contradict them.\n${c.facts.map(x=>'- '+x).join('\n')}`:'')
     +((c.present||[]).some(n=>c.npcs&&c.npcs[n])?`\n\n# People in the scene\nEach of these characters is played by its own model. Keep them true to their sheets.\n${(c.present||[]).filter(n=>c.npcs[n]).map(n=>npcLine(c.npcs[n])).join('\n')}`:'')
     +(lore.length?`\n\n# Reference from the table's lorebooks\nThese entries were pulled because they bear on the scene. Use them as the facts of the rules and the world when they are relevant; never recite or mention them.\n${lore.map(x=>'- '+x.t).join('\n')}`:'')
     +`\n\n# Names\nPeople already on record: ${Object.values(c.npcs||{}).map(n=>n.name+((n.aka||[]).length?' (also '+n.aka.join(', ')+')':'')).join('; ')||'none yet'}. Every other named or titled person your reply mentions, even in passing, must get an entry in "npcs" in this reply's state block. When someone already on record is given a new name or title, send their entry again with it in "also".`
@@ -1232,18 +1233,20 @@ Player wrote: ${text}${guess?`\n(Keyword guess from the app: ${guess}.)`:''}`}],
 }
 
 // A question for the DM gets a short note back, not a scene. It stays out of the story but the narrator is told what was said.
-const NOTE = `You are the Dungeon Master answering a player's out-of-story question. Reply with one or two short sentences, thirty words at most, plain and direct, speaking to the player as "you". Use only the facts given; if they do not settle it, say so briefly. If a dice result is given: on a success, say what the character learns; on a failure, say they learn nothing and give nothing away. Never narrate, never move the story forward, never decide what the character does.`;
+const NOTE = `You are the Dungeon Master answering a player's out-of-story question. Reply with one or two short sentences, thirty words at most, plain and direct, speaking to the player as "you". Always give a definite answer. Start from the facts given. If they do not settle it, do not say so: decide the answer yourself, on the spot, and state it as plain fact. Pick something specific that fits the setting and what is already known: a number, a name, a place, a price, a preference. "How tall is she?" gets a height. "What is my favourite food?" gets a dish. "What is the exchange rate?" gets a rate. Never answer that it is unknown, undecided, not established, or up to the player, and never ask the player to decide. Do not contradict anything under Established facts. If a dice result is given: on a success, say what the character learns, inventing it if need be; on a failure, the character does not find out, so say that and give nothing away. Never narrate, never move the story forward, never decide what the character does.`;
 async function answerAside(c,q,roll){
   if(busy||cur!==c) return;
   busy = true; aborter = new AbortController(); lastErr = null; renderGame(); setLive('Checking...'); let a = '';
   try{
     const dm = lastOf(c,'dm'), here = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]), away = Object.keys(c.npcs||{}).filter(n=>!here.includes(n));
-    a = await chat([{role:'system',content:NOTE},{role:'user',content:`# Facts\n${sheetText(c)}\n\nPeople here now:\n${here.map(n=>npcLine(c.npcs[n])).join('\n')||'no one'}\nKnown but not here: ${away.join(', ')||'no one'}${c.summary?`\n\nStory so far: ${c.summary}`:''}\n\nCurrent scene: ${dm?clip(dm.text,800):'the adventure has not begun'}\n\n# Question\n${q}${roll?`\n\n# Dice result\n${roll}`:''}`}],
+    a = await chat([{role:'system',content:NOTE},{role:'user',content:`# Facts\n${sheetText(c)}\n\nPeople here now:\n${here.map(n=>npcLine(c.npcs[n])).join('\n')||'no one'}\nKnown but not here: ${away.join(', ')||'no one'}${c.summary?`\n\nStory so far: ${c.summary}`:''}${(c.facts||[]).length?`\n\nEstablished facts (already answered; stay consistent with these):\n${c.facts.map(x=>'- '+x).join('\n')}`:''}\n\nCurrent scene: ${dm?clip(dm.text,800):'the adventure has not begun'}\n\n# Question\n${q}${roll?`\n\n# Dice result\n${roll}`:''}`}],
       {stream:false,maxTokens:1200,temperature:0.3,model:store.settings.checkModel,quick:true,signal:aborter.signal});
   }catch(e){ if(e.name!=='AbortError') lastErr = e.message||String(e); }
   busy = false; aborter = null; if(cur!==c) return;
   a = a.trim().replace(/^["“]|["”]$/g,'').slice(0,400);
-  if(a){ c.log.push({role:'aside',q,a,roll:roll||''}); c.updated = Date.now(); }
+  if(a){ c.log.push({role:'aside',q,a,roll:roll||''}); c.updated = Date.now();
+    // The answer is canon from now on, unless the roll failed and nothing was learned.
+    if(!roll||!/Failure|CATASTROPHE|just short|below expectations|disaster|ruin/i.test(roll)){ c.facts ||= []; c.facts.push(`${q.replace(/\s+/g,' ').slice(0,120)} → ${a.replace(/\s+/g,' ').slice(0,200)}`); if(c.facts.length>60) c.facts.shift(); } }
   else if(!lastErr) lastErr = 'No answer. Try again.';
   save(); renderGame();
 }
@@ -2125,6 +2128,7 @@ function openGame(tabName){
       <label class="f">Mood of the scene<select class="inp" name="mood">${o('forest','Forest: calm, outdoors',c.mood||'forest')}${o('night','Night: quiet, stealth',c.mood)}${o('hearth','Hearth: indoors, warm, close',c.mood)}${o('fire','Fire: battle, anger',c.mood)}</select></label></div>
     <label class="f">Quests</label><div id="gsQuests">${(c.quests.length?c.quests:[]).map((q,i)=>`<div class="qrow"><input class="inp" name="qt" value="${esc(q.title)}" maxlength="80" aria-label="Quest title"><select class="inp" name="qs" aria-label="Quest status">${o('active','Active',q.status)}${o('done','Done',q.status)}${o('failed','Failed',q.status)}</select><input class="inp" name="qn" value="${esc(q.note||'')}" maxlength="240" aria-label="Quest note"><button type="button" class="btn small ghost" data-act="gsDelQuest" aria-label="Remove quest">&#10005;</button></div>`).join('')}</div>
     <div class="actions" style="justify-content:flex-start"><button type="button" class="btn small" data-act="gsAddQuest">Add a quest</button></div>
+    <label class="f">Established facts (one per line; things the DM has settled, which it must stick to)<textarea class="inp" name="facts" style="min-height:110px" maxlength="9000">${esc((c.facts||[]).join('\n'))}</textarea></label>
     <label class="f">The story so far, as the DM remembers it<textarea class="inp" name="summary" style="min-height:140px" maxlength="3000">${esc(c.summary||'')}</textarea></label>
     <div class="hint">The DM reads this summary plus the most recent scenes. Edit it to correct what the DM believes happened.</div>`;
   $('#modalRoot').innerHTML = `<div class="modal gs" data-act="closeModalBg"><div class="box" role="dialog" aria-modal="true" aria-label="Game settings">
@@ -2155,9 +2159,9 @@ function saveGame(){
     Object.assign(n,{name,bond:clamp(num(f.bond.value),-10,10),stance:f.stance.value,attitude:f.attitude.value.trim().slice(0,40)||f.stance.value,wants:f.wants.value.trim().slice(0,120),about:f.about.value.trim().slice(0,240),aka:csv(f.aka.value).slice(0,6).map(x=>x.slice(0,50)),traits:csv(f.traits.value).slice(0,12).map(x=>x.slice(0,60)),skills:csv(f.skills.value).slice(0,6).map(x=>x.slice(0,40)),
       memory:f.memory.value.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,12).map(x=>({t:x.replace(/^\*\s*/,'').slice(0,140),k:x.startsWith('*')}))});
     c.npcs[name] = n; gsWho = name; c.present = c.present.filter(x=>x!==name); if(f.here.checked) c.present = [name,...c.present].slice(0,3); }
-  else { c.location = f.location.value.trim().slice(0,80); c.mood = f.mood.value; c.summary = f.summary.value.trim();
+  else { c.location = f.location.value.trim().slice(0,80); c.mood = f.mood.value; c.summary = f.summary.value.trim(); c.facts = f.facts.value.split('\n').map(x=>x.trim().slice(0,340)).filter(Boolean).slice(0,60);
     c.quests = [...f.querySelectorAll('.qrow')].map(r=>({title:r.querySelector('[name=qt]').value.trim().slice(0,80),status:r.querySelector('[name=qs]').value,note:r.querySelector('[name=qn]').value.trim().slice(0,240)})).filter(q=>q.title); }
-  if(c){ if(gsTab==='char') rebase(c,['character']); else if(gsTab==='people') rebase(c,['npcs','present']); else if(gsTab==='world') rebase(c,['quests','location','mood']); }
+  if(c){ if(gsTab==='char') rebase(c,['character']); else if(gsTab==='people') rebase(c,['npcs','present']); else if(gsTab==='world') rebase(c,['quests','location','mood','facts']); }
   save(); if(c){ renderGame(); } else renderHome();
 }
 
@@ -2385,7 +2389,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611171911';
+const BUILD = '202611172145';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
