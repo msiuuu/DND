@@ -506,7 +506,7 @@ const TONES = {classic:'Classic heroic fantasy: wonder, danger, and earnest adve
 
 /* ============ storage ============ */
 const KEY = 'emberglade.v1';
-const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:1000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',useCheck:true,useGuard:true,announce:true,encumb:true,diff:'standard',len:'medium',memToken:'',gistId:'',lastSync:0};
+const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:1000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',forgeModel:'',useCheck:true,useGuard:true,announce:true,encumb:true,diff:'standard',len:'medium',memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
 try{ const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(s){ store = s; store.settings = {...DEFAULTS,...s.settings}; store.campaigns = s.campaigns||{}; } }catch(e){}
 store.deleted ||= {}; store.ui ||= {left:false,right:false};
@@ -1165,7 +1165,7 @@ async function gh(path,opt={}){
   if(!r.ok){ const e = new Error(r.status===401?'GitHub rejected the token. Make a new one with the gist permission.':r.status===403?'GitHub refused (403). The token needs the gist permission.':'GitHub answered '+r.status+'.'); e.status = r.status; throw e; }
   return r.json();
 }
-const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','useCheck','useGuard','announce','encumb','diff','len','temperature','maxTokens','stream'];
+const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','useCheck','useGuard','announce','encumb','diff','len','temperature','maxTokens','stream'];
 const memCore = o => JSON.stringify([o.last||null,o.deleted||{},o.campaigns||{},o.prefs||null,o.prefsAt||0]);
 function memData(){ const campaigns = {}; for(const [id,c] of Object.entries(store.campaigns)){ const {_summing,...rest} = c; campaigns[id] = rest; }
   return {app:'emberglade',version:1,savedAt:Date.now(),last:store.last||null,deleted:store.deleted,campaigns,prefs:Object.fromEntries(PREFS.map(k=>[k,store.settings[k]])),prefsAt:store.prefsAt||0}; }
@@ -1362,7 +1362,7 @@ function renderCreate(){
     <div class="panel"><h3>Let the model build it</h3>
       <label class="f">Describe who you want to be<textarea class="inp" data-d="wish" maxlength="600" placeholder="A washed-up opera singer who talks her way out of everything and cannot fight to save her life. Or just: surprise me.">${esc(d.wish)}</textarea></label>
       <div class="actions" style="justify-content:flex-start;margin-top:12px"><button type="button" class="btn primary" data-act="forge" ${forging?'disabled':''}>${forging?'Building…':'Build my character'}</button></div>
-      <p class="hint" style="margin-bottom:0">Your story model picks the race, class and background (or invents new ones), sets the attributes, chooses boons and flaws, and writes the appearance and backstory. You can change anything afterwards. Or skip this and choose by hand below.</p></div>
+      <p class="hint" style="margin-bottom:0">The builder model picks the race, class and background (or invents new ones), sets the attributes, chooses boons and flaws, and writes the appearance and backstory. You can change anything afterwards. Or skip this and choose by hand below.</p></div>
     <div class="panel"><h3>Who you are</h3><div class="grid2">
       <label class="f">Name<span style="display:flex;gap:6px"><input class="inp" data-d="name" value="${esc(d.name)}" maxlength="40" placeholder="Wren Ashdown"><button type="button" class="btn small" data-act="randName">Random</button></span></label>
       <label class="f">Alignment<select class="inp" data-d="alignment">${sel(ALIGNMENTS,d.alignment)}</select></label>
@@ -1407,7 +1407,8 @@ function renderCreate(){
 }
 // The story model turns a one-line wish into a whole character. It may pick from the lists or invent a race or class of its own.
 const FORGE = () => `You design a level 1 character for a solo fantasy tabletop game that follows D&D 5e style rules. Reply with JSON only, in this form:
-{"name":"","race":"","race_about":"one line, only if the race is not in the list","race_bonus":{"cha":2,"con":1},"class":"","class_about":"one line, only if the class is not in the list","class_main":"cha","class_second":"con","hit_die":8,"armor":"none|light|medium|heavy","class_skills":["Persuasion","Performance"],"class_features":"two or three short feature names","gear":[{"name":"Rapier","qty":1}],"background":"","alignment":"","abilities":{"str":8,"dex":8,"con":14,"int":12,"wis":13,"cha":18},"appearance":"one vivid line","backstory":"60 to 100 words, ending on what they want","boons":["id"],"flaws":["id"]}
+{"name":"","race":"","race_about":"one line, only if the race is not in the list","race_bonus":{"cha":2,"con":1},"class":"","class_about":"one line, only if the class is not in the list","class_main":"cha","class_second":"con","hit_die":8,"armor":"none|light|medium|heavy","class_skills":["Persuasion","Performance"],"class_features":"two or three short feature names","gear":[{"name":"Rapier","qty":1}],"background":"","alignment":"","abilities":{"str":8,"dex":8,"con":14,"int":12,"wis":13,"cha":18},"appearance":"one short vivid line","backstory":"40 to 60 words, ending on what they want","boons":["id"],"flaws":["id"]}
+Be quick and compact: no explanation, no markdown, nothing outside the JSON object.
 Rules: prefer a race and class from the lists, but invent one when the wish clearly calls for something else. Abilities are six scores from 8 to 18 before racial bonuses; make the class's main ability very high (17 or 18) and give a real weakness (8) where it fits the concept. Choose zero to two boons and at least as many flaws as boons, by id.
 Races: ${Object.keys(RACES).join(', ')}.
 Classes: ${Object.keys(CLASSES).join(', ')}.
@@ -1422,8 +1423,8 @@ async function forge(){
   if(forging||needKey()) return; const d = draft; forging = true; d.msg = ''; renderCreate();
   try{
     const ask = [{role:'system',content:FORGE()},{role:'user',content:`The player's wish: ${d.wish.trim()||'Surprise me with someone interesting.'}${d.name.trim()?`\nKeep the name: ${d.name.trim()}`:''}`}], room = Math.max(4000,Number(store.settings.maxTokens));
-    let out = await chat(ask,{stream:false,maxTokens:room,temperature:1,quick:true}), j = jsonIn(out);
-    if(!j||!(j.race||j.class)){ out = await chat([...ask,{role:'user',content:'Reply again with only the JSON object, starting with { and nothing before it. Keep the backstory under 80 words.'}],{stream:false,maxTokens:room,temperature:0.7,quick:true}); j = jsonIn(out); }
+    let out = await chat(ask,{stream:false,maxTokens:room,temperature:1,quick:true,model:store.settings.forgeModel}), j = jsonIn(out);
+    if(!j||!(j.race||j.class)){ out = await chat([...ask,{role:'user',content:'Reply again with only the JSON object, starting with { and nothing before it. Keep the backstory under 80 words.'}],{stream:false,maxTokens:room,temperature:0.7,quick:true,model:store.settings.forgeModel}); j = jsonIn(out); }
     if(!j||!(j.race||j.class)) throw new Error(out.trim()?'The model answered, but not with a character sheet it could be read from. Try again, or try a different story model.':'The model sent back an empty reply. Try again, or raise "Max tokens per reply" in Settings.');
     if(typeof j.name==='string'&&j.name.trim()&&!d.name.trim()) d.name = j.name.trim().slice(0,40);
     const rk = findKey(RACES,j.race);
@@ -1446,8 +1447,8 @@ async function forge(){
 async function forgeStory(){
   if(forging||needKey()) return; const d = draft, cls = classDef(d), race = raceDef(d); forging = true; renderCreate();
   try{
-    const out = await chat([{role:'system',content:'You write the look and the past of a tabletop fantasy character. Reply with JSON only: {"appearance":"one vivid line","backstory":"60 to 100 words, ending on what they want"}'},
-      {role:'user',content:`${d.name||'Unnamed'}, a ${race.name} ${cls.name}${race.about?` (${race.about})`:''}${cls.about?` (${cls.about})`:''}. Background: ${d.background==='__custom'?d.cBg:d.background}. Alignment: ${d.alignment}. Boons: ${BOONS.filter(x=>d.boons.includes(x.id)).map(x=>x.name).join(', ')||'none'}. Flaws: ${FLAWS.filter(x=>d.flaws.includes(x.id)).map(x=>x.name).join(', ')||'none'}.${d.wish.trim()?` The player's wish: ${d.wish.trim()}`:''}`}],{stream:false,maxTokens:Math.max(2500,Number(store.settings.maxTokens)),temperature:1,quick:true});
+    const out = await chat([{role:'system',content:'You write the look and the past of a tabletop fantasy character. Be quick and compact. Reply with JSON only, nothing outside it: {"appearance":"one short vivid line","backstory":"40 to 60 words, ending on what they want"}'},
+      {role:'user',content:`${d.name||'Unnamed'}, a ${race.name} ${cls.name}${race.about?` (${race.about})`:''}${cls.about?` (${cls.about})`:''}. Background: ${d.background==='__custom'?d.cBg:d.background}. Alignment: ${d.alignment}. Boons: ${BOONS.filter(x=>d.boons.includes(x.id)).map(x=>x.name).join(', ')||'none'}. Flaws: ${FLAWS.filter(x=>d.flaws.includes(x.id)).map(x=>x.name).join(', ')||'none'}.${d.wish.trim()?` The player's wish: ${d.wish.trim()}`:''}`}],{stream:false,maxTokens:Math.max(2500,Number(store.settings.maxTokens)),temperature:1,quick:true,model:store.settings.forgeModel});
     const j = jsonIn(out); if(!j) throw new Error(out.trim()?'The model answered, but not in a form that could be read. Try again, or write your own.':'The model sent back an empty reply. Try again, or raise "Max tokens per reply" in Settings.');
     if(typeof j.appearance==='string') d.appearance = j.appearance.trim().slice(0,200); if(typeof j.backstory==='string') d.backstory = j.backstory.trim().slice(0,1200);
   }catch(e){ d.msg = e.message||'The model could not be reached.'; }
@@ -1714,9 +1715,10 @@ function openSettings(msg){
       <label class="f">Proxy / API base URL (a web address, not the model)<input class="inp" name="baseUrl" value="${esc(s.baseUrl)}" placeholder="https://openrouter.ai/api/v1" required></label>
       <label class="f">API key<input class="inp" name="apiKey" type="password" value="${esc(s.apiKey)}" placeholder="sk-or-…" autocomplete="off"></label>
       <label class="f">Model<span style="display:flex;gap:6px"><input class="inp" name="model" value="${esc(s.model)}" list="modelList" placeholder="openrouter/auto" required><button type="button" class="btn small" data-act="loadModels">Load list</button></span><datalist id="modelList"></datalist></label>
-      <div class="hint" style="margin-top:-4px">The model above tells the story. Three helpers work beside it each turn; leave one blank to use the story model for it.</div>
+      <div class="hint" style="margin-top:-4px">The model above tells the story. Four helpers work beside it; leave one blank to use the story model for it.</div>
       <label class="f">Dice gate model (decides yes or no on a roll; pick something small and fast)<input class="inp" name="gateModel" value="${esc(s.gateModel)}" list="modelList" placeholder="same as the story model"></label>
       <label class="f">Character model (plays each person in the scene, up to three at once)<input class="inp" name="charModel" value="${esc(s.charModel)}" list="modelList" placeholder="same as the story model"></label>
+      <label class="f">Character builder model (builds a new character from your description; pick something small and fast)<input class="inp" name="forgeModel" value="${esc(s.forgeModel)}" list="modelList" placeholder="same as the story model"></label>
       <label class="f">Continuity model (checks the scene holds together)<input class="inp" name="checkModel" value="${esc(s.checkModel)}" list="modelList" placeholder="same as the story model"></label>
       <div class="hint">Game options such as the continuity check, god mode and the edit panel are under <b>Settings</b>.</div>
       <div class="grid2"><label class="f">Temperature<input class="inp" name="temperature" type="number" min="0" max="2" step="0.05" value="${esc(s.temperature)}"></label>
@@ -1736,7 +1738,7 @@ function openSettings(msg){
   $('#setForm input').focus(); memLabel();
 }
 function readSettings(){ const f = $('#setForm'); if(!f) return; Object.assign(store.settings,{baseUrl:f.baseUrl.value.trim()||DEFAULTS.baseUrl,apiKey:f.apiKey.value.trim(),model:f.model.value.trim()||DEFAULTS.model,
-  temperature:clamp(Number(f.temperature.value)||0,0,2),maxTokens:clamp(num(f.maxTokens.value)||1000,200,8000),stream:f.stream.checked,localProxy:f.localProxy.checked,gateModel:f.gateModel.value.trim(),charModel:f.charModel.value.trim(),checkModel:f.checkModel.value.trim()});
+  temperature:clamp(Number(f.temperature.value)||0,0,2),maxTokens:clamp(num(f.maxTokens.value)||1000,200,8000),stream:f.stream.checked,localProxy:f.localProxy.checked,gateModel:f.gateModel.value.trim(),charModel:f.charModel.value.trim(),checkModel:f.checkModel.value.trim(),forgeModel:f.forgeModel.value.trim()});
   const tok = f.memToken.value.trim(); if(tok!==store.settings.memToken) Object.assign(store.settings,{memToken:tok,gistId:'',lastSync:0});
   if(!/^https?:\/\/[^\s/]+/i.test(store.settings.baseUrl)){ store.settings.baseUrl = DEFAULTS.baseUrl; f.baseUrl.value = DEFAULTS.baseUrl; toast('!','The base URL has to be a web address, so it was reset to OpenRouter. Model names go in the Model box.'); } }
 function closeModal(){ $('#modalRoot').innerHTML = ''; }
