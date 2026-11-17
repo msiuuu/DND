@@ -1346,6 +1346,7 @@ async function dmSay(text,pulled){
   try{
     const msgs = [{role:'system',content:DMSPACE(c)}]; for(const m of c.dmChat.slice(-24)){ const role = m.who==='you'?'user':'assistant', l = msgs[msgs.length-1]; if(l.role===role) l.content += '\n\n'+m.text; else msgs.push({role,content:m.text}); }
     if(pulled) msgs[msgs.length-1].content += '\n\n[Table note, not from the player: that is several out-of-story questions in a row, so you have just pulled the conversation aside into a private chat. Say so in your own way, in a few words, then answer.]';
+    const ph = postHistory(c); if(ph){ const last = msgs[msgs.length-1]; if(last.role==='user') last.content += '\n\n'+ph; else msgs.push({role:'user',content:ph}); }
     out = await chat(msgs,{stream:false,signal:aborter.signal,temperature:0.9});
   }catch(e){ if(e.name!=='AbortError') lastErr = e.message||String(e); }
   busy = false; aborter = null; if(cur!==c) return;
@@ -2545,7 +2546,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611172323';
+const BUILD = '202611172329';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
