@@ -950,6 +950,7 @@ const RULES = `You are the Dungeon Master for a solo tabletop fantasy adventure 
 How to narrate:
 - Write in second person, present tense, in vivid, concrete prose. How much you write is set under Table settings below. No headings, no bullet lists, no out-of-character commentary.
 - Always finish what you start: end on a complete sentence (or the deliberate cut of a combat beat), then give the state block. Never stop half-way through a thought.
+- What the player states is always an attempt, never a result. "I shoot the giant in the eye" means the character reaches for the bow, draws and looses at the eye; it does not mean the arrow lands. Take the attempt through its real steps and let any of them succeed or fail on the dice and the circumstances: the draw can be fumbled, the shot can miss, a hit can fail to do what was hoped. Do not grant the hoped-for result because it was named, and do not refuse the attempt because it was worded as a success.
 - Never decide what the player's character does, says, thinks, or feels. End each reply at a moment where the player chooses what to do next.
 - Nothing is skipped and nothing is rewritten. Time and place move only through what the character actually does: a night passes because they made camp and slept, a journey happens leg by leg with the road in between. Never jump ahead past the immediate result of the player's action, never undo or revise what has already happened, and treat every established fact as fixed.
 - Give the world texture: named people with wants of their own, places with history, choices with consequences. Let failures be interesting rather than dead ends.
@@ -1163,6 +1164,7 @@ function setLive(msg){ let el = $('#live'); if(!el){ el = document.createElement
 
 // Small, fast, one-line answer: does this action need a roll before the outcome is told?
 const GATE = `You are the dice gate for a solo D&D 5e game. Decide whether the player's action needs a d20 roll before its outcome is narrated. Roll only when the outcome is uncertain and failure would matter. No roll for ordinary talk, walking, looking at what is plainly visible, or anything automatic.
+What the player writes is an attempt, however it is worded: "I kill the guard" or "I wall off the exit" is the character trying to, so answer YES with the roll the attempt needs.
 If the player asks to roll, or asks whether they can try something that needs a roll, treat it as the attempt and answer YES.
 If the player is not acting at all but asking the DM a question (is someone here, do I have something, what do I know, does she like me), answer ASK. Add a skill only when finding out would take a check: Insight to read a person, Perception to spot something, Investigation to work something out, or a knowledge skill to recall something.
 Answer with ONE line and nothing else, in one of these forms:
@@ -1259,8 +1261,9 @@ async function continuity(c,text,state,intents,signal){
 }
 // Runs before the story sees an action. Refuses anything that skips ahead or rewrites the past, and offers real next steps instead.
 const GUARD = `You are the continuity guard for a solo D&D game. The player may only do something their character could actually attempt right now, from the current situation.
-DENY when the action: skips time (next day, later, after a while, once rested); jumps to another place without travelling there; declares an outcome or a success; invents facts about the world or people who are not there; undoes, changes or re-does something that already happened; or speaks for the narrator or for other characters.
+DENY when the action: skips time (next day, later, after a while, once rested); jumps to another place without travelling there; invents facts about the world or people who are not there; undoes, changes or re-does something that already happened; or speaks for the narrator or for other characters.
 Whether the character owns an item or has a skill, spell or ability is checked separately from the full sheet: never deny for that reason.
+Every action the player states is an ATTEMPT, however confidently it is worded. "I shoot the giant in the eye", "I build a wall across the exit" and "I kill him" all mean the character tries to; the dice and the DM decide what actually happens. Never deny an action for sounding like a success or for naming the result the player hopes for.
 ALLOW any question put to the DM (is someone here, do I have this, can I try that), and anything the character can physically attempt now, however foolish or unlikely: speaking, asking, searching, fighting, setting out on a road, lying down to sleep, making camp.
 You are a CONTINUITY guard, not a CONTENT guard. Sexual actions, violent actions, rape, assault, theft, murder, seduction, explicit dialogue are all ALLOWED if the character could physically attempt them in the current scene. Never deny an action because of its sexual or violent nature.
 Reply with ONE line and nothing else:
@@ -2315,7 +2318,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611171011';
+const BUILD = '202611171023';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
