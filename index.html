@@ -2468,7 +2468,7 @@ if('serviceWorker' in navigator&&location.protocol!=='file:') navigator.serviceW
 /* fireflies */
 (function(){ const f = $('#flies'); for(let i=0;i<16;i++){ const s = document.createElement('i'); s.style.left = Math.random()*100+'%'; s.style.top = 25+Math.random()*75+'%';
   s.style.animationDelay = (-Math.random()*14)+'s'; s.style.animationDuration = 10+Math.random()*10+'s'; f.appendChild(s); } })();
-for(const f of ['lore-dnd.js','lore-extra.js']){ const sc = document.createElement('script'); sc.src = f+'?v='+BUILD; sc.onerror = ()=>{}; document.head.appendChild(sc); }
+for(const f of ['lore-dnd.js','lore-cali.js','lore-extra.js']){ const sc = document.createElement('script'); sc.src = f+'?v='+BUILD; sc.onerror = ()=>{}; document.head.appendChild(sc); }
 go(); memLabel(); if(pendingLink) askLink(); else if(store.settings.memToken) sync();
 </script>
 </body>
