@@ -617,7 +617,7 @@ const TONES = {...MORE_TONES,classic:'Classic heroic fantasy: wonder, danger, an
 
 /* ============ storage ============ */
 const KEY = 'calis-tavern.v1';
-const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,forgeModel:'',useCheck:true,useGuard:true,announce:true,encumb:true,vulgar:false,lore:true,diff:'standard',len:'adaptive',memToken:'',gistId:'',lastSync:0};
+const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,forgeModel:'',useCheck:true,useGuard:true,announce:true,encumb:true,vulgar:false,lore:true,loreSize:'small',diff:'standard',len:'adaptive',memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
 try{ if(!localStorage.getItem(KEY)&&localStorage.getItem('emberglade.v1')) localStorage.setItem(KEY,localStorage.getItem('emberglade.v1')); }catch(e){}
 try{ const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(s){ store = s; store.settings = {...DEFAULTS,...s.settings}; store.campaigns = s.campaigns||{}; } }catch(e){}
@@ -1428,7 +1428,7 @@ async function gh(path,opt={}){
   if(!r.ok){ const e = new Error(r.status===401?'GitHub rejected the token. Make a new one with the gist permission.':r.status===403?'GitHub refused (403). The token needs the gist permission.':'GitHub answered '+r.status+'.'); e.status = r.status; throw e; }
   return r.json();
 }
-const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','announce','encumb','vulgar','lore','diff','len','temperature','maxTokens','stream'];
+const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','announce','encumb','vulgar','lore','loreSize','diff','len','temperature','maxTokens','stream'];
 const memCore = o => JSON.stringify([o.last||null,o.deleted||{},o.campaigns||{},o.prefs||null,o.prefsAt||0,o.lore||null,o.loreAt||0]);
 function memData(){ const campaigns = {}; for(const [id,c] of Object.entries(store.campaigns)){ const {_summing,_lore,_acted,...rest} = c; campaigns[id] = rest; }
   return {app:'calis-tavern',version:1,savedAt:Date.now(),last:store.last||null,deleted:store.deleted,campaigns,prefs:Object.fromEntries(PREFS.map(k=>[k,store.settings[k]])),prefsAt:store.prefsAt||0,lore:store.lore,loreAt:store.loreAt||0}; }
@@ -1495,32 +1495,47 @@ function askLink(){
 
 /* ============ lorebooks: reference entries shown to the DM when their trigger words come up ============ */
 // A book is {id, name, about, entries:[{n: title, k: 'trigger,words', t: text, always?: true}]}. Built-in books arrive in window.LORE_BUILTIN from lore-*.js files; the player's own live in store.lore.books.
-const LORE_BUDGET = 2600, LORE_MAX = 9;
+const LORE_SIZES = {small:[2600,9,'Small: about 650 tokens a turn'],medium:[6500,14,'Medium: about 1,600 tokens a turn'],large:[14000,20,'Large: about 3,500 tokens a turn']};
 const allLore = () => [...(window.LORE_BUILTIN||[]).map(b=>({...b,builtin:true})),...store.lore.books];
-const loreKeys = e => (Array.isArray(e.k)?e.k:String(e.k||'').split(',')).map(x=>String(x).trim().toLowerCase()).filter(x=>x.length>=2);
+const keyList = k => (Array.isArray(k)?k:String(k||'').split(',')).map(x=>String(x).trim().toLowerCase()).filter(x=>x.length>=2);
+const loreKeys = e => keyList(e.k);
 function wordAt(hay,k){ let at = -1; while((at = hay.indexOf(k,at+1))>=0){ const b = hay[at-1]||' ', a = hay[at+k.length]||' ', a2 = hay[at+k.length+1]||' ';
     if(!/[a-z0-9]/.test(b)&&(!/[a-z0-9]/.test(a)||(a==='s'&&!/[a-z0-9]/.test(a2)))) return true; } return false; }
 // Picks the entries that matter for the scene in play: what the player just did counts most, then the last scene, the place and who is there.
+// An entry may also carry: k2 with sel (a second set of words, one of which must appear too), prio (breaks ties), prob (percent chance), off (switched off).
 function loreFor(c){
   if(!store.settings.lore) return [];
+  const [budget,max] = LORE_SIZES[store.settings.loreSize]||LORE_SIZES.small;
   const dm = lastOf(c,'dm'), lastDm = c.log.lastIndexOf(dm), recent = c.log.slice(lastDm+1).map(e=>e.text||e.q||'').join(' ').toLowerCase();
   const scene = (' '+[c.location||'',(c.present||[]).join(' '),dm?clip(dm.text,1600):'',c.pendingRoll?c.pendingRoll.label:''].join(' ')+' ').toLowerCase(), near = ' '+recent+' ', picks = [];
   for(const b of allLore()){ if(store.lore.off[b.id]) continue;
-    for(const e of (b.entries||[])){ if(!e||!e.t) continue; let score = e.always?1:0;
+    for(const e of (b.entries||[])){ if(!e||!e.t||e.off) continue; let score = e.always?1:0;
       for(const k of loreKeys(e)){ if(wordAt(near,k)) score += 4; else if(wordAt(scene,k)) score += 2; }
-      if(score) picks.push({score,n:e.n||'',t:String(e.t),book:b.name}); } }
-  picks.sort((a,b)=>b.score-a.score); const out = []; let used = 0;
-  for(const p of picks){ if(out.length>=LORE_MAX||used+p.t.length>LORE_BUDGET) continue; out.push(p); used += p.t.length; }
+      if(score&&!e.always&&e.sel){ const k2 = keyList(e.k2); if(k2.length&&!k2.some(k=>wordAt(near,k)||wordAt(scene,k))) score = 0; }
+      if(score&&typeof e.prob==='number'&&e.prob<100&&rnd(100)>e.prob) score = 0;
+      if(score) picks.push({score,prio:num(e.prio),n:e.n||'',t:String(e.t),book:b.name}); } }
+  picks.sort((a,b)=>b.score-a.score||b.prio-a.prio); const out = []; let used = 0;
+  for(const p of picks){ if(out.length>=max||used+p.t.length>budget) continue; out.push(p); used += p.t.length; }
   return out;
 }
 // Reads a lorebook from a file: this game's own format, or a SillyTavern world-info export.
 function readBook(j,fallbackName){
   const name = String(j.name||fallbackName||'Imported lorebook').slice(0,60); let list = [];
-  if(Array.isArray(j.entries)) list = j.entries.map(e=>({n:String(e.n||e.title||e.comment||'').slice(0,80),k:Array.isArray(e.k)?e.k.join(','):String(e.k||e.keys||e.key||''),t:String(e.t||e.text||e.content||''),always:!!(e.always||e.constant)}));
-  else if(j.entries&&typeof j.entries==='object') list = Object.values(j.entries).map(e=>({n:String(e.comment||e.name||'').slice(0,80),k:(Array.isArray(e.key)?e.key:String(e.key||'').split(',')).concat(Array.isArray(e.keysecondary)?e.keysecondary:[]).join(','),t:String(e.content||''),always:!!e.constant}));
-  list = list.filter(e=>e.t.trim()&&(e.k.trim()||e.always)).slice(0,500).map(e=>({...e,k:e.k.slice(0,300),t:e.t.slice(0,2000)}));
+  const one = e => { const keys = [].concat(Array.isArray(e.k)?e.k:e.k?String(e.k).split(','):[],Array.isArray(e.key)?e.key:e.key?String(e.key).split(','):[],Array.isArray(e.keys)?e.keys:e.keys?String(e.keys).split(','):[]).map(x=>String(x).trim()).filter(Boolean);
+    const k2 = [].concat(Array.isArray(e.k2)?e.k2:e.k2?String(e.k2).split(','):[],Array.isArray(e.keysecondary)?e.keysecondary:[],Array.isArray(e.secondary_keys)?e.secondary_keys:[]).map(x=>String(x).trim()).filter(Boolean);
+    const o = {n:String(e.n||e.title||e.comment||e.name||'').slice(0,80),k:[...new Set(keys)].join(', ').slice(0,300),t:String(e.t||e.text||e.content||'').slice(0,2000),always:!!(e.always||e.constant)};
+    if(k2.length){ o.k2 = [...new Set(k2)].join(', ').slice(0,300); o.sel = e.sel===undefined?!!e.selective:!!e.sel; }
+    const pr = Number(e.prio??e.priority??e.order??e.insertion_order); if(Number.isFinite(pr)&&pr) o.prio = Math.trunc(pr);
+    const pb = Number(e.prob??e.probability); if((e.useProbability||e.prob!==undefined)&&Number.isFinite(pb)&&pb<100) o.prob = Math.max(0,Math.trunc(pb));
+    if(e.off||e.disable===true||e.enabled===false) o.off = true;
+    return o; };
+  if(Array.isArray(j.entries)) list = j.entries.map(one); else if(j.entries&&typeof j.entries==='object') list = Object.values(j.entries).map(one);
+  list = list.filter(e=>e.t.trim()&&(e.k.trim()||e.always)).slice(0,500);
   return list.length?{id:'u'+Date.now().toString(36)+rnd(1e6).toString(36),name,about:String(j.about||j.description||'').slice(0,160),entries:list}:null;
 }
+function addBook(j,fallbackName){ const b = readBook(j,fallbackName); if(!b) throw new Error('not a lorebook');
+  const same = store.lore.books.findIndex(x=>x.name.toLowerCase()===b.name.toLowerCase()); if(same>=0){ b.id = store.lore.books[same].id; store.lore.books[same] = b; } else store.lore.books.push(b);
+  store.loreAt = Date.now(); save(); return {book:b,replaced:same>=0}; }
 let loreEdit = '';
 
 /* ============ which check does an action call for? ============ */
@@ -1996,16 +2011,21 @@ function openGame(tabName){
     if(ed) body = `<div class="actions" style="justify-content:flex-start"><button type="button" class="btn small ghost" data-act="loreBack">&#8592; All lorebooks</button></div>
       <div class="grid2"><label class="f">Name of this lorebook<input class="inp" name="bname" value="${esc(ed.name)}" maxlength="60"></label><label class="f">What it covers<input class="inp" name="babout" value="${esc(ed.about||'')}" maxlength="160"></label></div>
       <div class="hint">Each entry is shown to the DM when one of its trigger words appears in the scene or in what you type. Keep entries short: a few sentences each.</div>
-      <div id="lents" style="display:grid;gap:8px">${ed.entries.map(e=>`<div class="lent"><div class="row2"><input class="inp" name="ln" value="${esc(e.n||'')}" maxlength="80" placeholder="Title" aria-label="Entry title"><input class="inp" name="lk" value="${esc(Array.isArray(e.k)?e.k.join(', '):e.k||'')}" maxlength="300" placeholder="Trigger words, comma separated" aria-label="Trigger words"></div>
+      <div id="lents" style="display:grid;gap:8px">${ed.entries.map((e,i)=>`<div class="lent" data-i="${i}"><div class="row2"><input class="inp" name="ln" value="${esc(e.n||'')}" maxlength="80" placeholder="Title" aria-label="Entry title"><input class="inp" name="lk" value="${esc(Array.isArray(e.k)?e.k.join(', '):e.k||'')}" maxlength="300" placeholder="Trigger words, comma separated" aria-label="Trigger words"></div>
         <textarea class="inp" name="lt" maxlength="2000" placeholder="What the DM should know" aria-label="Entry text">${esc(e.t||'')}</textarea>
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><label class="check" style="padding:0"><input type="checkbox" name="la" ${e.always?'checked':''}><span>Always show this to the DM</span></label><button type="button" class="btn small ghost danger" data-act="loreDelEntry">Remove</button></div></div>`).join('')}</div>
+        ${e.k2?`<input class="inp" name="lk2" value="${esc(e.k2)}" maxlength="300" placeholder="Second set of words" aria-label="Second set of trigger words"><label class="check" style="padding:0"><input type="checkbox" name="ls" ${e.sel?'checked':''}><span>Needs one of the second set too</span></label>`:''}
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><label class="check" style="padding:0"><input type="checkbox" name="la" ${e.always?'checked':''}><span>Always show this to the DM</span></label><label class="check" style="padding:0"><input type="checkbox" name="lo" ${e.off?'':'checked'}><span>On</span></label><button type="button" class="btn small ghost danger" data-act="loreDelEntry">Remove</button></div></div>`).join('')}</div>
       <div class="actions" style="justify-content:flex-start"><button type="button" class="btn small" data-act="loreAddEntry">Add an entry</button></div>`;
     else body = `${ck('lore',st.lore,'Use lorebooks: show the DM reference entries that match what is happening in the scene.')}
       <div class="hint">Lorebooks are reference notes for the DM: rules, monsters, prices, your own world. Only the entries whose trigger words come up are sent, up to nine a turn, so they add little to each reply.${c&&(c._lore||[]).length?`<br><br><b style="color:var(--text)">Used in the last scene:</b> ${c._lore.map(esc).join(' · ')}`:''}</div>
+      <label class="f" style="max-width:420px">How much lore the DM gets each turn<select class="inp" name="loreSize">${Object.keys(LORE_SIZES).map(k=>o(k,LORE_SIZES[k][2],st.loreSize)).join('')}</select></label>
+      <div class="hint" style="margin-top:-6px">A bigger allowance lets more entries, and longer ones, reach the DM, and costs a little more per reply. An entry that does not fit in what is left is skipped for that turn.</div>
       <label class="f">Built in</label><div class="books">${books.filter(b=>b.builtin).map(b=>`<label class="book"><input type="checkbox" name="lb" value="${esc(b.id)}" ${store.lore.off[b.id]?'':'checked'}><span class="bt"><b>${esc(b.name)}</b><span>${esc(b.about||'')} ${(b.entries||[]).length} entries.</span></span></label>`).join('')||'<div class="hint">None loaded.</div>'}</div>
       <label class="f">Your lorebooks</label><div class="books">${mine.map(b=>`<div class="book"><input type="checkbox" name="lb" value="${esc(b.id)}" ${store.lore.off[b.id]?'':'checked'} aria-label="Use ${esc(b.name)}"><span class="bt"><b>${esc(b.name)}</b><span>${esc(b.about||'')} ${b.entries.length} entries.</span></span>
         <button type="button" class="btn small" data-act="loreOpen" data-id="${esc(b.id)}">Edit</button><button type="button" class="btn small ghost" data-act="loreExport" data-id="${esc(b.id)}">Export</button><button type="button" class="btn small ghost danger" data-act="loreDel" data-id="${esc(b.id)}">Delete</button></div>`).join('')||'<div class="hint">None yet. Make one for your own setting: places, factions, gods, house rules.</div>'}</div>
-      <div class="actions" style="justify-content:flex-start"><button type="button" class="btn small" data-act="loreNew">New lorebook</button><button type="button" class="btn small ghost" data-act="loreImport">Import a lorebook file</button><input type="file" id="loreFile" accept="application/json,.json" hidden></div>`; }
+      <div class="actions" style="justify-content:flex-start"><button type="button" class="btn small" data-act="loreNew">New lorebook</button><button type="button" class="btn small ghost" data-act="loreImport">Import a lorebook file</button><input type="file" id="loreFile" accept="application/json,.json" hidden></div>
+      <label class="f">Or import from an address<span style="display:flex;gap:6px"><input class="inp" id="loreUrl" placeholder="my_lorebook.json or https://…" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" class="btn small" data-act="loreFetch">Import</button></span></label>
+      <div class="hint" style="margin-top:-6px">Reads this game's own format and SillyTavern or janitor.ai lorebook files. A plain file name is looked for on this site. Importing a book with the same name as one you have replaces it.</div><div id="loreMsg" class="hint" role="status"></div>`; }
   else if(gsTab==='char'){ const ch = c.character;
     body = `<div class="grid2"><label class="f">Name<input class="inp" name="name" value="${esc(ch.name)}" maxlength="40"></label><label class="f">Race<input class="inp" name="race" value="${esc(ch.race)}" maxlength="30"></label>
       <label class="f">Class<input class="inp" name="cls" value="${esc(ch.cls)}" maxlength="30"></label><label class="f">Background<input class="inp" name="background" value="${esc(ch.background||'')}" maxlength="40"></label>
@@ -2049,8 +2069,10 @@ function saveGame(){
   const f = $('#gsForm'), c = cur, st = store.settings; if(!f) return;
   if(gsTab==='lore'){ const ed = store.lore.books.find(b=>b.id===loreEdit);
     if(ed){ ed.name = f.bname.value.trim().slice(0,60)||ed.name; ed.about = f.babout.value.trim().slice(0,160);
-      ed.entries = [...f.querySelectorAll('.lent')].map(r=>({n:r.querySelector('[name=ln]').value.trim().slice(0,80),k:r.querySelector('[name=lk]').value.trim().slice(0,300),t:r.querySelector('[name=lt]').value.trim().slice(0,2000),always:r.querySelector('[name=la]').checked})).filter(e=>e.t&&(e.k||e.always)); }
-    else { st.lore = f.lore.checked; store.lore.off = {}; allLore().forEach(b=>{ const box = f.querySelector(`[name=lb][value="${CSS.escape(b.id)}"]`); if(box&&!box.checked) store.lore.off[b.id] = 1; }); }
+      const old = ed.entries; ed.entries = [...f.querySelectorAll('.lent')].map(r=>{ const was = r.dataset.i!==undefined?old[num(r.dataset.i)]||{}:{}, e = {...was,n:r.querySelector('[name=ln]').value.trim().slice(0,80),k:r.querySelector('[name=lk]').value.trim().slice(0,300),t:r.querySelector('[name=lt]').value.trim().slice(0,2000),always:r.querySelector('[name=la]').checked};
+        const k2 = r.querySelector('[name=lk2]'), on = r.querySelector('[name=lo]'); if(k2){ e.k2 = k2.value.trim().slice(0,300); e.sel = r.querySelector('[name=ls]').checked; if(!e.k2){ delete e.k2; delete e.sel; } }
+        if(on&&!on.checked) e.off = true; else delete e.off; return e; }).filter(e=>e.t&&(e.k||e.always)); }
+    else { st.lore = f.lore.checked; st.loreSize = f.loreSize.value; store.lore.off = {}; allLore().forEach(b=>{ const box = f.querySelector(`[name=lb][value="${CSS.escape(b.id)}"]`); if(box&&!box.checked) store.lore.off[b.id] = 1; }); }
     store.prefsAt = Date.now(); store.loreAt = Date.now(); }
   else if(gsTab==='game'){ Object.assign(st,{diff:f.diff.value,len:f.len.value,announce:f.announce.checked,useGuard:f.useGuard.checked,useSheet:f.useSheet.checked,useCheck:f.useCheck.checked,encumb:f.encumb.checked,vulgar:f.vulgar.checked}); store.prefsAt = Date.now();
     if(c){ c.tone = f.tone.value; c.god = f.god.checked; refresh(c.character); } }
@@ -2186,6 +2208,13 @@ document.addEventListener('click',async ev=>{
     case 'loreExport': { const b = store.lore.books.find(x=>x.id===el.dataset.id); if(!b) break; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify({name:b.name,about:b.about,entries:b.entries},null,2)],{type:'application/json'}));
       a.download = b.name.replace(/[^\w-]+/g,'_')+'.lorebook.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); break; }
     case 'loreImport': $('#loreFile').click(); break;
+    case 'loreFetch': { const raw = ($('#loreUrl').value||'').trim(), msg = $('#loreMsg'); if(!raw){ msg.textContent = 'Type a file name on this site, or a full web address.'; break; }
+      msg.style.color = 'var(--muted)'; msg.textContent = 'Fetching…';
+      try{ const url = new URL(raw,location.href); if(!/^https?:$/.test(url.protocol)) throw new Error('That is not a web address.');
+        const r = await fetch(url.href+(url.search?'&':'?')+'t='+Date.now(),{cache:'no-store'}); if(!r.ok) throw new Error(r.status===404?'No file was found at that address.':'The address answered '+r.status+'.');
+        let j; try{ j = await r.json(); }catch(e){ throw new Error('That address did not return a lorebook file.'); }
+        saveGame(); const res = addBook(j,url.pathname.split('/').pop().replace(/\.(lorebook\.)?json$/i,'')); openGame('lore'); toast('✓',`${res.replaced?'Replaced':'Imported'} "${res.book.name}" with ${res.book.entries.length} entries.`);
+      }catch(e){ msg.style.color = 'var(--danger)'; msg.textContent = e.message==='not a lorebook'?'That file is not a lorebook this game can read.':(e.message||'Could not fetch that address.'); } break; }
     case 'gsAddQuest': $('#gsQuests').insertAdjacentHTML('beforeend','<div class="qrow"><input class="inp" name="qt" maxlength="80" placeholder="Quest title" aria-label="Quest title"><select class="inp" name="qs" aria-label="Quest status"><option value="active">Active</option><option value="done">Done</option><option value="failed">Failed</option></select><input class="inp" name="qn" maxlength="240" placeholder="Note" aria-label="Quest note"><button type="button" class="btn small ghost" data-act="gsDelQuest" aria-label="Remove quest">&#10005;</button></div>'); break;
     case 'gsDelQuest': el.closest('.qrow').remove(); break;
     case 'gsDelWho': if(c.npcs[gsWho]){ delete c.npcs[gsWho]; c.present = (c.present||[]).filter(x=>x!==gsWho); gsWho = ''; save(); renderGame(); openGame('people'); } break;
@@ -2266,8 +2295,8 @@ document.addEventListener('change',ev=>{
   if(draft&&t.name==='camp'&&t.form?.id==='createForm'){ draft.camp = t.value; renderCreate(); }
   if(draft&&t.dataset.d&&t.tagName==='SELECT'){ setDraft(t.dataset.d,t.value); if(t.dataset.re){ if(!draft.abTouched) draft.abilities = presetFor(classDef(draft)); renderCreate(); } }
   if(t.id==='packSort'){ store.ui.sort = t.value; saveLocal(); renderSide(); }
-  if(t.id==='loreFile'&&t.files[0]){ const file = t.files[0]; file.text().then(txt=>{ const b = readBook(JSON.parse(txt),file.name.replace(/\.(lorebook\.)?json$/i,'')); if(!b) throw 0;
-    saveGame(); store.lore.books.push(b); store.loreAt = Date.now(); save(); openGame('lore'); toast('✓',`Imported "${b.name}" with ${b.entries.length} entries.`); }).catch(()=>toast('!','That file is not a lorebook this game can read.')); }
+  if(t.id==='loreFile'&&t.files[0]){ const file = t.files[0]; file.text().then(txt=>{ saveGame(); const r = addBook(JSON.parse(txt),file.name.replace(/\.(lorebook\.)?json$/i,''));
+    openGame('lore'); toast('✓',`${r.replaced?'Replaced':'Imported'} "${r.book.name}" with ${r.book.entries.length} entries.`); }).catch(()=>toast('!','That file is not a lorebook this game can read.')); }
   if(t.id==='gsWho'){ gsWho = t.value; openGame('people'); }
   if(t.id==='importFile'&&t.files[0]){ t.files[0].text().then(txt=>{ const x = JSON.parse(txt); if(!x.character||!Array.isArray(x.log)) throw 0;
     x.id = 'c'+Date.now().toString(36)+rnd(1e6).toString(36); x.updated = Date.now(); x.quests ||= []; x.suggestions ||= []; store.campaigns[x.id] = x; saveLocal(); scheduleSync(); renderHome(); toast('✓','Tale imported.'); })
@@ -2286,7 +2315,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170953';
+const BUILD = '202611171011';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
