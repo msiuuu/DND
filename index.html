@@ -336,6 +336,17 @@ details.card[open]>summary{margin-bottom:10px}
 .tray{cursor:pointer}
 .says{margin-top:10px;padding:8px 12px;border-radius:12px 12px 12px 3px;background:var(--s2);border:1px solid var(--line);font-size:14.5px;line-height:1.5;width:fit-content;max-width:100%}
 .says b{color:var(--ember2);font-weight:600;margin-right:6px}
+.dmhead{max-width:760px;margin:0 auto 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--ember);border-radius:14px;background:color-mix(in srgb,var(--ember) 9%,transparent)}
+.dmhead div{flex:1;min-width:180px}.dmhead b{display:block;font-family:var(--display);font-size:21px;color:var(--ember2)}.dmhead span{font-size:13px;color:var(--muted)}
+.dmmsg{max-width:760px;margin:0 auto 14px;display:flex}
+.dmmsg .bub{max-width:84%;padding:10px 15px;border-radius:18px;font-size:16px;line-height:1.6}
+.dmmsg.them .bub{background:var(--s2);border:1px solid var(--line);border-bottom-left-radius:5px}
+.dmmsg.them .bub b{display:block;font:600 11px var(--ui);letter-spacing:.12em;text-transform:uppercase;color:var(--ember);margin-bottom:3px}
+.dmmsg.me{justify-content:flex-end}.dmmsg.me .bub{background:var(--s3);border-bottom-right-radius:5px}
+.dmmsg .bub p{margin:0 0 .6em}.dmmsg .bub p:last-child{margin:0}
+.aside-link{display:flex;justify-content:flex-end;margin:0 2px 6px}
+.aside-link button{background:none;border:0;color:var(--muted);font-size:12.5px;padding:4px 2px;text-decoration:underline;text-underline-offset:3px}
+.aside-link button:hover{color:var(--ember2)}
 .suggbox{margin-bottom:10px}
 .suggbox>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);padding:5px 2px;min-height:30px;user-select:none}
 .suggbox>summary::-webkit-details-marker{display:none}
@@ -636,7 +647,7 @@ const TONES = {...MORE_TONES,classic:'Classic heroic fantasy: wonder, danger, an
 
 /* ============ storage ============ */
 const KEY = 'calis-tavern.v1';
-const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,forgeModel:'',useCheck:true,useGuard:true,dmName:'Cali',dmVoice:'Half korean half italian. sassy, huffy, warm underneath. talks like a real person — short sentences, no speeches, says the vulgar word not the clean one. calls you out when you do something stupid, goes quiet when something actually hits. uses kaomoji not western emotes — (￣^￣) not :). korean and italian leak out when she feels something — 씨발, cazzo, 바보야. genuinely cares about the player but will NOT baby them. says one honest thing instead of five correct ones. if you make a dumb move she\'ll roast you. if you make a beautiful one she goes soft for exactly one line then pretends she didn\'t.',dmCalls:'Misu',dmTalk:true,announce:true,encumb:true,vulgar:false,lore:true,loreSize:'small',diff:'standard',len:'adaptive',voice:'plain',trouble:'calm',memToken:'',gistId:'',lastSync:0};
+const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,forgeModel:'',useCheck:true,useGuard:true,dmPick:'',dmName:'Cali',dmVoice:'Half korean half italian. sassy, huffy, warm underneath. talks like a real person — short sentences, no speeches, says the vulgar word not the clean one. calls you out when you do something stupid, goes quiet when something actually hits. uses kaomoji not western emotes — (￣^￣) not :). korean and italian leak out when she feels something — 씨발, cazzo, 바보야. genuinely cares about the player but will NOT baby them. says one honest thing instead of five correct ones. if you make a dumb move she\'ll roast you. if you make a beautiful one she goes soft for exactly one line then pretends she didn\'t.',dmCalls:'Misu',dmTalk:true,announce:true,encumb:true,vulgar:false,lore:true,loreSize:'small',diff:'standard',len:'adaptive',voice:'plain',trouble:'calm',memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
 try{ if(!localStorage.getItem(KEY)&&localStorage.getItem('emberglade.v1')) localStorage.setItem(KEY,localStorage.getItem('emberglade.v1')); }catch(e){}
 let staleStore = false;
@@ -705,9 +716,20 @@ function md(t){
   return markNames(t).replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>')
     .split(/\n{2,}/).filter(p=>p.trim()).map(p=>'<p>'+p.trim().replace(/\n/g,'<br>')+'</p>').join('');
 }
-const dmName = () => (store.settings.dmName||'').trim().slice(0,30)||'The DM';
+// The narrators on offer: Cali, a plain DM, three slots filled in from narrators.js, and one the player writes themselves.
+const SLOT_NAMES = ['Slot one','Slot two','Slot three'];
+const narrators = () => [
+  {id:'cali',name:'Cali',voice:DEFAULTS.dmVoice},
+  {id:'dm',name:'The DM',voice:'An even-handed game master who stays out of the way. Clear, fair and brief, with no opinions of their own on show.'},
+  ...['slot1','slot2','slot3'].map((id,i)=>{ const f = (window.NARRATOR_SLOTS||[]).find(x=>x&&x.id===id)||{}, name = String(f.name||'').trim().slice(0,30), voice = String(f.voice||'').trim().slice(0,1200);
+    return {id,name:name||SLOT_NAMES[i],voice,empty:!name&&!voice,slot:SLOT_NAMES[i]}; })];
+// Which narrator is in use. A setting saved before there was a choice counts as Cali if untouched, or as the player's own if they had rewritten it.
+function dmPick(){ const s = store.settings; if(s.dmPick) return s.dmPick; return (s.dmName||'Cali')==='Cali'&&(s.dmVoice||'')===DEFAULTS.dmVoice?'cali':'custom'; }
+function narrator(){ const s = store.settings, k = dmPick(); if(k==='custom') return {id:'custom',name:(s.dmName||'').trim().slice(0,30)||'The DM',voice:(s.dmVoice||'').trim().slice(0,1200)};
+  return narrators().find(n=>n.id===k)||narrators()[0]; }
+const dmName = () => narrator().name;
 // The DM is a person at the table with a name and a manner of their own. This is what each model that speaks as the DM is told about them.
-const dmSelf = () => { const s = store.settings, calls = (s.dmCalls||'').trim().slice(0,30); return `You are ${dmName()}, a real person running this game for one player${calls?`, whom you call ${calls}`:''}. Your own manner at the table: ${(s.dmVoice||'').trim().slice(0,600)||'friendly and straightforward.'}`; };
+const dmSelf = () => { const calls = (store.settings.dmCalls||'').trim().slice(0,30), n = narrator(); return `You are ${n.name}, a real person running this game for one player${calls?`, whom you call ${calls}`:''}. Your own manner at the table: ${n.voice||'friendly and straightforward.'}`; };
 const lblDM = () => `<div class="lbl">${esc(dmName())}</div>`;
 const DIE_SVG = '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M16 2 29 9.500v13L16 30 3 22.500v-13z"/><path d="M9 12h14l-7 12z"/></svg>';
 let toastT;
@@ -1238,6 +1260,55 @@ Player wrote: ${text}${guess?`\n(Keyword guess from the app: ${guess}.)`:''}`}],
 }
 
 // A question for the DM gets a short note back, not a scene. It stays out of the story but the narrator is told what was said.
+/* ============ DM space: stepping out of the story to talk with the DM ============ */
+// Ask the DM this many out-of-story questions in a row and they take the conversation aside.
+const DM_PULL = 3;
+const DMSPACE = c => { const dm = lastOf(c,'dm'), here = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]);
+  return `${dmSelf()}
+You and the player have stepped away from the story and are talking directly, the way a DM and a player talk across the table between scenes. Be yourself. Answer what they ask, chat, joke, explain a ruling, talk about their character or the world. Keep it short: one to four sentences a turn.
+Do not narrate the story, do not move it forward and do not play its characters. If the player wants to do something in the story, tell them to head back to it.
+When they ask about something not yet settled, about the world or about their own character, decide it on the spot and say it plainly; never say it is unknown or up to them. Stay consistent with the established facts.
+If your reply settles a new fact worth keeping, add one last line that starts with "FACT:" and states it in a single sentence. Otherwise add nothing after your reply.
+
+# What you know about the game
+${sheetText(c)}
+
+People in the scene: ${here.map(n=>npcLine(c.npcs[n])).join('\n')||'no one'}
+Others met: ${Object.keys(c.npcs||{}).filter(n=>!here.includes(n)).join(', ')||'no one'}${c.summary?`\n\nStory so far: ${c.summary}`:''}${(c.facts||[]).length?`\n\nEstablished facts:\n${c.facts.map(x=>'- '+x).join('\n')}`:''}
+
+Where the story stands: ${dm?clip(dm.text,700):'it has not begun'}`; };
+function enterDm(c,pulled){
+  c.inDm = true; c.dmChat ||= []; denied = null; selEntry = editEntry = -1; c.pendingRoll = null;
+  if(pulled){ // bring the questions that led here along, so the DM has them in front of them
+    const tail = []; for(let i=c.log.length-1;i>=0&&c.log[i].role==='aside';i--) tail.unshift(c.log[i]);
+    for(const e of tail){ c.dmChat.push({who:'you',text:e.q},{who:'dm',text:e.a}); } }
+  save(); renderGame();
+}
+function exitDm(){ const c = cur; if(!c) return; c.inDm = false; save(); renderGame(); }
+async function dmSay(text,pulled){
+  const c = cur; if(!c||busy||needKey()) return; c.dmChat ||= []; c.dmChat.push({who:'you',text}); if(c.dmChat.length>200) c.dmChat.splice(0,c.dmChat.length-200);
+  busy = true; aborter = new AbortController(); lastErr = null; save(); renderGame(); let out = '';
+  try{
+    const msgs = [{role:'system',content:DMSPACE(c)}]; for(const m of c.dmChat.slice(-24)){ const role = m.who==='you'?'user':'assistant', l = msgs[msgs.length-1]; if(l.role===role) l.content += '\n\n'+m.text; else msgs.push({role,content:m.text}); }
+    if(pulled) msgs[msgs.length-1].content += '\n\n[Table note, not from the player: that is several out-of-story questions in a row, so you have just pulled the conversation aside into a private chat. Say so in your own way, in a few words, then answer.]';
+    out = await chat(msgs,{stream:false,signal:aborter.signal,temperature:0.9});
+  }catch(e){ if(e.name!=='AbortError') lastErr = e.message||String(e); }
+  busy = false; aborter = null; if(cur!==c) return;
+  const lines = out.trim().split('\n'), facts = lines.filter(l=>/^\s*FACT:/i.test(l)).map(l=>l.replace(/^\s*FACT:\s*/i,'').trim()).filter(Boolean), reply = lines.filter(l=>!/^\s*FACT:/i.test(l)).join('\n').trim().slice(0,1500);
+  if(reply){ c.dmChat.push({who:'dm',text:reply}); c.facts ||= []; for(const f of facts.slice(0,2)){ c.facts.push(f.slice(0,300)); if(c.facts.length>60) c.facts.shift(); } c.updated = Date.now(); }
+  else if(!lastErr) lastErr = `${dmName()} did not answer. Try again.`;
+  save(); renderGame();
+}
+function renderDm(){
+  const c = cur, n = esc(dmName());
+  $('#log').innerHTML = `<div class="dmhead"><div><b>Aside with ${n}</b><span>Out of the story. Nothing said here happens in the tale, but what ${n} settles is remembered.</span></div><button class="btn primary" data-act="dmExit">Back to the story</button></div>`
+    +(c.dmChat||[]).map(m=>m.who==='you'?`<div class="dmmsg me"><div class="bub">${md(m.text)}</div></div>`:`<div class="dmmsg them"><div class="bub"><b>${n}</b>${md(m.text)}</div></div>`).join('')
+    +(busy?`<div class="dmmsg them"><div class="bub thinking"><b>${n}</b>…</div></div>`:'')
+    +(lastErr?`<div class="e err"><span>${esc(lastErr)}</span><button class="btn small" data-act="settings">Models</button></div>`:'')
+    +(!(c.dmChat||[]).length&&!busy?`<div class="hint" style="max-width:760px;margin:0 auto;text-align:center">Ask ${n} anything: a ruling, something about the world, your character, or just talk.</div>`:'');
+  scrollLog();
+}
+
 const NOTE = () => `${dmSelf()}\nThe player has stepped out of the story to ask you something. Answer as yourself, in your own voice, in one or two short sentences, thirty-five words at most, speaking to the player as "you". Always give a definite answer. Start from the facts given. If they do not settle it, do not say so: decide the answer yourself, on the spot, and state it as plain fact. Pick something specific that fits the setting and what is already known: a number, a name, a place, a price, a preference. "How tall is she?" gets a height. "What is my favourite food?" gets a dish. "What is the exchange rate?" gets a rate. Never answer that it is unknown, undecided, not established, or up to the player, and never ask the player to decide. Do not contradict anything under Established facts. If a dice result is given: on a success, say what the character learns, inventing it if need be; on a failure, the character does not find out, so say that and give nothing away. Never narrate, never move the story forward, never decide what the character does.`;
 async function answerAside(c,q,roll){
   if(busy||cur!==c) return;
@@ -1370,7 +1441,10 @@ async function playerAct(text,trusted,overrule,rollNow){
   busy = false; aborter = null; if(cur!==c) return;
   const drop = () => { const k = c.log.indexOf(entry); if(k>=0) c.log.splice(k,1); };
   if(stopped||(no&&!g.ask)){ drop(); if(no) denied = {...no,text}; save(); renderGame(); const ta = $('#say'); if(ta&&!ta.value) ta.value = text; return; }
-  if(g.ask){ drop(); if(g.roll){ c.pendingRoll = {...g.roll,ask:text}; save(); renderGame(); return; } save(); answerAside(c,text,null); return; }
+  if(g.ask){ drop(); if(g.roll){ c.pendingRoll = {...g.roll,ask:text}; save(); renderGame(); return; }
+    let run = 0; for(let i=c.log.length-1;i>=0&&c.log[i].role==='aside';i--) run++;
+    if(run>=DM_PULL-1){ enterDm(c,true); dmSay(text,true); return; }
+    save(); answerAside(c,text,null); return; }
   // The sheet check found something missing: stop, say what, and let the player overrule it.
   if(sheet&&sheet.ok===false){ drop(); denied = {title:'Not on your sheet.',reason:(sheet.fact?sheet.fact[0].toUpperCase()+sheet.fact.slice(1)+'.':'Your character does not seem to have what this needs.'),steps:[],text,force:true}; save(); renderGame(); const ta = $('#say'); if(ta&&!ta.value) ta.value = text; return; }
   if(overrule) entry.sheet = 'The player has checked their own sheet and overruled the app: the character is able to attempt this.';
@@ -1476,7 +1550,7 @@ async function gh(path,opt={}){
   if(!r.ok){ const e = new Error(r.status===401?'GitHub rejected the token. Make a new one with the gist permission.':r.status===403?'GitHub refused (403). The token needs the gist permission.':'GitHub answered '+r.status+'.'); e.status = r.status; throw e; }
   return r.json();
 }
-const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','dmName','dmVoice','dmCalls','dmTalk','announce','encumb','vulgar','lore','loreSize','diff','len','voice','trouble','temperature','maxTokens','stream'];
+const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','dmPick','dmName','dmVoice','dmCalls','dmTalk','announce','encumb','vulgar','lore','loreSize','diff','len','voice','trouble','temperature','maxTokens','stream'];
 const memCore = o => JSON.stringify([o.last||null,o.deleted||{},o.campaigns||{},o.prefs||null,o.prefsAt||0,o.lore||null,o.loreAt||0]);
 function memData(){ const campaigns = {}; for(const [id,c] of Object.entries(store.campaigns)){ const {_summing,_lore,_acted,_alarm,...rest} = c; campaigns[id] = rest; }
   return {app:'calis-tavern',version:1,savedAt:Date.now(),last:store.last||null,deleted:store.deleted,campaigns,prefs:Object.fromEntries(PREFS.map(k=>[k,store.settings[k]])),prefsAt:store.prefsAt||0,lore:store.lore,loreAt:store.loreAt||0}; }
@@ -1687,7 +1761,7 @@ const wide = () => matchMedia('(min-width:901px)').matches;
 function chrome(inGame){
   $('#leftBtn').hidden = !inGame; $('#sideBtn').hidden = !inGame;
   $('#where').innerHTML = inGame&&cur?`<b>${esc(cur.title)}</b>${cur.location?' · '+esc(cur.location):''}`:'';
-  setMood(inGame&&cur?cur.mood:'forest');
+  setMood(inGame&&cur?(cur.inDm?'hearth':cur.mood):'forest');
 }
 function setDrawer(el,open){
   if(!el) return; el.classList.toggle('open',open); el.inert = !open;
@@ -1877,6 +1951,7 @@ function renderGame(){
 function chips(list){ const out = (list||[]).filter(n=>!/^Continuity pass/.test(n.t)&&!/^Met /.test(n.t)), met = (list||[]).filter(n=>/^Met /.test(n.t)).map(n=>n.t.slice(4));
   if(met.length) out.push({t:'Met '+met.join(', '),k:'ok'}); return out; }
 function renderLog(){
+  if(cur.inDm) return renderDm();
   const c = cur; if(selEntry>=c.log.length) selEntry = -1; if(editEntry>=c.log.length) editEntry = -1;
   const tools = (e,i) => i!==selEntry||busy?'':i===editEntry
     ?`<div class="eedit"><textarea class="inp" id="eBox" aria-label="Edit this entry">${esc(e.role==='aside'?e.a:e.text)}</textarea><div class="etools"><button data-act="eSave">Save</button>${e.role==='player'?'<button data-act="eSaveRedo">Save and redo from here</button>':''}<button data-act="eCancel">Cancel</button></div></div>`
@@ -1895,6 +1970,8 @@ function renderLog(){
 function scrollLog(){ const l = $('#log'); if(l) l.scrollTop = l.scrollHeight; }
 function renderComposer(){
   const c = cur, r = c.pendingRoll, keep = $('#say')?.value||'';
+  if(c.inDm){ $('#composer').innerHTML = `<form class="send" id="sendForm"><textarea id="say" rows="1" maxlength="2000" placeholder="${busy?esc(dmName())+' is typing…':'Say something to '+esc(dmName())+'…'}" ${busy?'disabled':''}></textarea>${busy?`<button type="button" class="btn" data-act="stop" aria-label="Stop" title="Stop">&#9632;</button>`:`<button class="btn primary" aria-label="Send" title="Send">&#8593;</button>`}</form>`;
+    placeTray(); const ta = $('#say'); ta.value = keep; if(!busy&&wide()) ta.focus(); return; }
   let h = '';
   if(r&&!busy){
     const ch = c.character; let b = r.ability?mod(ch.abilities[r.ability]):0;
@@ -1906,6 +1983,7 @@ function renderComposer(){
   if(denied&&!busy) h += `<div class="deny" role="status"><b>${esc(denied.title||'Not from here.')}</b><div class="hint">${esc(denied.reason)} Nothing was added to the story.</div>${denied.force?`<div class="sugg"><button data-act="force">My sheet says I can. Do it anyway</button></div>`:''}${denied.steps.length?`<div class="sugg">${denied.steps.map(x=>`<button data-act="sugg">${esc(x)}</button>`).join('')}</div>`:''}</div>`;
   if(c.shop&&!busy&&!r) h += `<details class="suggbox" data-sec="shop" ${store.ui.shop===false?'':'open'}><summary>Shop: ${esc(c.shop.name)}</summary><div class="shopcard"><div class="t"><b>${esc(c.shop.name)}</b><div>${c.shop.keeper?esc(c.shop.keeper)+' · ':''}${c.shop.items.length} things for sale · you have ${c.character.gold} gp</div></div><button class="btn primary" data-act="shop">Open shop</button></div></details>`;
   if(c.suggestions.length&&!busy&&!r) h += `<details class="suggbox" data-sec="sugg" ${store.ui.sugg===false?'':'open'}><summary>Suggestions (${c.suggestions.length})</summary><div class="sugg">${c.suggestions.map(s=>`<button data-act="sugg">${esc(s)}</button>`).join('')}</div></details>`;
+  if(!busy) h += `<div class="aside-link"><button type="button" data-act="dmEnter">Step aside and talk to ${esc(dmName())}</button></div>`;
   h += `<form class="send" id="sendForm"><textarea id="say" rows="1" maxlength="2000" placeholder="${busy?esc(dmName())+' is talking…':r?'Roll, or do something else instead…':'What do you do?'}" ${busy?'disabled':''}></textarea>
     ${busy?'':`<button type="button" class="btn" data-act="sayRoll" aria-label="Send this and roll a d20 for it" title="Send and roll a d20 for it">${DIE_SVG}</button>`}${busy?`<button type="button" class="btn" data-act="stop" aria-label="Stop the narrator" title="Stop">&#9632;</button>`:`<button class="btn primary" aria-label="Send" title="Send">&#8593;</button>`}</form>`;
   $('#composer').innerHTML = h; placeTray(); const ta = $('#say'); ta.value = keep; if(!busy&&wide()) ta.focus();
@@ -2075,9 +2153,11 @@ function openGame(tabName){
       <label class="f">How much the DM writes<select class="inp" name="len">${o('adaptive','Fits the moment',st.len)}${o('short','Always short',st.len)}${o('medium','Always medium',st.len)}${o('long','Always long',st.len)}</select></label>
       ${c?`<label class="f">Tone of this tale<select class="inp" name="tone">${TONE_LIST.map(([v,l])=>o(v,l,c.tone)).join('')}${o('unfiltered','Unfiltered (adult)',c.tone)}</select></label>`:''}</div>
     <div class="grp2">Your DM</div>
-    <div class="grid2"><label class="f">The DM's name<input class="inp" name="dmName" value="${esc(st.dmName)}" maxlength="30" placeholder="Cali"></label>
+    <div class="grid2"><label class="f">Narrator<select class="inp" name="dmPick" id="dmPickSel">${narrators().map(n=>o(n.id,n.empty?`${n.slot} (empty)`:n.slot&&n.name!==n.slot?`${n.name} (${n.slot.toLowerCase()})`:n.name,dmPick())).join('')}${o('custom','My own…',dmPick())}</select></label>
       <label class="f">What the DM calls you<input class="inp" name="dmCalls" value="${esc(st.dmCalls)}" maxlength="30" placeholder="Your name or nickname"></label></div>
-    <label class="f">What the DM is like<textarea class="inp" name="dmVoice" maxlength="600" style="min-height:90px">${esc(st.dmVoice)}</textarea></label>
+    ${dmPick()==='custom'?`<label class="f">The DM's name<input class="inp" name="dmName" value="${esc(st.dmName)}" maxlength="30" placeholder="Cali"></label>
+      <label class="f">What the DM is like<textarea class="inp" name="dmVoice" maxlength="1200" style="min-height:90px">${esc(st.dmVoice)}</textarea></label>`
+      :`<div class="hint" style="margin-top:-4px">${narrator().empty?'This slot has not been filled in yet. Until it is, it runs as a plain DM under the slot\'s name.':esc(narrator().voice)}</div>`}
     ${ck('dmTalk',st.dmTalk,'Table talk: the DM chips in with a short remark of their own now and then.')}
     <div class="grp2">How the DM runs it</div>
     ${ck('announce',st.announce,'The DM sets the scene and tells me what to roll at the end. Off: the roll comes up straight away with no lead-in.')}
@@ -2157,7 +2237,7 @@ function saveGame(){
         if(on&&!on.checked) e.off = true; else delete e.off; return e; }).filter(e=>e.t&&(e.k||e.always)); }
     else { st.lore = f.lore.checked; st.loreSize = f.loreSize.value; store.lore.off = {}; allLore().forEach(b=>{ const box = f.querySelector(`[name=lb][value="${CSS.escape(b.id)}"]`); if(box&&!box.checked) store.lore.off[b.id] = 1; }); }
     store.prefsAt = Date.now(); store.loreAt = Date.now(); }
-  else if(gsTab==='game'){ Object.assign(st,{diff:f.diff.value,len:f.len.value,voice:f.voice.value,trouble:f.trouble.value,dmName:f.dmName.value.trim().slice(0,30),dmCalls:f.dmCalls.value.trim().slice(0,30),dmVoice:f.dmVoice.value.trim().slice(0,600),dmTalk:f.dmTalk.checked,announce:f.announce.checked,useGuard:f.useGuard.checked,useSheet:f.useSheet.checked,useCheck:f.useCheck.checked,encumb:f.encumb.checked,vulgar:f.vulgar.checked}); store.prefsAt = Date.now();
+  else if(gsTab==='game'){ Object.assign(st,{diff:f.diff.value,len:f.len.value,voice:f.voice.value,trouble:f.trouble.value,dmPick:f.dmPick.value,dmCalls:f.dmCalls.value.trim().slice(0,30),...(f.dmName?{dmName:f.dmName.value.trim().slice(0,30),dmVoice:f.dmVoice.value.trim().slice(0,1200)}:{}),dmTalk:f.dmTalk.checked,announce:f.announce.checked,useGuard:f.useGuard.checked,useSheet:f.useSheet.checked,useCheck:f.useCheck.checked,encumb:f.encumb.checked,vulgar:f.vulgar.checked}); store.prefsAt = Date.now();
     if(c){ c.tone = f.tone.value; c.god = f.god.checked; refresh(c.character); } }
   else if(gsTab==='char'){ const ch = c.character; ch.name = f.name.value.trim().slice(0,40)||ch.name; ch.race = f.race.value.trim().slice(0,30)||ch.race; ch.cls = f.cls.value.trim().slice(0,30)||ch.cls; ch.background = f.background.value.trim().slice(0,40);
     ch.level = clamp(num(f.level.value)||1,1,20); ch.xp = Math.max(0,num(f.xp.value)); ch.maxHp = Math.max(1,num(f.maxHp.value)||1); ch.hp = clamp(num(f.hp.value),0,ch.maxHp); ch.gold = Math.max(0,num(f.gold.value)); ch.acMisc = clamp(num(f.acMisc.value),-10,10);
@@ -2262,6 +2342,8 @@ document.addEventListener('click',async ev=>{
     case 'regen': regenerate(); break;
     case 'sayRoll': { const ta = $('#say'), t = (ta?.value||'').trim(); if(busy||rolling) break; if(!t){ toast('!','Type what you attempt first, then tap the die to send it with a roll.'); break; } ta.value = ''; playerAct(t,false,false,true); break; }
     case 'force': if(denied&&!busy){ const t = denied.text; const ta = $('#say'); if(ta) ta.value = ''; playerAct(t,true,true); } break;
+    case 'dmEnter': if(cur&&!busy) enterDm(cur,false); break;
+    case 'dmExit': exitDm(); break;
     case 'eEdit': editEntry = selEntry; renderLog(); $('#eBox')?.focus(); break;
     case 'eCancel': editEntry = -1; renderLog(); break;
     case 'eSave': case 'eSaveRedo': { const e = c.log[selEntry], v = ($('#eBox')?.value||'').trim(); if(!e||!v) break;
@@ -2352,7 +2434,7 @@ document.addEventListener('click',async ev=>{
 });
 document.addEventListener('submit',ev=>{
   ev.preventDefault(); const f = ev.target;
-  if(f.id==='sendForm'){ const t = $('#say').value.trim(); if(t&&!busy){ $('#say').value = ''; playerAct(t); } }
+  if(f.id==='sendForm'){ const t = $('#say').value.trim(); if(t&&!busy){ $('#say').value = ''; if(cur&&cur.inDm) dmSay(t); else playerAct(t); } }
   else if(f.id==='itemForm'){ if(f.name.value.trim()) saveItem(f); }
   else if(f.id==='gsForm'){ saveGame(); closeModal(); }
   else if(f.id==='setForm'){ readSettings(); store.prefsAt = Date.now(); save(); closeModal(); if(!cur) renderHome(); else if(!cur.log.length&&!busy) takeTurn(null); }
@@ -2382,6 +2464,7 @@ document.addEventListener('change',ev=>{
   if(t.id==='packSort'){ store.ui.sort = t.value; saveLocal(); renderSide(); }
   if(t.id==='loreFile'&&t.files[0]){ const file = t.files[0]; file.text().then(txt=>{ saveGame(); const r = addBook(JSON.parse(txt),file.name.replace(/\.(lorebook\.)?json$/i,''));
     openGame('lore'); toast('✓',`${r.replaced?'Replaced':'Imported'} "${r.book.name}" with ${r.book.entries.length} entries.`); }).catch(()=>toast('!','That file is not a lorebook this game can read.')); }
+  if(t.id==='dmPickSel'){ saveGame(); openGame('game'); }
   if(t.id==='gsWho'){ gsWho = t.value; openGame('people'); }
   if(t.id==='importFile'&&t.files[0]){ t.files[0].text().then(txt=>{ const x = JSON.parse(txt); if(!x.character||!Array.isArray(x.log)) throw 0;
     x.id = 'c'+Date.now().toString(36)+rnd(1e6).toString(36); x.updated = Date.now(); x.quests ||= []; x.suggestions ||= []; store.campaigns[x.id] = x; saveLocal(); scheduleSync(); renderHome(); toast('✓','Tale imported.'); })
@@ -2400,7 +2483,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611172216';
+const BUILD = '202611172221';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
@@ -2468,7 +2551,7 @@ if('serviceWorker' in navigator&&location.protocol!=='file:') navigator.serviceW
 /* fireflies */
 (function(){ const f = $('#flies'); for(let i=0;i<16;i++){ const s = document.createElement('i'); s.style.left = Math.random()*100+'%'; s.style.top = 25+Math.random()*75+'%';
   s.style.animationDelay = (-Math.random()*14)+'s'; s.style.animationDuration = 10+Math.random()*10+'s'; f.appendChild(s); } })();
-for(const f of ['lore-dnd.js','lore-cali.js','lore-extra.js']){ const sc = document.createElement('script'); sc.src = f+'?v='+BUILD; sc.onerror = ()=>{}; document.head.appendChild(sc); }
+for(const f of ['lore-dnd.js','lore-cali.js','lore-extra.js','narrators.js']){ const sc = document.createElement('script'); sc.src = f+'?v='+BUILD; sc.onerror = ()=>{}; if(f==='narrators.js') sc.onload = ()=>{ if(cur&&$('#log')&&!busy) renderLog(); }; document.head.appendChild(sc); }
 go(); memLabel(); if(pendingLink) askLink(); else if(store.settings.memToken) sync();
 </script>
 </body>
