@@ -281,6 +281,13 @@ details.card[open]>summary{margin-bottom:10px}
 .kv .lasting{color:var(--ember2)}
 .ok-mark{display:inline-block;margin-top:6px;color:var(--good);font-size:13px;opacity:.8}
 .tray{cursor:pointer}
+.suggbox{margin-bottom:10px}
+.suggbox>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);padding:5px 2px;min-height:30px;user-select:none}
+.suggbox>summary::-webkit-details-marker{display:none}
+.suggbox>summary::before{content:"";width:6px;height:6px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s}
+.suggbox[open]>summary::before{transform:rotate(45deg)}
+.suggbox>summary:hover{color:var(--text)}
+.suggbox .sugg{margin:4px 0 0}
 .shopcard{background:var(--s2);border:1px solid var(--line2);border-radius:14px;padding:10px 14px;margin-bottom:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .shopcard .t{flex:1;min-width:160px}.shopcard .t b{font-family:var(--display);font-size:19px;color:var(--ember2)}.shopcard .t div{font-size:13px;color:var(--muted)}
 .item{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:9px 10px;border-radius:10px;background:rgba(0,0,0,.22)}
@@ -1622,14 +1629,14 @@ function renderComposer(){
   }
   if(denied&&!busy) h += `<div class="deny" role="status"><b>Not from here.</b><div class="hint">${esc(denied.reason)} Nothing was added to the story.</div>${denied.steps.length?`<div class="sugg">${denied.steps.map(x=>`<button data-act="sugg">${esc(x)}</button>`).join('')}</div>`:''}</div>`;
   if(c.shop&&!busy) h += `<div class="shopcard"><div class="t"><b>${esc(c.shop.name)}</b><div>${c.shop.keeper?esc(c.shop.keeper)+' · ':''}${c.shop.items.length} things for sale · you have ${c.character.gold} gp</div></div><button class="btn primary" data-act="shop">Open shop</button></div>`;
-  if(c.suggestions.length&&!busy&&!r) h += `<div class="sugg">${c.suggestions.map(s=>`<button data-act="sugg">${esc(s)}</button>`).join('')}</div>`;
+  if(c.suggestions.length&&!busy&&!r) h += `<details class="suggbox" data-sec="sugg" ${store.ui.sugg===false?'':'open'}><summary>Suggestions (${c.suggestions.length})</summary><div class="sugg">${c.suggestions.map(s=>`<button data-act="sugg">${esc(s)}</button>`).join('')}</div></details>`;
   h += `<form class="send" id="sendForm"><textarea id="say" rows="1" maxlength="2000" placeholder="${busy?'The narrator is speaking…':r?'Roll, or do something else instead…':'What do you do?'}" ${busy?'disabled':''}></textarea>
     ${busy?`<button type="button" class="btn" data-act="stop" aria-label="Stop the narrator" title="Stop">&#9632;</button>`:`<button class="btn primary" aria-label="Send" title="Send">&#8593;</button>`}</form>`;
   $('#composer').innerHTML = h; placeTray(); const ta = $('#say'); ta.value = keep; if(!busy&&wide()) ta.focus();
 }
 const openSecs = new Set(['abilities']);
 const sec = (id,head,body,cls='') => `<details class="card ${cls}" data-sec="${esc(id)}" ${openSecs.has(id)?'open':''}><summary>${head}</summary>${body}</details>`;
-document.addEventListener('toggle',ev=>{ const d = ev.target; if(d.dataset&&d.dataset.sec){ if(d.open) openSecs.add(d.dataset.sec); else openSecs.delete(d.dataset.sec); } },true);
+document.addEventListener('toggle',ev=>{ const d = ev.target; if(d.dataset&&d.dataset.sec==='sugg'){ if(store.ui.sugg!==d.open){ store.ui.sugg = d.open; saveLocal(); } return; } if(d.dataset&&d.dataset.sec){ if(d.open) openSecs.add(d.dataset.sec); else openSecs.delete(d.dataset.sec); } },true);
 function renderSide(){
   const c = cur, ch = c.character, side = $('#side');
   const tabs = [['sheet','Sheet'],['pack','Pack'],['quests','Quests'],['people','People'],['notes','Notes'],['dice','Dice']];
@@ -2033,7 +2040,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170754';
+const BUILD = '202611170806';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
