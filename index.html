@@ -246,6 +246,25 @@ ul.list li button:hover{color:var(--danger)}
 .e.aside .q{color:var(--muted);font-size:13.5px}
 .e.aside .r{color:var(--muted);font-size:12.5px;margin-top:4px}
 .rollcard .tray{flex:1 1 100%;margin:4px 0 0;height:220px}
+.capbar{height:7px;border-radius:99px;background:rgba(0,0,0,.4);overflow:hidden;margin:8px 0 4px}
+.capbar i{display:block;height:100%;background:var(--ember);transition:width .3s}.capbar.over i{background:var(--danger)}
+.slots{display:grid;gap:6px;margin:10px 0 2px}
+.slot{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:10px;background:rgba(0,0,0,.22);border:1px solid var(--line);font-size:13.5px}
+.slot span{color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase;width:74px;flex:none}
+.slot b{flex:1;font-weight:600;min-width:0}.slot b small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.grp{font:600 11px var(--ui);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:10px 0 2px}
+.item .acts{flex-wrap:wrap;justify-content:flex-end}
+.item.eq{border:1px solid var(--ember)}
+.gs .box{width:min(760px,100%)}
+.gs .tabs{position:static;margin:14px 0 4px;grid-template-columns:repeat(4,1fr)}
+.gs .tabs button{font-size:13px;padding:8px 4px}
+.gs fieldset{border:1px solid var(--line);border-radius:12px;padding:12px;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px}
+.gs legend{font:600 11px var(--ui);letter-spacing:.12em;text-transform:uppercase;color:var(--ember);padding:0 6px}
+.gs .six{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.gs .six input{text-align:center;padding:9px 2px}
+.god{border:1px solid var(--ember);border-radius:12px;padding:12px;background:color-mix(in srgb,var(--ember) 8%,transparent)}
+.qrow{display:grid;grid-template-columns:1.2fr .7fr 1.6fr auto;gap:6px;margin-bottom:6px}
+@media (max-width:700px){.gs .six{grid-template-columns:repeat(3,1fr)}.qrow{grid-template-columns:1fr 1fr}}
 .shopcard{background:var(--s2);border:1px solid var(--line2);border-radius:14px;padding:10px 14px;margin-bottom:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .shopcard .t{flex:1;min-width:160px}.shopcard .t b{font-family:var(--display);font-size:19px;color:var(--ember2)}.shopcard .t div{font-size:13px;color:var(--muted)}
 .item{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:9px 10px;border-radius:10px;background:rgba(0,0,0,.22)}
@@ -367,7 +386,8 @@ header.bar{padding-top:calc(10px + env(safe-area-inset-top,0px))}
     <div class="where" id="where"></div>
     <button class="mem" id="mem" data-act="settings" title="Where your tales are kept"></button>
     <button class="btn small" data-act="toggleSide" hidden id="sideBtn" title="Character sheet, pack, quests and dice">Sheet</button>
-    <button class="btn small ghost" data-act="settings" aria-label="Settings"><span class="lg">Settings</span><span class="sm" aria-hidden="true">&#9881;</span></button>
+    <button class="btn small ghost" data-act="settings" aria-label="Models" title="Model connection and cloud memory"><span class="lg">Models</span><span class="sm" aria-hidden="true">&#9670;</span></button>
+    <button class="btn small ghost" data-act="gameSettings" aria-label="Settings" title="Game settings, god mode and the edit panel"><span class="lg">Settings</span><span class="sm" aria-hidden="true">&#9881;</span></button>
   </header>
   <main id="main"></main>
 </div>
@@ -453,7 +473,7 @@ const BACKGROUNDS = {Acolyte:['Insight','Religion'],Charlatan:['Deception','Slei
 const ALIGNMENTS = ['Lawful Good','Neutral Good','Chaotic Good','Lawful Neutral','True Neutral','Chaotic Neutral','Lawful Evil','Neutral Evil','Chaotic Evil'];
 const BOONS = [
   {id:'tough',name:'Tough',text:'Hard to put down. +3 maximum hit points.',apply:c=>{c.maxHp+=3;}},
-  {id:'hide',name:'Thick Hide',text:'Blows glance off you. +1 Armor Class.',apply:c=>{c.ac+=1;}},
+  {id:'hide',name:'Thick Hide',text:'Blows glance off you. +1 Armor Class.',apply:c=>{c.acMisc=(c.acMisc||0)+1;}},
   {id:'keen',name:'Keen Senses',text:'Little escapes you. Proficient in Perception.',skill:'Perception'},
   {id:'tongue',name:'Silver Tongue',text:'People want to agree with you. Proficient in Persuasion.',skill:'Persuasion'},
   {id:'hands',name:'Quick Hands',text:'Locks, pockets, and knots. Proficient in Sleight of Hand.',skill:'Sleight of Hand'},
@@ -479,12 +499,14 @@ const FLAWS = [
   {id:'superst',name:'Superstitious',text:'Omens rule you. A bad sign can stop you cold.'},
   {id:'vice',name:'A Vice',text:'Drink, dice, or something worse. It costs you gold and judgment.'},
 ];
+const DIFFS = {gentle:'Gentle. Use DCs two lower than usual, let enemies make mistakes, and keep the character alive unless the player is truly reckless.',standard:'Standard. Fair DCs and fair fights.',brutal:'Brutal. Use DCs two higher than usual, play enemies to win, and let bad decisions kill.'};
+const LENS = {short:'Keep each reply to one short paragraph, four sentences at most.',medium:'Keep each reply to one to three short paragraphs.',long:'Write three to five paragraphs with fuller description and dialogue.'};
 const TONES = {classic:'Classic heroic fantasy: wonder, danger, and earnest adventure.',grim:'Dark fantasy: grim, dangerous, morally grey, with real consequences.',
   whimsy:'Whimsical fairytale: strange, funny, and a little eerie.',mystery:'Slow-burn mystery: clues, secrets, and unsettling quiet.'};
 
 /* ============ storage ============ */
 const KEY = 'emberglade.v1';
-const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:1000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',useCheck:true,useGuard:true,memToken:'',gistId:'',lastSync:0};
+const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:1000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',useCheck:true,useGuard:true,announce:true,encumb:true,diff:'standard',len:'medium',memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
 try{ const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(s){ store = s; store.settings = {...DEFAULTS,...s.settings}; store.campaigns = s.campaigns||{}; } }catch(e){}
 store.deleted ||= {}; store.ui ||= {left:false,right:false};
@@ -628,9 +650,79 @@ function cleanItem(i){ const o = {name:String(i.name).trim().slice(0,60),qty:Mat
   if(typeof i.desc==='string'&&i.desc.trim()) o.desc = i.desc.trim().slice(0,160);
   if(num(i.price)>0) o.price = Math.min(100000,num(i.price));
   if(i.use&&typeof i.use==='object'&&typeof i.use.heal==='string'&&rollExpr(i.use.heal)) o.use = {heal:i.use.heal.replace(/\s/g,'')};
-  return o; }
+  if(TYPES[i.type]) o.type = i.type; if(typeof i.weight==='number'&&i.weight>=0) o.weight = Math.min(2000,i.weight);
+  if(typeof i.damage==='string'&&rollExpr(i.damage)) o.dmg = i.damage.replace(/\s/g,''); if(num(i.ac)>=10&&num(i.ac)<=20) o.armor = {base:num(i.ac),dex:num(i.ac)>=16?'none':num(i.ac)>=13?'max2':'full',kind:'worn'};
+  return classify(o); }
 function addItem(ch,it){ const f = ch.inventory.find(x=>x.name.toLowerCase()===it.name.toLowerCase());
   if(f){ f.qty += it.qty; for(const k of ['desc','price','use']) if(it[k]&&!f[k]) f[k] = it[k]; } else ch.inventory.push({...it}); }
+// Common gear: what kind of thing it is, what it weighs (lb), and what it does when worn or wielded.
+const W = (re,dmg,w,props='') => [re,{type:'weapon',dmg,weight:w,props}];
+const AR = (re,base,dex,w,kind) => [re,{type:'armor',armor:{base,dex,kind},weight:w}];
+const CATALOG = [
+  [/arrow|bolts?\b|shot and powder|bullet|quiver/i,{type:'ammo',weight:0.05}],
+  [/shield|buckler/i,{type:'shield',weight:6}],
+  AR(/plate (armor|armour|mail)|full plate/i,18,'none',65,'heavy'),AR(/splint/i,17,'none',60,'heavy'),AR(/chain mail|chainmail/i,16,'none',55,'heavy'),AR(/ring mail/i,14,'none',40,'heavy'),
+  AR(/half plate/i,15,'max2',40,'medium'),AR(/breastplate/i,14,'max2',20,'medium'),AR(/scale mail/i,14,'max2',45,'medium'),AR(/chain shirt/i,13,'max2',20,'medium'),AR(/hide armou?r/i,12,'max2',12,'medium'),
+  AR(/studded/i,12,'full',13,'light'),AR(/leather armou?r|leathers/i,11,'full',10,'light'),AR(/padded/i,11,'full',8,'light'),AR(/robes? of|armou?r/i,11,'full',10,'light'),
+  W(/greataxe/i,'1d12',7,'two'),W(/greatsword/i,'2d6',6,'two'),W(/maul/i,'2d6',10,'two'),W(/glaive|halberd|pike/i,'1d10',6,'two'),W(/lance/i,'1d12',6),
+  W(/heavy crossbow/i,'1d10',18,'ranged two'),W(/crossbow/i,'1d8',5,'ranged two'),W(/longbow/i,'1d8',2,'ranged two'),W(/shortbow|bow\b/i,'1d6',2,'ranged two'),W(/pistol|flintlock|musket/i,'1d10',3,'ranged'),W(/sling/i,'1d4',0,'ranged'),W(/dart/i,'1d4',0.25,'ranged finesse'),
+  W(/longsword|bastard sword/i,'1d8',3),W(/rapier/i,'1d8',2,'finesse'),W(/scimitar/i,'1d6',3,'finesse'),W(/shortsword|short sword/i,'1d6',2,'finesse'),W(/dagger|knife/i,'1d4',1,'finesse'),W(/whip/i,'1d4',3,'finesse'),
+  W(/warhammer/i,'1d8',2),W(/battleaxe/i,'1d8',4),W(/handaxe|hatchet/i,'1d6',2),W(/morningstar/i,'1d8',4),W(/flail/i,'1d8',2),W(/mace/i,'1d6',4),W(/javelin/i,'1d6',2),W(/spear|trident/i,'1d6',3),W(/staff/i,'1d6',4),W(/club|cudgel/i,'1d4',2),W(/sword|blade|axe|hammer/i,'1d8',3),
+  [/potion|draught|elixir|salve|tonic|antidote/i,{type:'consumable',weight:0.5}],[/ration|food|bread|cheese|jerky/i,{type:'consumable',weight:2}],
+  [/torch/i,{type:'consumable',weight:1}],[/oil/i,{type:'consumable',weight:1}],[/rope/i,{type:'gear',weight:10}],[/waterskin/i,{type:'gear',weight:5}],[/bedroll|blanket|tent/i,{type:'gear',weight:7}],
+  [/tools|supplies|kit\b/i,{type:'tool',weight:5}],[/spellbook|grimoire|tome|book/i,{type:'gear',weight:3}],[/lute|flute|drum|fiddle|harp/i,{type:'tool',weight:2}],[/lantern/i,{type:'gear',weight:2}],
+  [/gem|jewel|ring\b|necklace|amulet|coin|gold|silver|pearl|crown|idol/i,{type:'treasure',weight:0.1}],[/key|letter|map|contract|note|scroll|token|badge/i,{type:'gear',weight:0}],[/focus|symbol|totem|pouch|component/i,{type:'gear',weight:1}],
+];
+const TYPES = {weapon:'Weapons',armor:'Armour',shield:'Shields',consumable:'Consumables',ammo:'Ammunition',tool:'Tools',gear:'Gear',treasure:'Treasure'};
+// Fills in whatever an item does not already say about itself. Never overwrites something the player or narrator set.
+function classify(it){
+  const hit = (CATALOG.find(([re])=>re.test(it.name))||[])[1]||{};
+  if(!TYPES[it.type]) it.type = hit.type||(useOf(it)?'consumable':'gear');
+  if(typeof it.weight!=='number'||!(it.weight>=0)) it.weight = it.type===hit.type&&typeof hit.weight==='number'?hit.weight:hit.weight??1;
+  if(it.type==='weapon'){ if(!it.dmg||!rollExpr(it.dmg)) it.dmg = hit.dmg||'1d6'; if(typeof it.props!=='string') it.props = hit.props||''; }
+  if(it.type==='armor'&&!(it.armor&&num(it.armor.base)>=10)) it.armor = hit.armor||{base:11,dex:'full',kind:'light'};
+  if(it.eq&&!(it.type==='weapon'||it.type==='armor'||it.type==='shield')) delete it.eq;
+  return it;
+}
+const worn = (ch,slot) => ch.inventory.find(i=>i.eq===slot);
+function computeAC(ch){
+  const m = a => mod(ch.abilities[a]), ar = worn(ch,'armor'), sh = ch.inventory.some(i=>i.eq==='off'&&i.type==='shield');
+  let ac = ar?ar.armor.base+(ar.armor.dex==='full'?m('dex'):ar.armor.dex==='max2'?Math.min(m('dex'),2):0)
+    :ch.cls==='Barbarian'?10+m('dex')+m('con'):ch.cls==='Monk'&&!sh?10+m('dex')+m('wis'):10+m('dex');
+  return ac+(sh?2:0)+(ch.acMisc||0);
+}
+const loadOf = ch => Math.round(ch.inventory.reduce((a,i)=>a+(i.weight||0)*i.qty,0)*10)/10;
+const capOf = ch => ch.abilities.str*15;
+function weaponInfo(ch){
+  const w = worn(ch,'main'); if(!w||w.type!=='weapon') return {name:'Unarmed strike',ability:'str',hit:mod(ch.abilities.str)+prof(ch.level),dmg:'1d1'+sgn(mod(ch.abilities.str)).replace('−','-'),text:'1 '+sgn(mod(ch.abilities.str))};
+  const fin = /ranged/.test(w.props)||(/finesse/.test(w.props)&&mod(ch.abilities.dex)>mod(ch.abilities.str)), a = fin?'dex':'str', b = mod(ch.abilities[a]);
+  return {name:w.name,ability:a,hit:b+prof(ch.level),dmg:w.dmg+(b?sgn(b).replace('−','-'):''),text:w.dmg+(b?' '+sgn(b):'')};
+}
+// Keeps everything that depends on the pack in step: item details, armour class, and being over capacity.
+function refresh(ch){
+  ch.inventory.forEach(classify);
+  for(const slot of ['armor','main','off']){ const all = ch.inventory.filter(i=>i.eq===slot); all.slice(1).forEach(i=>{ delete i.eq; }); }
+  const main = worn(ch,'main'); if(main&&/two/.test(main.props||'')){ const off = worn(ch,'off'); if(off) delete off.eq; }
+  ch.ac = computeAC(ch);
+  const over = store.settings.encumb&&loadOf(ch)>capOf(ch), k = ch.conditions.findIndex(x=>x.toLowerCase()==='encumbered');
+  if(over&&k<0) ch.conditions.push('Encumbered'); else if(!over&&k>=0) ch.conditions.splice(k,1);
+}
+function equip(ch,it,slot){
+  classify(it);
+  if(it.type==='armor') slot = 'armor'; else if(it.type==='shield') slot = 'off'; else if(it.type!=='weapon') return 'That cannot be worn or wielded.';
+  const main = worn(ch,'main');
+  if(slot==='off'&&main&&/two/.test(main.props||'')) return `${main.name} needs both hands.`;
+  if(slot==='off'&&it.type==='weapon'&&/two/.test(it.props||'')) return `${it.name} needs both hands.`;
+  ch.inventory.forEach(i=>{ if(i.eq===slot) delete i.eq; }); it.eq = slot; refresh(ch); return '';
+}
+function autoEquip(ch){
+  ch.inventory.forEach(classify);
+  const ar = ch.inventory.find(i=>i.type==='armor'), sh = ch.inventory.find(i=>i.type==='shield'), one = ch.inventory.find(i=>i.type==='weapon'&&!/two|ranged/.test(i.props)), any = ch.inventory.find(i=>i.type==='weapon');
+  if(ar) ar.eq = 'armor'; const w = sh?(one||any):any; if(w) w.eq = 'main'; if(sh&&!(w&&/two/.test(w.props))) sh.eq = 'off';
+  refresh(ch);
+}
+// Older saves have no slots or weights: sort them out once, keeping the armour class they already had.
+function upgrade(c){ const ch = c.character; if(ch.inv2) return; const was = ch.ac; ch.acMisc = 0; autoEquip(ch); ch.acMisc = was-ch.ac; ch.inv2 = true; refresh(ch); }
 // What using an item does when the app can settle it without the narrator.
 const KNOWN_USE = [[/superior (healing|potion)|potion of superior healing/i,{heal:'8d4+8'}],[/greater (healing|potion)|potion of greater healing/i,{heal:'4d4+4'}],[/healing potion|potion of healing|healing draught|healing salve/i,{heal:'2d4+2'}],[/healer'?s kit|bandage/i,{heal:'1d4'}]];
 const useOf = it => it.use||(KNOWN_USE.find(([re])=>re.test(it.name))||[])[1]||null;
@@ -664,12 +756,12 @@ function newCharacter(d){
   const inv = cls.gear.map(([name,qty])=>({name,qty:Math.max(1,num(qty)||1)}));
   inv.push({name:'Rations (day)',qty:5},{name:'Waterskin',qty:1},{name:'Torch',qty:3},{name:'Bedroll',qty:1});
   const ch = {name:d.name.trim(),race:race.name,cls:cls.name,hd:cls.hd,raceAbout:race.about,clsAbout:cls.about,background:bg,alignment:d.alignment||'',appearance:(d.appearance||'').trim(),backstory:(d.backstory||'').trim(),
-    level:1,xp:0,hp:maxHp,maxHp,ac:cls.ac(mods),abilities:ab,profs:[...new Set([...cls.skills,...(BACKGROUNDS[bg]||[])])],saves:[...new Set(cls.saves)],
+    level:1,xp:0,hp:maxHp,maxHp,ac:10,acMisc:0,inv2:true,abilities:ab,profs:[...new Set([...cls.skills,...(BACKGROUNDS[bg]||[])])],saves:[...new Set(cls.saves)],
     features:cls.feat,inventory:inv,gold:15,conditions:[],boons:[],flaws:[]};
   for(const b of BOONS.filter(x=>(d.boons||[]).includes(x.id))){ ch.boons.push({name:b.name,text:b.text}); if(b.apply) b.apply(ch);
     if(b.skill&&!ch.profs.includes(b.skill)) ch.profs.push(b.skill); if(b.save&&!ch.saves.includes(b.save)) ch.saves.push(b.save); }
   for(const w of FLAWS.filter(x=>(d.flaws||[]).includes(x.id))){ ch.flaws.push({name:w.name,text:w.text}); if(w.apply) w.apply(ch); }
-  ch.hp = ch.maxHp; return ch;
+  ch.hp = ch.maxHp; autoEquip(ch); return ch;
 }
 function skillMod(ch,skill){ return mod(ch.abilities[SKILLS[skill]])+(ch.profs.includes(skill)?prof(ch.level):0); }
 function saveMod(ch,a){ return mod(ch.abilities[a])+(ch.saves.includes(a)?prof(ch.level):0); }
@@ -689,6 +781,8 @@ Dice:
 - You never roll dice for the player and never invent the result of a player roll. When the outcome of something the character attempts is uncertain and failure would matter, stop the narration just before the outcome and request a roll in the state block. The app rolls real dice and tells you the result in the next message. Then narrate what happens, honouring the result.
 - Skilled and social actions always go to the dice when someone might resist or the attempt might fail. Persuading, deceiving or intimidating someone calls for Persuasion, Deception or Intimidation. Sneaking is Stealth, climbing, jumping or forcing something is Athletics, searching is Investigation, noticing is Perception, reading a person is Insight, picking a lock or a pocket is Sleight of Hand, and so on for the other 5e skills. Always name the matching "skill" and "ability" in the roll so the app can add the character's own modifier.
 - A separate dice gate usually decides whether the player's action needs a roll, and the app rolls it before you write. When the player's latest message already carries a dice result from the app, never ask for that roll again: narrate what happens, honouring it. When an app note says no roll is needed, resolve the action directly. You may still request a roll yourself for something new that you introduce, such as a saving throw against a hazard or an attack the gate missed.
+- When an app note tells you the player's action needs a particular check, narrate only the attempt up to the moment of uncertainty, in two or three sentences, and end your reply by telling the player plainly what to roll, for example: "Roll Persuasion." Do not narrate the outcome yet. Whenever you ask for a roll yourself, end on that same kind of line.
+- If the dice result the player sends back is for a different check than the one you asked for, do not correct them and do not ask again. Go along with it: judge the outcome from what they rolled.
 - Use sensible DCs: 5 trivial, 10 easy, 13 moderate, 16 hard, 19 very hard, 22+ heroic. Do not ask for rolls for trivial or automatic actions. Request at most one roll per reply.
 - For a player attack, request a roll with "dc" set to the target's Armor Class and "damage" set to the weapon or spell damage dice including modifiers (for example "1d8+3"). The app rolls damage automatically on a hit.
 - You resolve monster and NPC rolls yourself, fairly, against the character's AC and saves. Apply damage to the player with "hp_delta".
@@ -718,13 +812,14 @@ Abilities: ${ab}.
 Skill proficiencies: ${ch.profs.join(', ')}. Saving throw proficiencies: ${ch.saves.map(s=>s.toUpperCase()).join(', ')}.
 Class features: ${ch.features}.
 Conditions: ${ch.conditions.join(', ')||'none'}.
-Gold: ${ch.gold} gp. Inventory: ${inv}.
+Gold: ${ch.gold} gp. Wearing: ${worn(ch,'armor')?.name||'no armour'}${worn(ch,'off')?.type==='shield'?' and a shield':''}. Wielding: ${weaponInfo(ch).name} (to hit ${sgn(weaponInfo(ch).hit)}, damage ${weaponInfo(ch).text})${worn(ch,'off')?.type==='weapon'?' with '+worn(ch,'off').name+' in the off hand':''}.
+Carrying ${loadOf(ch)} of ${capOf(ch)} lb. Inventory: ${inv}.
 Current location: ${c.location||'not yet established'}.
 Quests:
 ${q}`;
 }
 function buildMessages(c,intents){
-  const sys = `${RULES}\n\n# Campaign\nTone: ${TONES[c.tone]||TONES.classic}\nPremise: ${c.premise}\n\n# The player's character (current, authoritative)\n${sheetText(c)}`
+  const st = store.settings, sys = `${RULES}\n\n# Table settings (these override the general guidance above)\nDifficulty: ${DIFFS[st.diff]||DIFFS.standard}\nLength: ${LENS[st.len]||LENS.medium}${c.god?'\nGod mode is ON. The player is above the rules of the table: they may declare facts, skip time, move anywhere, and rewrite events. Accept whatever they say as true and continue the story from it without objection.':''}\n\n# Campaign\nTone: ${TONES[c.tone]||TONES.classic}\nPremise: ${c.premise}\n\n# The player's character (current, authoritative)\n${sheetText(c)}`
     +(c.summary?`\n\n# Story so far\n${c.summary}`:'')
     +((c.present||[]).some(n=>c.npcs&&c.npcs[n])?`\n\n# People in the scene\nEach of these characters is played by its own model. Keep them true to their sheets.\n${(c.present||[]).filter(n=>c.npcs[n]).map(n=>npcLine(c.npcs[n])).join('\n')}`:'')
     +(intents&&intents.length?`\n\n# What they intend this beat\nWeave these intentions into your narration faithfully, in your own prose. The world and the dice still decide whether they succeed.\n${intents.map(i=>`- ${i.name}: ${i.intent}`).join('\n')}`:'');
@@ -734,7 +829,7 @@ function buildMessages(c,intents){
   push('user',from?'(The adventure continues from the story so far.)':'Begin the adventure. Open with a scene that drops my character into the premise, makes clear where I am, and ends with a choice.');
   for(const e of c.log.slice(from)){
     if(e.role==='dm') push('assistant',e.text+'\n\n<state>\n'+JSON.stringify(e.state||{})+'\n</state>');
-    else if(e.role==='player') push('user',e.text+(e===lastEntry&&e.noRoll?'\n\n[App note, not written by the player: the dice gate judged that this action needs no roll. Resolve it directly.]':''));
+    else if(e.role==='player') push('user',e.text+(e===lastEntry&&e.callRoll?`\n\n[App note, not written by the player: the dice gate judged that this needs a ${e.callRoll.label}${e.callRoll.dc?` against ${e.callRoll.damage?'AC':'DC'} ${e.callRoll.dc}`:''}. Narrate only the attempt, then end by telling the player to roll it. Do not narrate the outcome.]`:e===lastEntry&&e.noRoll?'\n\n[App note, not written by the player: the dice gate judged that this action needs no roll. Resolve it directly.]':''));
     else if(e.role==='roll') push('user','[Dice result from the app] '+e.text);
     else if(e.role==='note') push('user','[App note, already applied to the character sheet] '+e.text);
     else if(e.role==='aside') push('user',`[Out-of-story aside, already answered by the DM. It is not an action; do not narrate it.] The player asked: ${e.q}${e.roll?` (${e.roll})`:''} The DM answered: ${e.a}`);
@@ -808,7 +903,7 @@ function applyState(c,s){
   if(typeof s.location==='string'&&s.location.trim()) c.location = s.location.trim().slice(0,80);
   const hp = num(s.hp_delta); if(hp){ const b = ch.hp; ch.hp = clamp(ch.hp+hp,0,ch.maxHp); if(ch.hp!==b) note(`${sgn(ch.hp-b)} HP`,hp<0?'bad':'ok'); }
   const g = num(s.gold_delta); if(g){ const b = ch.gold; ch.gold = Math.max(0,ch.gold+g); if(ch.gold!==b) note(`${sgn(ch.gold-b)} gold`,g<0?'':'ok'); }
-  const ac = num(s.ac); if(ac>=5&&ac<=30&&ac!==ch.ac){ ch.ac = ac; note('AC '+ac); }
+  const ac = num(s.ac); if(ac>=5&&ac<=30&&ac!==ch.ac){ ch.acMisc = (ch.acMisc||0)+ac-ch.ac; ch.ac = ac; note('AC '+ac); }
   const items = v => (Array.isArray(v)?v:[]).map(i=>typeof i==='string'?{name:i,qty:1}:i).filter(i=>i&&typeof i.name==='string'&&i.name.trim()).map(cleanItem);
   for(const it of items(s.items_add)){ addItem(ch,it); note(`+ ${it.name}${it.qty>1?' ×'+it.qty:''}`,'ok'); }
   for(const it of items(s.items_remove)){ const k = ch.inventory.findIndex(x=>x.name.toLowerCase()===it.name.toLowerCase()); if(k<0) continue; ch.inventory[k].qty -= it.qty; if(ch.inventory[k].qty<=0) ch.inventory.splice(k,1); note(`− ${it.name}${it.qty>1?' ×'+it.qty:''}`); }
@@ -824,6 +919,7 @@ function applyState(c,s){
   }
   const xp = num(s.xp_delta); if(xp>0){ ch.xp += xp; note(`+${xp} XP`,'ok');
     while(ch.level<20&&ch.xp>=XP[ch.level]){ ch.level++; const gain = Math.max(1,(ch.hd||CLASSES[ch.cls]?.hd||8)/2+1+mod(ch.abilities.con)); ch.maxHp += gain; ch.hp += gain; note(`Level ${ch.level}! +${gain} max HP`,'ok'); } }
+  refresh(ch);
   c.npcs ||= {}; c.present ||= [];
   const sheetFor = name => { const k = Object.keys(c.npcs).find(x=>x.toLowerCase()===name.toLowerCase()); if(k) return c.npcs[k];
     if(Object.keys(c.npcs).length>=40) return null; return c.npcs[name] = {name,about:'',traits:[],wants:'',attitude:'neutral'}; };
@@ -878,7 +974,7 @@ Answer with ONE line and nothing else, in one of these forms:
 NO
 YES skill <5e skill name> <DC>
 YES save <str|dex|con|int|wis|cha> <DC>
-YES attack <target Armor Class> <damage dice with modifier, like 1d8+3>
+YES attack <target Armor Class>
 ASK
 ASK skill <5e skill name> <DC>
 DC guide: 10 easy, 13 moderate, 16 hard, 19 very hard.`;
@@ -892,7 +988,7 @@ async function gate(c,text,signal){
   let out = '';
   try{
     out = await chat([{role:'system',content:GATE},{role:'user',content:`Scene: ${dm?clip(dm.text,500):'the adventure is just beginning'}
-Character: level ${ch.level} ${ch.race} ${ch.cls}. ${ABIL.map(a=>a.toUpperCase()+' '+sgn(mod(ch.abilities[a]))).join(', ')}. Proficiency +${prof(ch.level)}. Carries: ${ch.inventory.map(i=>i.name).join(', ')||'nothing'}.
+Character: level ${ch.level} ${ch.race} ${ch.cls}. ${ABIL.map(a=>a.toUpperCase()+' '+sgn(mod(ch.abilities[a]))).join(', ')}. Proficiency +${prof(ch.level)}. Wields: ${weaponInfo(ch).name}. Carries: ${ch.inventory.map(i=>i.name).join(', ')||'nothing'}.
 Player wrote: ${text}${guess?`\n(Keyword guess from the app: ${guess}.)`:''}`}],{stream:false,maxTokens:1200,temperature:0,model:store.settings.gateModel,quick:true,signal});
   }catch(e){ if(e.name==='AbortError') throw e; return fallback(); }
   const line = (out.trim().split('\n').filter(x=>/^\W*(yes|no|ask)\b/i.test(x)).pop()||'').trim();
@@ -901,8 +997,8 @@ Player wrote: ${text}${guess?`\n(Keyword guess from the app: ${guess}.)`:''}`}],
   const ask = /^\W*ask\b/i.test(line), skill = Object.keys(SKILLS).sort((a,b)=>b.length-a.length).find(k=>line.toLowerCase().includes(k.toLowerCase())), dc = /(\d{1,2})\s*$/.exec(line.replace(/\W+$/,''));
   if(ask) return {ask:true,roll:skill?check(skill,dc&&dc[1]):null};
   let m;
-  if((m = /attack\D{0,12}(\d{1,2})\D{0,6}(\d*d\d+(?:\s*[+-]\s*\d+)?)?/i.exec(line))){ const dmg = m[2]&&rollExpr(m[2])?m[2].replace(/\s/g,''):null, fin = /bow|dart|rapier|dagger|sling/i.test(text)||mod(ch.abilities.dex)>mod(ch.abilities.str);
-    return {ask:false,roll:{label:'Attack',ability:fin?'dex':'str',skill:null,save:false,proficient:true,advantage:'none',dc:clamp(num(m[1]),5,30),damage:dmg||'1d6'+sgn(mod(ch.abilities[fin?'dex':'str'])).replace('−','-')}}; }
+  if((m = /attack\D{0,12}(\d{1,2})\D{0,6}(\d*d\d+(?:\s*[+-]\s*\d+)?)?/i.exec(line))){ const w = weaponInfo(ch);
+    return {ask:false,roll:{label:`Attack (${w.name})`,ability:w.ability,skill:null,save:false,proficient:true,advantage:'none',dc:clamp(num(m[1]),5,30),damage:w.dmg}}; }
   if((m = /save\W+(str|dex|con|int|wis|cha)\w*\D{0,8}(\d{1,2})?/i.exec(line))){ const a = m[1].toLowerCase(); return {ask:false,roll:{label:ABIL_NAME[a]+' saving throw',ability:a,skill:null,save:true,proficient:false,advantage:'none',dc:clamp(num(m[2])||13,5,30),damage:null}}; }
   if(skill) return {ask:false,roll:check(skill,dc&&dc[1])};
   return fallback();
@@ -996,13 +1092,13 @@ async function playerAct(text,trusted){
   c.suggestions = []; c.pendingRoll = null; lastErr = null; busy = true; aborter = new AbortController(); save(); renderGame();
   setLive(trusted||!store.settings.useGuard?'Asking whether the dice are needed…':'Checking this against the scene…');
   let g = {ask:false,roll:null}, no = null, stopped = false;
-  try{ [g,no] = await Promise.all([gate(c,text,aborter.signal),trusted?null:guard(c,text,aborter.signal)]); }catch(e){ stopped = true; }
+  try{ [g,no] = await Promise.all([gate(c,text,aborter.signal),trusted||c.god?null:guard(c,text,aborter.signal)]); }catch(e){ stopped = true; }
   busy = false; aborter = null; if(cur!==c) return;
   const drop = () => { const k = c.log.indexOf(entry); if(k>=0) c.log.splice(k,1); };
   if(stopped||(no&&!g.ask)){ drop(); if(no) denied = {...no,text}; save(); renderGame(); const ta = $('#say'); if(ta&&!ta.value) ta.value = text; return; }
   if(g.ask){ drop(); if(g.roll){ c.pendingRoll = {...g.roll,ask:text}; save(); renderGame(); return; } save(); answerAside(c,text,null); return; }
-  if(g.roll){ c.pendingRoll = g.roll; save(); renderGame(); return; }
-  entry.noRoll = true; takeTurn(null);
+  if(g.roll&&!store.settings.announce){ c.pendingRoll = g.roll; save(); renderGame(); return; }
+  if(g.roll) entry.callRoll = g.roll; else entry.noRoll = true; takeTurn(null);
 }
 
 async function takeTurn(entry){
@@ -1015,10 +1111,11 @@ async function takeTurn(entry){
   try{
     let intents = [];
     const who = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]).slice(0,3);
-    if(who.length&&c.log.length){ live = setLive(`${who.join(', ').replace(/, ([^,]*)$/,' and $1')} ${who.length>1?'weigh':'weighs'} what to do…`); intents = await castBeat(c,signal); live = setLive('The narrator considers…'); }
+    const setup = lastOf(c,'player'), calling = setup&&setup===c.log[c.log.length-1]&&setup.callRoll;
+    if(who.length&&c.log.length&&!calling){ live = setLive(`${who.join(', ').replace(/, ([^,]*)$/,' and $1')} ${who.length>1?'weigh':'weighs'} what to do…`); intents = await castBeat(c,signal); live = setLive('The narrator considers…'); }
     raw = await chat(buildMessages(c,intents),{signal,onText:t=>{ raw = t; if(raf) return; raf = requestAnimationFrame(()=>{ raf = 0; const v = visibleText(raw); if(v){ live.innerHTML = LBL+md(v); live.lastElementChild?.classList.add('cursor'); scrollLog(); } }); }});
     cancelAnimationFrame(raf); raf = 0; ({text,state} = parseReply(raw));
-    if(text&&s.useCheck&&c.log.length){
+    if(text&&s.useCheck&&c.log.length&&!calling){
       live.innerHTML = LBL+md(text)+'<div class="tools thinking">Checking that it all holds together…</div>'; scrollLog();
       const f = await continuity(c,text,state,intents,signal); if(f){ text = f.text; state = f.state; fixed = true; }
     }
@@ -1028,7 +1125,8 @@ async function takeTurn(entry){
   if(text){
     const pre = snapshot(c);
     c.log.forEach(e=>{ delete e.pre; });
-    const changes = applyState(c,state); if(fixed) changes.push({t:'Continuity pass adjusted this scene'});
+    const called = c.log[c.log.length-1]; const changes = applyState(c,state); if(fixed) changes.push({t:'Continuity pass adjusted this scene'});
+    if(called&&called.role==='player'&&called.callRoll){ c.pendingRoll = called.callRoll; c.suggestions = []; }
     c.log.push({role:'dm',text,state,changes,pre});
     c.updated = Date.now();
   }else if(!lastErr&&!signal.aborted) lastErr = raw?'The model replied with no narration. Try again, or pick a different model.':'The model returned an empty reply. Try again, raise max tokens in Settings, or pick a different model.';
@@ -1067,7 +1165,7 @@ async function gh(path,opt={}){
   if(!r.ok){ const e = new Error(r.status===401?'GitHub rejected the token. Make a new one with the gist permission.':r.status===403?'GitHub refused (403). The token needs the gist permission.':'GitHub answered '+r.status+'.'); e.status = r.status; throw e; }
   return r.json();
 }
-const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','useCheck','useGuard','temperature','maxTokens','stream'];
+const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','useCheck','useGuard','announce','encumb','diff','len','temperature','maxTokens','stream'];
 const memCore = o => JSON.stringify([o.last||null,o.deleted||{},o.campaigns||{},o.prefs||null,o.prefsAt||0]);
 function memData(){ const campaigns = {}; for(const [id,c] of Object.entries(store.campaigns)){ const {_summing,...rest} = c; campaigns[id] = rest; }
   return {app:'emberglade',version:1,savedAt:Date.now(),last:store.last||null,deleted:store.deleted,campaigns,prefs:Object.fromEntries(PREFS.map(k=>[k,store.settings[k]])),prefsAt:store.prefsAt||0}; }
@@ -1175,11 +1273,14 @@ async function resolvePending(adv){
   pushTray(total,t); await sleep(1300); rolling = false; closeTray(opened);
   if(cur===c&&c.pendingRoll===r){ if(r.ask){ c.pendingRoll = null; answerAside(c,r.ask,t); } else takeTurn({role:'roll',text:t}); }
 }
+// A roll the player chose to make themselves. If the DM was waiting on a different one, this one is accepted in its place.
+function tellRoll(text){ const c = cur, r = c.pendingRoll; if(r&&r.ask){ c.pendingRoll = null; answerAside(c,r.ask,text); } else takeTurn({role:'roll',text}); }
 async function freeRoll(label,bonus,adv){
   if(rolling||!cur) return; rolling = true; const opened = await openTray();
   const rolls = (await throwDice([{n:1,sides:20}]))[0], pick = rolls[0], total = pick+bonus; flare(pick);
   const text = `${label}: d20 rolled ${pick} ${sgn(bonus)} = ${total}${pick===20?' (natural 20!)':pick===1?' (natural 1)':''}.`;
   pushTray(total,text); rolling = false; closeTray(opened);
+  if(!wide()||cur.pendingRoll) toast(String(total),text,{label:'Tell the narrator',text});
 }
 function pushTray(total,text){ lastTray = {total,text}; trayHist.unshift(text); trayHist = trayHist.slice(0,12); if(cur&&tab==='dice') renderSide(); }
 async function trayRoll(sides){
@@ -1230,7 +1331,7 @@ function renderHome(){
         <button class="btn" data-act="create" style="font-size:16px;padding:12px 26px">Begin a new tale</button></div>
         <div class="hint" style="margin-top:12px">Last played ${new Date(last.updated).toLocaleString([],{dateStyle:'medium',timeStyle:'short'})} as ${esc(last.character.name)}${last.location?', at '+esc(last.location):''}.</div>`
       :`<button class="btn primary" data-act="create" style="font-size:16px;padding:12px 26px">Begin a new tale</button>`}</section>
-    ${needKey?`<div class="notice"><span>No narrator connected yet. Add an API key and pick a model to play.</span><button class="btn small" data-act="settings">Open settings</button></div>`:''}
+    ${needKey?`<div class="notice"><span>No narrator connected yet. Add an API key and pick a model to play.</span><button class="btn small" data-act="settings">Set up models</button></div>`:''}
     <h2 class="sec">Your tales</h2>
     ${list.length?`<div class="saves">${list.map(c=>`<article class="save"><h3>${esc(c.title)}</h3>
       <div class="meta">${esc(c.character.name)} · level ${c.character.level} ${esc(c.character.race)} ${esc(c.character.cls)}</div>
@@ -1370,7 +1471,7 @@ function renderLog(){
     if(e.role==='aside') return `<div class="e aside"><div class="lbl">DM note</div><div class="q">${esc(e.q)}</div>${md(e.a)}${e.roll?`<div class="r">${esc(e.roll)}</div>`:''}</div>`;
     return `<div class="e dm"><div class="lbl">Narrator</div>${md(e.text)}${e.changes&&e.changes.length?`<div class="chg">${e.changes.map(n=>`<span class="${n.k||''}">${esc(n.t)}</span>`).join('')}</div>`:''}
       ${i===last&&e.pre&&!busy?`<div class="tools"><button data-act="regen">Retell this scene</button></div>`:''}</div>`;
-  }).join('')+(lastErr?`<div class="e err"><span>${esc(lastErr)}</span><button class="btn small" data-act="retry">Try again</button><button class="btn small" data-act="settings">Settings</button></div>`:'');
+  }).join('')+(lastErr?`<div class="e err"><span>${esc(lastErr)}</span><button class="btn small" data-act="retry">Try again</button><button class="btn small" data-act="settings">Models</button></div>`:'');
   scrollLog();
 }
 function scrollLog(){ const l = $('#log'); if(l) l.scrollTop = l.scrollHeight; }
@@ -1381,7 +1482,7 @@ function renderComposer(){
     const ch = c.character; let b = r.ability?mod(ch.abilities[r.ability]):0;
     if((r.skill&&ch.profs.includes(r.skill))||(r.save&&r.ability&&ch.saves.includes(r.ability))||r.proficient) b += prof(ch.level);
     h += `<div class="rollcard"><div class="t"><b>${esc(r.label)}</b>${r.ask?`<div>To find out: ${esc(r.ask)}</div>`:''}<div>${r.ability?ABIL_NAME[r.ability]+(r.skill?' ('+r.skill+')':r.save?' save':'')+' · ':''}d20 ${sgn(b)}${r.dc?` against ${r.damage?'AC':'DC'} ${r.dc}`:''}${r.damage?` · damage ${esc(r.damage)}`:''}${r.advantage!=='none'?` · the narrator calls for ${r.advantage==='adv'?'advantage':'disadvantage'}`:''}</div></div>
-      <button class="btn primary" data-act="pend" data-adv="${r.advantage}">Roll</button>
+      <button class="btn primary" data-act="pend" data-adv="${r.advantage}">Roll</button>${c.god?`<button class="btn small" data-act="skipRoll">Skip it (succeed)</button>`:''}
       ${r.advantage==='none'?`<button class="btn small" data-act="pend" data-adv="adv">Advantage</button><button class="btn small" data-act="pend" data-adv="dis">Disadvantage</button>`:''}<div id="chatTray" style="flex:1 1 100%"></div></div>`;
   }
   if(denied&&!busy) h += `<div class="deny" role="status"><b>Not from here.</b><div class="hint">${esc(denied.reason)} Nothing was added to the story.</div>${denied.steps.length?`<div class="sugg">${denied.steps.map(x=>`<button data-act="sugg">${esc(x)}</button>`).join('')}</div>`:''}</div>`;
@@ -1410,11 +1511,24 @@ function renderSide(){
     ${(ch.boons||[]).length||(ch.flaws||[]).length?`<div class="card"><h4>Boons and flaws</h4>${(ch.boons||[]).map(x=>`<div class="quest done" style="opacity:1"><b style="text-decoration:none">${esc(x.name)}</b><span>${esc(x.text)}</span></div>`).join('')}${(ch.flaws||[]).map(x=>`<div class="quest failed" style="opacity:1"><b>${esc(x.name)}</b><span>${esc(x.text)}</span></div>`).join('')}</div>`:''}
     ${ch.alignment||ch.appearance||ch.backstory?`<div class="card"><h4>About</h4><div class="hint" style="color:var(--text)">${[ch.alignment,ch.appearance,ch.backstory].filter(Boolean).map(esc).join('<br><br>')}</div></div>`:''}`;
   }else if(tab==='pack'){
-    h += `<div class="card"><h4>Pack · ${ch.gold} gold</h4>${ch.inventory.length?`<div class="items">${ch.inventory.map((i,k)=>{ const u = useOf(i); return `<div class="item"><b>${esc(i.name)}${i.qty>1?`<em>×${i.qty}</em>`:''}</b>
-        <span class="acts"><button class="btn small primary" data-act="use" data-k="${k}" ${busy?'disabled':''}>Use</button><button class="btn small ghost" data-act="drop" data-k="${k}" aria-label="Drop ${esc(i.name)}">Drop</button></span>
-        ${i.desc||u?`<small>${esc(i.desc||'')}${u&&u.heal&&!i.desc?`Restores ${esc(u.heal)} hit points`:''}</small>`:''}</div>`; }).join('')}</div>`:'<div class="hint">Your pack is empty.</div>'}
-      <div class="hint" style="margin-top:10px">Use settles healing items on the spot with a real roll. Anything else is handed to the narrator as your action.</div>
-      <form class="addrow" id="addItem"><input class="inp" name="item" maxlength="60" placeholder="Add an item"><button class="btn small">Add</button></form></div>`;
+    const load = loadOf(ch), cap = capOf(ch), sort = store.ui.sort||'type', w = weaponInfo(ch), ar = worn(ch,'armor'), off = worn(ch,'off'), main = worn(ch,'main');
+    const meta = i => [i.type==='weapon'?`${i.dmg} damage${i.props?' · '+i.props.replace('two','two-handed').split(' ').join(', '):''}`:i.type==='armor'?`AC ${i.armor.base}${i.armor.dex==='full'?' + Dex':i.armor.dex==='max2'?' + Dex (max 2)':''}`:i.type==='shield'?'+2 AC':'',
+      `${Math.round(i.weight*i.qty*10)/10} lb`,i.price?`${i.price} gp`:'',i.desc||(useOf(i)?.heal?`Restores ${useOf(i).heal} hit points`:'')].filter(Boolean).join(' · ');
+    const row = (i,k) => `<div class="item ${i.eq?'eq':''}"><b>${esc(i.name)}${i.qty>1?`<em>×${i.qty}</em>`:''}</b>
+      <span class="acts">${i.type==='weapon'||i.type==='armor'||i.type==='shield'?(i.eq?`<button class="btn small" data-act="unequip" data-k="${k}">Remove</button>`:`<button class="btn small primary" data-act="equip" data-k="${k}">${i.type==='armor'?'Wear':'Equip'}</button>${i.type==='weapon'&&!/two/.test(i.props)?`<button class="btn small" data-act="equipOff" data-k="${k}">Off hand</button>`:''}`)
+        :`<button class="btn small primary" data-act="use" data-k="${k}" ${busy?'disabled':''}>Use</button>`}<button class="btn small ghost" data-act="editItem" data-k="${k}">Edit</button></span><small>${esc(meta(i))}</small></div>`;
+    const idx = ch.inventory.map((i,k)=>k), by = {name:(a,b)=>ch.inventory[a].name.localeCompare(ch.inventory[b].name),weight:(a,b)=>ch.inventory[b].weight*ch.inventory[b].qty-ch.inventory[a].weight*ch.inventory[a].qty,value:(a,b)=>(ch.inventory[b].price||0)-(ch.inventory[a].price||0)};
+    let list = '';
+    if(sort==='type') list = Object.keys(TYPES).map(t=>{ const ks = idx.filter(k=>ch.inventory[k].type===t); return ks.length?`<div class="grp">${TYPES[t]}</div>${ks.map(k=>row(ch.inventory[k],k)).join('')}`:''; }).join('');
+    else list = idx.sort(by[sort]).map(k=>row(ch.inventory[k],k)).join('');
+    h += `<div class="card"><h4>Carrying · ${ch.gold} gold</h4><div class="hint">${load} of ${cap} lb${load>cap?' · over capacity':''}</div><div class="capbar ${load>cap?'over':''}"><i style="width:${Math.min(100,load/cap*100)}%"></i></div>
+      <div class="slots"><div class="slot"><span>Armour</span><b>${ar?esc(ar.name):'None'}<small>Armour class ${ch.ac}</small></b></div>
+        <div class="slot"><span>Main hand</span><b>${main?esc(main.name):'Empty'}<small>${sgn(w.hit)} to hit · ${esc(w.text)} damage</small></b><button class="btn small" data-act="atk" ${busy?'disabled':''}>Attack roll</button></div>
+        <div class="slot"><span>Off hand</span><b>${off?esc(off.name):main&&/two/.test(main.props||'')?'Both hands on '+esc(main.name):'Empty'}${off&&off.type==='shield'?'<small>+2 armour class</small>':''}</b></div></div></div>
+    <div class="card"><h4>Pack</h4><label class="f" style="margin-bottom:8px">Sort by<select class="inp" id="packSort">${[['type','Kind'],['name','Name'],['weight','Weight'],['value','Value']].map(([v,l])=>`<option value="${v}" ${sort===v?'selected':''}>${l}</option>`).join('')}</select></label>
+      ${ch.inventory.length?`<div class="items">${list}</div>`:'<div class="hint">Your pack is empty.</div>'}
+      <div class="actions" style="justify-content:flex-start;margin-top:12px"><button class="btn small" data-act="editItem" data-k="-1">Add an item</button></div>
+      <div class="hint" style="margin-top:10px">Use settles healing items on the spot with a real roll. Anything else is handed to the narrator as your action.</div></div>`;
   }else if(tab==='people'){
     const all = Object.values(c.npcs||{}), here = c.present||[]; all.sort((a,b)=>here.includes(b.name)-here.includes(a.name));
     h += all.length?all.map(n=>`<div class="card"><h4>${here.includes(n.name)?'In the scene':'Met or heard of'}</h4><div class="who st-${stanceOf(n)}" id="npc-${esc(n.name.replace(/\W+/g,'-'))}"><h3 style="font-size:21px;color:var(--nc)"><i class="dot"></i>${esc(n.name)}</h3><div class="sub">${esc(n.about||'Not much known yet.')}</div></div>
@@ -1478,16 +1592,124 @@ async function useItem(k){
   if(ch.hp>=ch.maxHp){ toast('!',`You are at full health. The ${it.name} stays in your pack.`); return; }
   const d = rollExpr(u.heal); rolling = true; const opened = await openTray();
   const vals = (await throwDice([{n:d.rolls.length,sides:d.sides}]))[0], sum = Math.max(1,vals.reduce((a,x)=>a+x,0)+d.bonus), before = ch.hp;
-  ch.hp = clamp(ch.hp+sum,0,ch.maxHp); const at = ch.inventory.indexOf(it); if(at>=0){ it.qty -= 1; if(it.qty<=0) ch.inventory.splice(at,1); }
+  ch.hp = clamp(ch.hp+sum,0,ch.maxHp); const at = ch.inventory.indexOf(it); if(at>=0){ it.qty -= 1; if(it.qty<=0) ch.inventory.splice(at,1); } refresh(ch);
   const t = `Used ${it.name}: ${d.text} rolled ${vals.join('+')}${d.bonus?sgn(d.bonus):''} = ${sum}. Healed ${ch.hp-before} hit points (now ${ch.hp}/${ch.maxHp}).`;
   pushTray(sum,t); c.log.push({role:'note',text:t}); save(); await sleep(1100); rolling = false; closeTray(opened); renderGame();
+}
+
+/* ============ item editor ============ */
+function openItem(k){
+  const ch = cur.character, it = k>=0?ch.inventory[k]:{name:'',qty:1,type:''}; if(!it) return;
+  const o = (v,l,curv) => `<option value="${v}" ${v===curv?'selected':''}>${l}</option>`;
+  $('#modalRoot').innerHTML = `<div class="modal" data-act="closeModalBg"><div class="box" role="dialog" aria-modal="true" aria-label="Edit item">
+    <h3>${k>=0?'Edit item':'Add an item'}</h3>
+    <form id="itemForm" class="stack" data-k="${k}">
+      <div class="grid2"><label class="f">Name<input class="inp" name="name" value="${esc(it.name)}" maxlength="60" required></label>
+        <label class="f">Kind<select class="inp" name="type">${k<0?o('','Work it out from the name',it.type):''}${Object.keys(TYPES).map(t=>o(t,TYPES[t],it.type)).join('')}</select></label>
+        <label class="f">How many<input class="inp" name="qty" type="number" min="1" max="9999" value="${it.qty}"></label>
+        <label class="f">Weight each (lb)<input class="inp" name="weight" type="number" min="0" max="2000" step="0.05" value="${it.weight??''}" placeholder="${k<0?'auto':''}"></label>
+        <label class="f">Worth (gp)<input class="inp" name="price" type="number" min="0" max="100000" value="${it.price||0}"></label>
+        <label class="f">Heals when used (dice, optional)<input class="inp" name="heal" value="${esc(it.use?.heal||'')}" placeholder="2d4+2"></label></div>
+      <div class="grid2"><label class="f">Weapon damage<input class="inp" name="dmg" value="${esc(it.dmg||'')}" placeholder="1d8"></label>
+        <label class="f">Weapon traits<select class="inp" name="props">${[['','One-handed'],['finesse','Finesse'],['two','Two-handed'],['ranged','Ranged'],['ranged two','Ranged, two-handed'],['ranged finesse','Thrown, finesse']].map(([v,l])=>o(v,l,it.props||'')).join('')}</select></label>
+        <label class="f">Armour base AC<input class="inp" name="abase" type="number" min="10" max="20" value="${it.armor?.base||''}" placeholder="14"></label>
+        <label class="f">Armour adds Dexterity<select class="inp" name="adex">${[['full','Fully'],['max2','Up to +2'],['none','Not at all']].map(([v,l])=>o(v,l,it.armor?.dex||'full')).join('')}</select></label></div>
+      <label class="f">Description<input class="inp" name="desc" value="${esc(it.desc||'')}" maxlength="160"></label>
+      <div class="hint">Weapon and armour fields only matter for those kinds. Leave them blank and common gear is filled in from its name.</div>
+      <div class="actions">${k>=0?`<button type="button" class="btn danger" data-act="delItem" data-k="${k}">Delete</button>`:''}<button type="button" class="btn ghost" data-act="closeModal">Cancel</button><button class="btn primary">Save</button></div>
+    </form></div></div>`;
+}
+function saveItem(f){
+  const ch = cur.character, k = num(f.dataset.k), it = k>=0?ch.inventory[k]:{};
+  it.name = f.name.value.trim().slice(0,60); if(f.type.value) it.type = f.type.value; else delete it.type; it.qty = clamp(num(f.qty.value)||1,1,9999); if(f.weight.value.trim()==='') delete it.weight; else it.weight = clamp(Number(f.weight.value)||0,0,2000);
+  const pr = num(f.price.value); if(pr>0) it.price = pr; else delete it.price;
+  const d = f.desc.value.trim(); if(d) it.desc = d; else delete it.desc;
+  const heal = f.heal.value.replace(/\s/g,''); if(heal&&rollExpr(heal)) it.use = {heal}; else delete it.use;
+  classify(it);
+  const dmg = f.dmg.value.replace(/\s/g,''); if(it.type==='weapon'){ it.dmg = dmg&&rollExpr(dmg)?dmg:it.dmg; if(k>=0||f.props.value) it.props = f.props.value; } else { delete it.dmg; delete it.props; }
+  if(it.type==='armor'){ const b = num(f.abase.value); it.armor = b>=10?{base:Math.min(20,b),dex:f.adex.value,kind:'worn'}:it.armor; } else delete it.armor;
+  if(k<0) ch.inventory.push(it); refresh(ch); save(); closeModal(); renderSide(); chrome(true);
+}
+
+/* ============ game settings: table options, god mode, and the edit panel ============ */
+let gsTab = 'game', gsWho = '';
+const csv = t => String(t||'').split(',').map(x=>x.trim()).filter(Boolean);
+function openGame(tabName){
+  if(tabName) gsTab = tabName; const c = cur, st = store.settings; if(!c&&gsTab!=='game') gsTab = 'game';
+  const o = (v,l,curv) => `<option value="${v}" ${String(v)===String(curv)?'selected':''}>${l}</option>`, ck = (n,on,l) => `<label class="check"><input type="checkbox" name="${n}" ${on?'checked':''}><span>${l}</span></label>`;
+  let body = '';
+  if(gsTab==='game') body = `
+    <div class="grid2"><label class="f">Difficulty<select class="inp" name="diff">${o('gentle','Gentle',st.diff)}${o('standard','Standard',st.diff)}${o('brutal','Brutal',st.diff)}</select></label>
+      <label class="f">How much the DM writes<select class="inp" name="len">${o('short','Short',st.len)}${o('medium','Medium',st.len)}${o('long','Long',st.len)}</select></label>
+      ${c?`<label class="f">Tone of this tale<select class="inp" name="tone">${o('classic','Classic heroic',c.tone)}${o('grim','Dark and grim',c.tone)}${o('whimsy','Whimsical fairytale',c.tone)}${o('mystery','Slow-burn mystery',c.tone)}</select></label>`:''}</div>
+    ${ck('announce',st.announce,'The DM sets the scene and tells me what to roll at the end. Off: the roll comes up straight away with no lead-in.')}
+    ${ck('useGuard',st.useGuard,'Hold me to the scene: refuse actions that skip time, jump somewhere else, or rewrite what happened.')}
+    ${ck('useCheck',st.useCheck,'Run a continuity check on each scene (one extra model call per turn).')}
+    ${ck('encumb',st.encumb,'Carry weight matters: going over capacity makes me Encumbered.')}
+    ${c?`<div class="god">${ck('god',!!c.god,'<b>God mode for this tale.</b> Nothing I type is refused, I can skip any roll as a success, and whatever I declare becomes true.')}</div>`:'<div class="hint">Open a tale to get god mode and the edit panel for that tale.</div>'}`;
+  else if(gsTab==='char'){ const ch = c.character;
+    body = `<div class="grid2"><label class="f">Name<input class="inp" name="name" value="${esc(ch.name)}" maxlength="40"></label><label class="f">Race<input class="inp" name="race" value="${esc(ch.race)}" maxlength="30"></label>
+      <label class="f">Class<input class="inp" name="cls" value="${esc(ch.cls)}" maxlength="30"></label><label class="f">Background<input class="inp" name="background" value="${esc(ch.background||'')}" maxlength="40"></label>
+      <label class="f">Level<input class="inp" name="level" type="number" min="1" max="20" value="${ch.level}"></label><label class="f">Experience<input class="inp" name="xp" type="number" min="0" value="${ch.xp}"></label>
+      <label class="f">Hit points<input class="inp" name="hp" type="number" min="0" value="${ch.hp}"></label><label class="f">Maximum hit points<input class="inp" name="maxHp" type="number" min="1" value="${ch.maxHp}"></label>
+      <label class="f">Gold<input class="inp" name="gold" type="number" min="0" value="${ch.gold}"></label><label class="f">Armour class bonus (on top of worn gear)<input class="inp" name="acMisc" type="number" min="-10" max="10" value="${ch.acMisc||0}"></label></div>
+    <label class="f">Attributes</label><div class="six">${ABIL.map(a=>`<label class="f" style="align-items:center">${a}<input class="inp" name="ab_${a}" type="number" min="1" max="30" value="${ch.abilities[a]}"></label>`).join('')}</div>
+    <fieldset><legend>Skill proficiencies</legend>${Object.keys(SKILLS).map(k=>`<label class="check" style="font-size:13px"><input type="checkbox" name="sk" value="${k}" ${ch.profs.includes(k)?'checked':''}><span>${k}</span></label>`).join('')}</fieldset>
+    <fieldset><legend>Saving throw proficiencies</legend>${ABIL.map(a=>`<label class="check" style="font-size:13px"><input type="checkbox" name="sv" value="${a}" ${ch.saves.includes(a)?'checked':''}><span>${ABIL_NAME[a]}</span></label>`).join('')}</fieldset>
+    <label class="f">Conditions (comma separated)<input class="inp" name="conditions" value="${esc(ch.conditions.join(', '))}"></label>
+    <label class="f">Class features<input class="inp" name="features" value="${esc(ch.features||'')}" maxlength="300"></label>
+    <label class="f">Appearance<input class="inp" name="appearance" value="${esc(ch.appearance||'')}" maxlength="200"></label>
+    <label class="f">Backstory<textarea class="inp" name="backstory" maxlength="1200">${esc(ch.backstory||'')}</textarea></label>
+    <div class="hint">Items are edited from the Pack tab of the sheet.</div>`; }
+  else if(gsTab==='people'){ const names = Object.keys(c.npcs||{}); if(gsWho!=='__new'&&!names.includes(gsWho)) gsWho = names[0]||'__new';
+    const n = gsWho==='__new'?{name:'',about:'',traits:[],skills:[],wants:'',attitude:'neutral',memory:[]}:c.npcs[gsWho];
+    body = `<label class="f">Person<select class="inp" id="gsWho">${names.map(x=>o(x,esc(x),gsWho)).join('')}${o('__new','Add a new person…',gsWho)}</select></label>
+    <div class="grid2"><label class="f">Name<input class="inp" name="name" value="${esc(n.name)}" maxlength="50"></label>
+      <label class="f">Stance toward you<select class="inp" name="stance">${STANCES.map(k=>o(k,k[0].toUpperCase()+k.slice(1),stanceOf(n))).join('')}</select></label>
+      <label class="f">Feeling, in a word or two<input class="inp" name="attitude" value="${esc(n.attitude||'')}" maxlength="40"></label><label class="f">Wants<input class="inp" name="wants" value="${esc(n.wants||'')}" maxlength="120"></label></div>
+    <label class="f">Who they are<input class="inp" name="about" value="${esc(n.about||'')}" maxlength="240"></label>
+    <label class="f">Traits (comma separated)<input class="inp" name="traits" value="${esc((n.traits||[]).join(', '))}"></label>
+    <label class="f">Skilled at (comma separated)<input class="inp" name="skills" value="${esc((n.skills||[]).join(', '))}"></label>
+    <label class="f">What they remember of you (one per line; start a line with * to make it lasting)<textarea class="inp" name="memory" style="min-height:110px">${esc((n.memory||[]).map(m=>(m.k?'* ':'')+m.t).join('\n'))}</textarea></label>
+    ${ck('here',(c.present||[]).includes(n.name),'In the scene with me right now')}
+    ${gsWho!=='__new'?`<div class="actions" style="justify-content:flex-start"><button type="button" class="btn small danger" data-act="gsDelWho">Remove this person from the tale</button></div>`:''}`; }
+  else body = `<div class="grid2"><label class="f">Where you are<input class="inp" name="location" value="${esc(c.location||'')}" maxlength="80"></label>
+      <label class="f">Mood of the scene<select class="inp" name="mood">${o('forest','Forest: calm, outdoors',c.mood||'forest')}${o('night','Night: quiet, stealth',c.mood)}${o('fire','Fire: battle, anger',c.mood)}</select></label></div>
+    <label class="f">Quests</label><div id="gsQuests">${(c.quests.length?c.quests:[]).map((q,i)=>`<div class="qrow"><input class="inp" name="qt" value="${esc(q.title)}" maxlength="80" aria-label="Quest title"><select class="inp" name="qs" aria-label="Quest status">${o('active','Active',q.status)}${o('done','Done',q.status)}${o('failed','Failed',q.status)}</select><input class="inp" name="qn" value="${esc(q.note||'')}" maxlength="240" aria-label="Quest note"><button type="button" class="btn small ghost" data-act="gsDelQuest" aria-label="Remove quest">&#10005;</button></div>`).join('')}</div>
+    <div class="actions" style="justify-content:flex-start"><button type="button" class="btn small" data-act="gsAddQuest">Add a quest</button></div>
+    <label class="f">The story so far, as the DM remembers it<textarea class="inp" name="summary" style="min-height:140px" maxlength="3000">${esc(c.summary||'')}</textarea></label>
+    <div class="hint">The DM reads this summary plus the most recent scenes. Edit it to correct what the DM believes happened.</div>`;
+  $('#modalRoot').innerHTML = `<div class="modal gs" data-act="closeModalBg"><div class="box" role="dialog" aria-modal="true" aria-label="Game settings">
+    <h3>Settings</h3><div class="hint">How the game is run, and a panel for changing anything in it by hand.</div>
+    <div class="tabs" role="tablist">${[['game','Table'],['char','Character'],['people','People'],['world','World']].map(([k,l])=>`<button type="button" role="tab" aria-selected="${gsTab===k}" data-act="gsTab" data-tab="${k}" ${!c&&k!=='game'?'disabled':''}>${l}</button>`).join('')}</div>
+    <form id="gsForm" class="stack">${body}
+      <div class="actions"><button type="button" class="btn ghost" data-act="closeModal">Close</button><button class="btn primary">Save</button></div></form></div></div>`;
+}
+function saveGame(){
+  const f = $('#gsForm'), c = cur, st = store.settings; if(!f) return;
+  if(gsTab==='game'){ Object.assign(st,{diff:f.diff.value,len:f.len.value,announce:f.announce.checked,useGuard:f.useGuard.checked,useCheck:f.useCheck.checked,encumb:f.encumb.checked}); store.prefsAt = Date.now();
+    if(c){ c.tone = f.tone.value; c.god = f.god.checked; refresh(c.character); } }
+  else if(gsTab==='char'){ const ch = c.character; ch.name = f.name.value.trim().slice(0,40)||ch.name; ch.race = f.race.value.trim().slice(0,30)||ch.race; ch.cls = f.cls.value.trim().slice(0,30)||ch.cls; ch.background = f.background.value.trim().slice(0,40);
+    ch.level = clamp(num(f.level.value)||1,1,20); ch.xp = Math.max(0,num(f.xp.value)); ch.maxHp = Math.max(1,num(f.maxHp.value)||1); ch.hp = clamp(num(f.hp.value),0,ch.maxHp); ch.gold = Math.max(0,num(f.gold.value)); ch.acMisc = clamp(num(f.acMisc.value),-10,10);
+    ABIL.forEach(a=>{ ch.abilities[a] = clamp(num(f['ab_'+a].value)||10,1,30); });
+    ch.profs = [...f.querySelectorAll('[name=sk]:checked')].map(x=>x.value); ch.saves = [...f.querySelectorAll('[name=sv]:checked')].map(x=>x.value);
+    ch.conditions = csv(f.conditions.value).map(x=>x.slice(0,40)); ch.features = f.features.value.trim().slice(0,300); ch.appearance = f.appearance.value.trim(); ch.backstory = f.backstory.value.trim(); refresh(ch); }
+  else if(gsTab==='people'){ const name = f.name.value.trim().slice(0,50); if(!name) return; c.npcs ||= {}; c.present ||= [];
+    const old = gsWho!=='__new'?c.npcs[gsWho]:null, n = old||{traits:[],skills:[],memory:[]};
+    if(old&&gsWho!==name){ delete c.npcs[gsWho]; c.present = c.present.map(x=>x===gsWho?name:x); }
+    Object.assign(n,{name,stance:f.stance.value,attitude:f.attitude.value.trim().slice(0,40)||f.stance.value,wants:f.wants.value.trim().slice(0,120),about:f.about.value.trim().slice(0,240),traits:csv(f.traits.value).slice(0,12).map(x=>x.slice(0,60)),skills:csv(f.skills.value).slice(0,6).map(x=>x.slice(0,40)),
+      memory:f.memory.value.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,12).map(x=>({t:x.replace(/^\*\s*/,'').slice(0,140),k:x.startsWith('*')}))});
+    c.npcs[name] = n; gsWho = name; c.present = c.present.filter(x=>x!==name); if(f.here.checked) c.present = [name,...c.present].slice(0,3); }
+  else { c.location = f.location.value.trim().slice(0,80); c.mood = f.mood.value; c.summary = f.summary.value.trim();
+    c.quests = [...f.querySelectorAll('.qrow')].map(r=>({title:r.querySelector('[name=qt]').value.trim().slice(0,80),status:r.querySelector('[name=qs]').value,note:r.querySelector('[name=qn]').value.trim().slice(0,240)})).filter(q=>q.title); }
+  save(); if(c){ renderGame(); } else renderHome();
 }
 
 /* ============ settings ============ */
 function openSettings(msg){
   const s = store.settings;
-  $('#modalRoot').innerHTML = `<div class="modal" data-act="closeModalBg"><div class="box" role="dialog" aria-modal="true" aria-label="Settings">
-    <h3>The narrator</h3><div class="hint">${esc(msg||'Point Emberglade at OpenRouter or any OpenAI-compatible proxy, then name the model you want telling the story.')}</div>
+  $('#modalRoot').innerHTML = `<div class="modal" data-act="closeModalBg"><div class="box" role="dialog" aria-modal="true" aria-label="Models">
+    <h3>Models</h3><div class="hint">${esc(msg||'Point Emberglade at OpenRouter or any OpenAI-compatible proxy, then name the model you want telling the story.')}</div>
     <form id="setForm" class="stack">
       <label class="f">Proxy / API base URL (a web address, not the model)<input class="inp" name="baseUrl" value="${esc(s.baseUrl)}" placeholder="https://openrouter.ai/api/v1" required></label>
       <label class="f">API key<input class="inp" name="apiKey" type="password" value="${esc(s.apiKey)}" placeholder="sk-or-…" autocomplete="off"></label>
@@ -1496,8 +1718,7 @@ function openSettings(msg){
       <label class="f">Dice gate model (decides yes or no on a roll; pick something small and fast)<input class="inp" name="gateModel" value="${esc(s.gateModel)}" list="modelList" placeholder="same as the story model"></label>
       <label class="f">Character model (plays each person in the scene, up to three at once)<input class="inp" name="charModel" value="${esc(s.charModel)}" list="modelList" placeholder="same as the story model"></label>
       <label class="f">Continuity model (checks the scene holds together)<input class="inp" name="checkModel" value="${esc(s.checkModel)}" list="modelList" placeholder="same as the story model"></label>
-      <label class="check"><input type="checkbox" name="useGuard" ${s.useGuard?'checked':''}><span>Hold me to the scene: refuse actions that skip time, jump somewhere else, or rewrite what happened (one small call per action, uses the continuity model)</span></label>
-      <label class="check"><input type="checkbox" name="useCheck" ${s.useCheck?'checked':''}><span>Run the continuity check after each scene (one extra call per turn)</span></label>
+      <div class="hint">Game options such as the continuity check, god mode and the edit panel are under <b>Settings</b>.</div>
       <div class="grid2"><label class="f">Temperature<input class="inp" name="temperature" type="number" min="0" max="2" step="0.05" value="${esc(s.temperature)}"></label>
         <label class="f">Max tokens per reply<input class="inp" name="maxTokens" type="number" min="200" max="8000" step="50" value="${esc(s.maxTokens)}"></label></div>
       <label class="check"><input type="checkbox" name="stream" ${s.stream?'checked':''}><span>Stream the narration as it is written</span></label>
@@ -1515,13 +1736,13 @@ function openSettings(msg){
   $('#setForm input').focus(); memLabel();
 }
 function readSettings(){ const f = $('#setForm'); if(!f) return; Object.assign(store.settings,{baseUrl:f.baseUrl.value.trim()||DEFAULTS.baseUrl,apiKey:f.apiKey.value.trim(),model:f.model.value.trim()||DEFAULTS.model,
-  temperature:clamp(Number(f.temperature.value)||0,0,2),maxTokens:clamp(num(f.maxTokens.value)||1000,200,8000),stream:f.stream.checked,localProxy:f.localProxy.checked,gateModel:f.gateModel.value.trim(),charModel:f.charModel.value.trim(),checkModel:f.checkModel.value.trim(),useCheck:f.useCheck.checked,useGuard:f.useGuard.checked});
+  temperature:clamp(Number(f.temperature.value)||0,0,2),maxTokens:clamp(num(f.maxTokens.value)||1000,200,8000),stream:f.stream.checked,localProxy:f.localProxy.checked,gateModel:f.gateModel.value.trim(),charModel:f.charModel.value.trim(),checkModel:f.checkModel.value.trim()});
   const tok = f.memToken.value.trim(); if(tok!==store.settings.memToken) Object.assign(store.settings,{memToken:tok,gistId:'',lastSync:0});
   if(!/^https?:\/\/[^\s/]+/i.test(store.settings.baseUrl)){ store.settings.baseUrl = DEFAULTS.baseUrl; f.baseUrl.value = DEFAULTS.baseUrl; toast('!','The base URL has to be a web address, so it was reset to OpenRouter. Model names go in the Model box.'); } }
 function closeModal(){ $('#modalRoot').innerHTML = ''; }
 
 /* ============ events ============ */
-function go(){ const id = location.hash.slice(1); if(id==='new') return renderCreate(); if(store.campaigns[id]){ denied = null; cur = store.campaigns[id]; store.last = id; saveLocal(); lastErr = null; main.innerHTML = ''; renderGame(); if(!cur.log.length) takeTurn(null); return; } renderHome(); }
+function go(){ const id = location.hash.slice(1); if(id==='new') return renderCreate(); if(store.campaigns[id]){ denied = null; cur = store.campaigns[id]; upgrade(cur); store.last = id; saveLocal(); lastErr = null; main.innerHTML = ''; renderGame(); if(!cur.log.length) takeTurn(null); return; } renderHome(); }
 window.addEventListener('hashchange',()=>{ if(aborter) aborter.abort(); busy = false; go(); });
 
 document.addEventListener('click',async ev=>{
@@ -1556,24 +1777,35 @@ document.addEventListener('click',async ev=>{
     case 'retry': takeTurn(null); break;
     case 'regen': regenerate(); break;
     case 'hp': c.character.hp = clamp(c.character.hp+num(el.dataset.d),0,c.character.maxHp); save(); renderSide(); break;
-    case 'drop': c.character.inventory.splice(num(el.dataset.k),1); save(); renderSide(); break;
+    case 'drop': c.character.inventory.splice(num(el.dataset.k),1); refresh(c.character); save(); renderSide(); break;
     case 'use': useItem(num(el.dataset.k)); break;
+    case 'equip': case 'equipOff': { const it = c.character.inventory[num(el.dataset.k)]; if(!it) break; const err = equip(c.character,it,act==='equipOff'?'off':'main'); if(err) toast('!',err); save(); renderSide(); chrome(true); break; }
+    case 'unequip': { const it = c.character.inventory[num(el.dataset.k)]; if(it){ delete it.eq; refresh(c.character); save(); renderSide(); } break; }
+    case 'editItem': openItem(num(el.dataset.k)); break;
+    case 'delItem': c.character.inventory.splice(num(el.dataset.k),1); refresh(c.character); save(); closeModal(); renderSide(); break;
+    case 'atk': { const w = weaponInfo(c.character); freeRoll(`${w.name} attack`,w.hit); break; }
+    case 'skipRoll': { const r = c.pendingRoll; if(!r||busy) break; const t = `${r.label}: passed without rolling (god mode). Treat it as a clear success.`; if(r.ask){ c.pendingRoll = null; answerAside(c,r.ask,t); } else takeTurn({role:'roll',text:t}); break; }
+    case 'gameSettings': openGame(); break;
+    case 'gsTab': saveGame(); openGame(el.dataset.tab); break;
+    case 'gsAddQuest': $('#gsQuests').insertAdjacentHTML('beforeend','<div class="qrow"><input class="inp" name="qt" maxlength="80" placeholder="Quest title" aria-label="Quest title"><select class="inp" name="qs" aria-label="Quest status"><option value="active">Active</option><option value="done">Done</option><option value="failed">Failed</option></select><input class="inp" name="qn" maxlength="240" placeholder="Note" aria-label="Quest note"><button type="button" class="btn small ghost" data-act="gsDelQuest" aria-label="Remove quest">&#10005;</button></div>'); break;
+    case 'gsDelQuest': el.closest('.qrow').remove(); break;
+    case 'gsDelWho': if(c.npcs[gsWho]){ delete c.npcs[gsWho]; c.present = (c.present||[]).filter(x=>x!==gsWho); gsWho = ''; save(); renderGame(); openGame('people'); } break;
     case 'npc': { tab = 'people'; renderSide(); setDrawer($('#rightD'),true); if(!wide()) setDrawer($('#leftD'),false); document.getElementById('npc-'+el.dataset.n.replace(/\W+/g,'-'))?.scrollIntoView({block:'center'}); break; }
     case 'shop': shopTrades = shopTrades||[]; openShop(); break;
     case 'shopClose': closeShop(); break;
     case 'shopCloseBg': if(ev.target===el) closeShop(); break;
     case 'haggle': haggle(); break;
     case 'buy': { const sp = c.shop, it = sp&&sp.items[num(el.dataset.k)]; if(!it) break; const pr = shopPrice(it); if(pr>c.character.gold) break;
-      c.character.gold -= pr; const {stock,...rest} = it; addItem(c.character,{...rest,qty:1}); if(it.stock){ it.stock -= 1; if(it.stock<=0) sp.items.splice(num(el.dataset.k),1); }
+      c.character.gold -= pr; const {stock,...rest} = it; addItem(c.character,{...rest,qty:1}); refresh(c.character); if(it.stock){ it.stock -= 1; if(it.stock<=0) sp.items.splice(num(el.dataset.k),1); }
       shopTrades.push(`bought ${it.name} for ${pr} gp`); save(); openShop(); break; }
     case 'sell': { const inv = c.character.inventory, it = inv[num(el.dataset.k)]; if(!it||!c.shop) break; const v = sellValue(it);
-      c.character.gold += v; it.qty -= 1; if(it.qty<=0) inv.splice(num(el.dataset.k),1); shopTrades.push(`sold ${it.name} for ${v} gp`); save(); openShop(); break; }
+      c.character.gold += v; it.qty -= 1; if(it.qty<=0) inv.splice(num(el.dataset.k),1); refresh(c.character); shopTrades.push(`sold ${it.name} for ${v} gp`); save(); openShop(); break; }
     case 'abil': freeRoll(ABIL_NAME[el.dataset.a]+' check',mod(c.character.abilities[el.dataset.a])); break;
     case 'save': freeRoll(ABIL_NAME[el.dataset.a]+' save',saveMod(c.character,el.dataset.a)); break;
     case 'skill': freeRoll(el.dataset.s+' check',skillMod(c.character,el.dataset.s)); break;
     case 'die': trayRoll(num(el.dataset.d)); break;
-    case 'tellTray': if(lastTray&&!busy) takeTurn({role:'roll',text:lastTray.text}); break;
-    case 'toastAct': { const t = $('#toast'); t.classList.remove('on'); if(t._action&&cur&&!busy) takeTurn({role:'roll',text:t._action.text}); break; }
+    case 'tellTray': if(lastTray&&!busy) tellRoll(lastTray.text); break;
+    case 'toastAct': { const t = $('#toast'); t.classList.remove('on'); if(t._action&&cur&&!busy) tellRoll(t._action.text); break; }
     case 'memConnect': { readSettings(); saveLocal(); const out = $('#memout');
       if(!store.settings.memToken){ out.textContent = 'Paste a GitHub token first. "Create a token" opens the right page; keep only the gist box ticked.'; out.style.color = 'var(--danger)'; memLabel(); break; }
       await sync(); break; }
@@ -1608,8 +1840,9 @@ document.addEventListener('click',async ev=>{
 document.addEventListener('submit',ev=>{
   ev.preventDefault(); const f = ev.target;
   if(f.id==='sendForm'){ const t = $('#say').value.trim(); if(t&&!busy){ $('#say').value = ''; playerAct(t); } }
+  else if(f.id==='itemForm'){ if(f.name.value.trim()) saveItem(f); }
+  else if(f.id==='gsForm'){ saveGame(); closeModal(); }
   else if(f.id==='setForm'){ readSettings(); store.prefsAt = Date.now(); save(); closeModal(); if(!cur) renderHome(); else if(!cur.log.length&&!busy) takeTurn(null); }
-  else if(f.id==='addItem'){ const v = f.item.value.trim(); if(v){ cur.character.inventory.push({name:v,qty:1}); save(); renderSide(); } }
   else if(f.id==='createForm'){
     const d = draft; if(!d||forging) return;
     if(d.step===0){ if(!d.name.trim()){ d.msg = 'Give your character a name, or let the model build one.'; renderCreate(); return; }
@@ -1630,6 +1863,8 @@ document.addEventListener('change',ev=>{
   if(draft&&(t.name==='boons'||t.name==='flaws')&&t.form?.id==='createForm'){ const list = draft[t.name], k = list.indexOf(t.value);
     if(t.checked&&k<0&&list.length<2) list.push(t.value); else if(!t.checked&&k>=0) list.splice(k,1); renderCreate(); }
   if(draft&&t.dataset.d&&t.tagName==='SELECT'){ setDraft(t.dataset.d,t.value); if(t.dataset.re){ if(!draft.abTouched) draft.abilities = presetFor(classDef(draft)); renderCreate(); } }
+  if(t.id==='packSort'){ store.ui.sort = t.value; saveLocal(); renderSide(); }
+  if(t.id==='gsWho'){ gsWho = t.value; openGame('people'); }
   if(t.id==='importFile'&&t.files[0]){ t.files[0].text().then(txt=>{ const x = JSON.parse(txt); if(!x.character||!Array.isArray(x.log)) throw 0;
     x.id = 'c'+Date.now().toString(36)+rnd(1e6).toString(36); x.updated = Date.now(); x.quests ||= []; x.suggestions ||= []; store.campaigns[x.id] = x; saveLocal(); scheduleSync(); renderHome(); toast('✓','Tale imported.'); })
     .catch(()=>toast('!','That file is not an Emberglade save.')); }
