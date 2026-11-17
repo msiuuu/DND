@@ -1413,7 +1413,7 @@ function renderHome(){
         <button class="btn small" data-act="export" data-id="${esc(c.id)}">Export</button>
         <button class="btn small danger" data-act="del" data-id="${esc(c.id)}">Delete</button></div></article>`).join('')}</div>`
       :`<div class="empty">No tales yet. Every campaign starts differently, so start one.</div>`}
-    <div class="actions" style="margin-top:16px"><button class="btn small ghost" data-act="import">Import a saved tale</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
+    <div class="actions" style="margin-top:16px;align-items:center">${installLine()}<button class="btn small ghost" data-act="import">Import a saved tale</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
   </div>`;
 }
 let draft = null, forging = false;
@@ -1873,6 +1873,7 @@ document.addEventListener('click',async ev=>{
     case 'atk': { const w = weaponInfo(c.character); freeRoll(`${w.name} attack`,w.hit); break; }
     case 'skipRoll': { const r = c.pendingRoll; if(!r||busy) break; const t = `${r.label}: passed without rolling (god mode). Treat it as a clear success.`; if(r.ask){ c.pendingRoll = null; answerAside(c,r.ask,t); } else takeTurn({role:'roll',text:t}); break; }
     case 'gameSettings': openGame(); break;
+    case 'install': if(installEvt){ const ev2 = installEvt; installEvt = null; ev2.prompt(); ev2.userChoice.finally(()=>{ if(!cur&&!$('#createForm')) renderHome(); }); } break;
     case 'gsTab': saveGame(); openGame(el.dataset.tab); break;
     case 'gsAddQuest': $('#gsQuests').insertAdjacentHTML('beforeend','<div class="qrow"><input class="inp" name="qt" maxlength="80" placeholder="Quest title" aria-label="Quest title"><select class="inp" name="qs" aria-label="Quest status"><option value="active">Active</option><option value="done">Done</option><option value="failed">Failed</option></select><input class="inp" name="qn" maxlength="240" placeholder="Note" aria-label="Quest note"><button type="button" class="btn small ghost" data-act="gsDelQuest" aria-label="Remove quest">&#10005;</button></div>'); break;
     case 'gsDelQuest': el.closest('.qrow').remove(); break;
@@ -1969,12 +1970,20 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170718';
+const BUILD = '202611170726';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version of Emberglade is ready.',{label:'Update',reload:v}); }catch(e){}
 }
 if(location.protocol!=='file:'){ checkVersion(); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) checkVersion(); }); setInterval(()=>{ if(!document.hidden) checkVersion(); },300000); }
+/* ============ install as an app ============ */
+let installEvt = null;
+const standalone = () => matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+const installLine = () => standalone()?'':installEvt?'<button class="btn small" data-act="install">Install as an app</button>'
+  :`<span class="hint">To install as an app: ${/iphone|ipad|ipod/i.test(navigator.userAgent)?'tap Share, then "Add to Home Screen".':'open your browser menu and choose "Install app" or "Add to Home screen".'}</span>`;
+window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); installEvt = e; if(!cur&&!$('#createForm')) renderHome(); });
+window.addEventListener('appinstalled',()=>{ installEvt = null; toast('✓','Emberglade is installed. Look for it on your home screen.'); if(!cur&&!$('#createForm')) renderHome(); });
+if('serviceWorker' in navigator&&location.protocol!=='file:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 /* fireflies */
 (function(){ const f = $('#flies'); for(let i=0;i<16;i++){ const s = document.createElement('i'); s.style.left = Math.random()*100+'%'; s.style.top = 25+Math.random()*75+'%';
   s.style.animationDelay = (-Math.random()*14)+'s'; s.style.animationDuration = 10+Math.random()*10+'s'; f.appendChild(s); } })();
