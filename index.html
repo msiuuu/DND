@@ -989,7 +989,8 @@ Dice:
 - A separate dice gate usually decides whether the player's action needs a roll, and the app rolls it before you write. When the player's latest message already carries a dice result from the app, never ask for that roll again: narrate what happens, honouring it. When an app note says no roll is needed, resolve the action directly. You may still request a roll yourself for something new that you introduce, such as a saving throw against a hazard or an attack the gate missed.
 - When an app note tells you the player's action needs a particular check, narrate only the attempt up to the moment of uncertainty, in two or three sentences, and end your reply by telling the player plainly what to roll, for example: "Roll Persuasion." Do not narrate the outcome yet. Whenever you ask for a roll yourself, end on that same kind of line.
 - Every d20 result arrives with a degree, and the outcome must be scaled to it. The middle degrees are ordinary: narrow, clean, fair. The ends are extreme. A natural 20 is the power of the dice: the attempt comes off spectacularly even if it was a long shot, more is gained than was asked for, and anyone on the other side of it is swayed, impressed or won over beyond what reason would allow. A natural 1 is the mirror of that: the worst plausible turn, with lasting cost. Never flatten a 20 into an ordinary success or a 1 into an ordinary failure, and never let your own sense of what is likely overrule the degree.
-- The player may roll without being asked. A dice result that arrives without your having called for it applies to whatever the player last attempted or asked for, even if you had already answered it: treat it as the roll for that, and re-judge the outcome by its degree. If you had said no and the dice say legendary, the answer changes.
+- The degree line already weighs the natural die, how far the total landed from the target, and how lopsided that gap was, so follow its wording closely. When it says a result goes further still, it means it: an easy target met with a natural 20 is far more than a win, and a hard one met with a natural 1 is far more than a loss.
+- The player may roll without being asked. A dice result that arrives without your having called for it applies to whatever the player last attempted or asked for, even if you had already answered it: treat it as the roll for that, and re-judge the outcome by its degree. This cuts both ways. If you had said no and the dice say legendary, the answer changes to yes. If you had said yes and the dice say catastrophe, it falls apart.
 - If the dice result the player sends back is for a different check than the one you asked for, do not correct them and do not ask again. Go along with it: judge the outcome from what they rolled.
 - Use sensible DCs: 5 trivial, 10 easy, 13 moderate, 16 hard, 19 very hard, 22+ heroic. Do not ask for rolls for trivial or automatic actions. Request at most one roll per reply.
 - For a player attack, request a roll with "dc" set to the target's Armor Class and "damage" set to the weapon or spell damage dice including modifiers (for example "1d8+3"). The app rolls damage automatically on a hit.
@@ -1595,16 +1596,32 @@ const HINTS = [
 const hintFor = t => (HINTS.find(([,re])=>re.test(t))||[])[0]||null;
 
 /* ============ rolls ============ */
-// How well or badly a d20 roll went. The middle is ordinary; the ends are extreme, and a natural 20 or natural 1 overrides everything.
+// How well or badly a d20 roll went, from three things: the natural die, how far the total landed from the target, and how lopsided that gap is.
+// The ladder runs from ruin to overwhelming. A die of 15 or more lifts the result a rung and a die of 5 or less drops it one, without turning a failure into a success or the reverse.
+// A natural 20 or natural 1 overrides the ladder, and both grow more extreme the further the total is from the target.
+const RUNGS = [
+  ['ruin','It fails so completely that the damage will take a long time to undo.'],
+  ['disaster','It fails and makes matters plainly worse.'],
+  ['below expectations','It fails clearly, and at a cost.'],
+  ['just short','It does not work, but nothing is lost and there may still be an opening.'],
+  ['meets the mark','It works, no more than that, perhaps at a small cost.'],
+  ['above expectations','It works cleanly and a little better than hoped.'],
+  ['triumph','It succeeds and brings something extra with it.'],
+  ['overwhelming','It succeeds so thoroughly that it changes the situation.']];
+const BANDS = [['bad','It fails outright, and it costs something.'],['poor','It mostly fails, though not disastrously.'],['fair','It mostly works, or works in part.'],['strong','It works well.'],['superb','It goes about as well as it reasonably could, and then a little better.']];
 function degree(pick,total,dc){
-  if(pick===20) return 'Degree: LEGENDARY (natural 20). The best outcome imaginable, far beyond what was asked for. Long shots come off and people are won over past all reason.';
-  if(pick===1) return 'Degree: CATASTROPHE (natural 1). The worst plausible outcome. It backfires and leaves things worse than before.';
-  if(dc){ const m = total-dc;
-    return m>=10?'Degree: triumph (beat it by 10 or more). It succeeds and brings something extra with it.':m>=5?'Degree: clean success.':m>=0?'Degree: narrow success. It works, only just, perhaps at a small cost.'
-      :m>=-4?'Degree: narrow failure. It does not work, but nothing is lost and there may still be an opening.':m>=-9?'Degree: clear failure, at a cost.':'Degree: disaster (missed by 10 or more). It fails and makes matters worse.'; }
+  const m = dc?total-dc:null;
+  if(pick===20) return 'Degree: LEGENDARY (natural 20). The best outcome imaginable, far beyond what was asked for. Long shots come off and people are won over past all reason.'
+    +(m===null?'':m>=15?` The bar was cleared by ${m}, so this goes further still: the result is absurd, the kind of thing that gets retold for years, and everything about it tips the player's way.`:m>=10?` The bar was cleared by ${m}: push it past legendary, more than anyone present would have believed.`:m<0?' The total fell short of the target, but a natural 20 succeeds anyway.':'');
+  if(pick===1) return 'Degree: CATASTROPHE (natural 1). The worst plausible outcome. It backfires and leaves things worse than before.'
+    +(m===null?'':m<=-15?` It missed by ${-m}, so this goes further still: a ruinous, memorable calamity with consequences that last.`:m<=-10?` It missed by ${-m}: make it worse than an ordinary catastrophe.`:m>=0?' The total reached the target, but a natural 1 fails anyway.':'');
+  const strong = pick>=15, weak = pick<=5, tag = strong?' (die of 15 or more: a rung better)':weak?' (die of 5 or less: a rung worse)':'';
+  if(m!==null){ let k = m>=15?7:m>=10?6:m>=5?5:m>=0?4:m>=-4?3:m>=-9?2:m>=-14?1:0; const ok = k>=4;
+    if(strong) k = Math.min(ok?7:3,k+1); else if(weak) k = Math.max(ok?4:0,k-1);
+    return `Degree: ${RUNGS[k][0]}${tag}. ${RUNGS[k][1]} (${m>=0?'Beat':'Missed'} the target by ${Math.abs(m)}.)`; }
   // No target number was set, so the total (die plus the character's bonus) is read against fixed bands.
-  return total>=20?'Degree: superb. It goes about as well as it reasonably could, and then a little better.':total>=15?'Degree: strong. It works well.':total>=10?'Degree: fair. It mostly works, or works in part.'
-    :total>=5?'Degree: poor. It mostly fails, though not disastrously.':'Degree: bad. It fails outright, and it costs something.';
+  let k = total>=20?4:total>=15?3:total>=10?2:total>=5?1:0; if(strong) k = Math.min(4,k+1); else if(weak) k = Math.max(0,k-1);
+  return `Degree: ${BANDS[k][0]}${tag}. ${BANDS[k][1]}`;
 }
 const pickD20 = (rolls,adv) => adv==='adv'?Math.max(...rolls):adv==='dis'?Math.min(...rolls):rolls[0];
 const flare = pick => { if(pick===20) trayNode.classList.add('crit'); else if(pick===1) trayNode.classList.add('fumble'); };
@@ -1616,7 +1633,7 @@ async function resolvePending(adv){
   const two = adv==='adv'||adv==='dis', rolls = (await throwDice([{n:two?2:1,sides:20}],false,two))[0], pick = pickD20(rolls,adv), total = pick+bonus; flare(pick);
   let t = `${r.label}: d20 rolled ${pick}${two?` (${rolls.join(' and ')}, ${adv==='adv'?'advantage':'disadvantage'})`:''} ${sgn(bonus)} = ${total}`;
   let hit = null;
-  if(r.dc){ hit = r.damage?(pick===20||(pick!==1&&total>=r.dc)):total>=r.dc; t += ` vs ${r.damage?'AC':'DC'} ${r.dc}. ${hit?(r.damage?'Hit':'Success'):(r.damage?'Miss':'Failure')}`; }
+  if(r.dc){ hit = pick===20?true:pick===1?false:total>=r.dc; t += ` vs ${r.damage?'AC':'DC'} ${r.dc}. ${hit?(r.damage?'Hit':'Success'):(r.damage?'Miss':'Failure')}`; }
   if(pick===20) t += ' (natural 20!)'; else if(pick===1) t += ' (natural 1)';
   t += '.'; if(!r.damage) t += ' '+degree(pick,total,r.dc);
   if(r.damage&&hit!==false){ const dm = rollExpr(r.damage,pick===20); await sleep(500);
@@ -2361,7 +2378,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611171858';
+const BUILD = '202611171901';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
