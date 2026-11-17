@@ -336,6 +336,17 @@ details.card[open]>summary{margin-bottom:10px}
 .tray{cursor:pointer}
 .says{margin-top:10px;padding:8px 12px;border-radius:12px 12px 12px 3px;background:var(--s2);border:1px solid var(--line);font-size:14.5px;line-height:1.5;width:fit-content;max-width:100%}
 .says b{color:var(--ember2);font-weight:600;margin-right:6px}
+.dmhead{max-width:760px;margin:0 auto 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--ember);border-radius:14px;background:color-mix(in srgb,var(--ember) 9%,transparent)}
+.dmhead div{flex:1;min-width:180px}.dmhead b{display:block;font-family:var(--display);font-size:21px;color:var(--ember2)}.dmhead span{font-size:13px;color:var(--muted)}
+.dmmsg{max-width:760px;margin:0 auto 14px;display:flex}
+.dmmsg .bub{max-width:84%;padding:10px 15px;border-radius:18px;font-size:16px;line-height:1.6}
+.dmmsg.them .bub{background:var(--s2);border:1px solid var(--line);border-bottom-left-radius:5px}
+.dmmsg.them .bub b{display:block;font:600 11px var(--ui);letter-spacing:.12em;text-transform:uppercase;color:var(--ember);margin-bottom:3px}
+.dmmsg.me{justify-content:flex-end}.dmmsg.me .bub{background:var(--s3);border-bottom-right-radius:5px}
+.dmmsg .bub p{margin:0 0 .6em}.dmmsg .bub p:last-child{margin:0}
+.aside-link{display:flex;justify-content:flex-end;margin:0 2px 6px}
+.aside-link button{background:none;border:0;color:var(--muted);font-size:12.5px;padding:4px 2px;text-decoration:underline;text-underline-offset:3px}
+.aside-link button:hover{color:var(--ember2)}
 .suggbox{margin-bottom:10px}
 .suggbox>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);padding:5px 2px;min-height:30px;user-select:none}
 .suggbox>summary::-webkit-details-marker{display:none}
@@ -1249,6 +1260,55 @@ Player wrote: ${text}${guess?`\n(Keyword guess from the app: ${guess}.)`:''}`}],
 }
 
 // A question for the DM gets a short note back, not a scene. It stays out of the story but the narrator is told what was said.
+/* ============ DM space: stepping out of the story to talk with the DM ============ */
+// Ask the DM this many out-of-story questions in a row and they take the conversation aside.
+const DM_PULL = 3;
+const DMSPACE = c => { const dm = lastOf(c,'dm'), here = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]);
+  return `${dmSelf()}
+You and the player have stepped away from the story and are talking directly, the way a DM and a player talk across the table between scenes. Be yourself. Answer what they ask, chat, joke, explain a ruling, talk about their character or the world. Keep it short: one to four sentences a turn.
+Do not narrate the story, do not move it forward and do not play its characters. If the player wants to do something in the story, tell them to head back to it.
+When they ask about something not yet settled, about the world or about their own character, decide it on the spot and say it plainly; never say it is unknown or up to them. Stay consistent with the established facts.
+If your reply settles a new fact worth keeping, add one last line that starts with "FACT:" and states it in a single sentence. Otherwise add nothing after your reply.
+
+# What you know about the game
+${sheetText(c)}
+
+People in the scene: ${here.map(n=>npcLine(c.npcs[n])).join('\n')||'no one'}
+Others met: ${Object.keys(c.npcs||{}).filter(n=>!here.includes(n)).join(', ')||'no one'}${c.summary?`\n\nStory so far: ${c.summary}`:''}${(c.facts||[]).length?`\n\nEstablished facts:\n${c.facts.map(x=>'- '+x).join('\n')}`:''}
+
+Where the story stands: ${dm?clip(dm.text,700):'it has not begun'}`; };
+function enterDm(c,pulled){
+  c.inDm = true; c.dmChat ||= []; denied = null; selEntry = editEntry = -1; c.pendingRoll = null;
+  if(pulled){ // bring the questions that led here along, so the DM has them in front of them
+    const tail = []; for(let i=c.log.length-1;i>=0&&c.log[i].role==='aside';i--) tail.unshift(c.log[i]);
+    for(const e of tail){ c.dmChat.push({who:'you',text:e.q},{who:'dm',text:e.a}); } }
+  save(); renderGame();
+}
+function exitDm(){ const c = cur; if(!c) return; c.inDm = false; save(); renderGame(); }
+async function dmSay(text,pulled){
+  const c = cur; if(!c||busy||needKey()) return; c.dmChat ||= []; c.dmChat.push({who:'you',text}); if(c.dmChat.length>200) c.dmChat.splice(0,c.dmChat.length-200);
+  busy = true; aborter = new AbortController(); lastErr = null; save(); renderGame(); let out = '';
+  try{
+    const msgs = [{role:'system',content:DMSPACE(c)}]; for(const m of c.dmChat.slice(-24)){ const role = m.who==='you'?'user':'assistant', l = msgs[msgs.length-1]; if(l.role===role) l.content += '\n\n'+m.text; else msgs.push({role,content:m.text}); }
+    if(pulled) msgs[msgs.length-1].content += '\n\n[Table note, not from the player: that is several out-of-story questions in a row, so you have just pulled the conversation aside into a private chat. Say so in your own way, in a few words, then answer.]';
+    out = await chat(msgs,{stream:false,signal:aborter.signal,temperature:0.9});
+  }catch(e){ if(e.name!=='AbortError') lastErr = e.message||String(e); }
+  busy = false; aborter = null; if(cur!==c) return;
+  const lines = out.trim().split('\n'), facts = lines.filter(l=>/^\s*FACT:/i.test(l)).map(l=>l.replace(/^\s*FACT:\s*/i,'').trim()).filter(Boolean), reply = lines.filter(l=>!/^\s*FACT:/i.test(l)).join('\n').trim().slice(0,1500);
+  if(reply){ c.dmChat.push({who:'dm',text:reply}); c.facts ||= []; for(const f of facts.slice(0,2)){ c.facts.push(f.slice(0,300)); if(c.facts.length>60) c.facts.shift(); } c.updated = Date.now(); }
+  else if(!lastErr) lastErr = `${dmName()} did not answer. Try again.`;
+  save(); renderGame();
+}
+function renderDm(){
+  const c = cur, n = esc(dmName());
+  $('#log').innerHTML = `<div class="dmhead"><div><b>Aside with ${n}</b><span>Out of the story. Nothing said here happens in the tale, but what ${n} settles is remembered.</span></div><button class="btn primary" data-act="dmExit">Back to the story</button></div>`
+    +(c.dmChat||[]).map(m=>m.who==='you'?`<div class="dmmsg me"><div class="bub">${md(m.text)}</div></div>`:`<div class="dmmsg them"><div class="bub"><b>${n}</b>${md(m.text)}</div></div>`).join('')
+    +(busy?`<div class="dmmsg them"><div class="bub thinking"><b>${n}</b>…</div></div>`:'')
+    +(lastErr?`<div class="e err"><span>${esc(lastErr)}</span><button class="btn small" data-act="settings">Models</button></div>`:'')
+    +(!(c.dmChat||[]).length&&!busy?`<div class="hint" style="max-width:760px;margin:0 auto;text-align:center">Ask ${n} anything: a ruling, something about the world, your character, or just talk.</div>`:'');
+  scrollLog();
+}
+
 const NOTE = () => `${dmSelf()}\nThe player has stepped out of the story to ask you something. Answer as yourself, in your own voice, in one or two short sentences, thirty-five words at most, speaking to the player as "you". Always give a definite answer. Start from the facts given. If they do not settle it, do not say so: decide the answer yourself, on the spot, and state it as plain fact. Pick something specific that fits the setting and what is already known: a number, a name, a place, a price, a preference. "How tall is she?" gets a height. "What is my favourite food?" gets a dish. "What is the exchange rate?" gets a rate. Never answer that it is unknown, undecided, not established, or up to the player, and never ask the player to decide. Do not contradict anything under Established facts. If a dice result is given: on a success, say what the character learns, inventing it if need be; on a failure, the character does not find out, so say that and give nothing away. Never narrate, never move the story forward, never decide what the character does.`;
 async function answerAside(c,q,roll){
   if(busy||cur!==c) return;
@@ -1381,7 +1441,10 @@ async function playerAct(text,trusted,overrule,rollNow){
   busy = false; aborter = null; if(cur!==c) return;
   const drop = () => { const k = c.log.indexOf(entry); if(k>=0) c.log.splice(k,1); };
   if(stopped||(no&&!g.ask)){ drop(); if(no) denied = {...no,text}; save(); renderGame(); const ta = $('#say'); if(ta&&!ta.value) ta.value = text; return; }
-  if(g.ask){ drop(); if(g.roll){ c.pendingRoll = {...g.roll,ask:text}; save(); renderGame(); return; } save(); answerAside(c,text,null); return; }
+  if(g.ask){ drop(); if(g.roll){ c.pendingRoll = {...g.roll,ask:text}; save(); renderGame(); return; }
+    let run = 0; for(let i=c.log.length-1;i>=0&&c.log[i].role==='aside';i--) run++;
+    if(run>=DM_PULL-1){ enterDm(c,true); dmSay(text,true); return; }
+    save(); answerAside(c,text,null); return; }
   // The sheet check found something missing: stop, say what, and let the player overrule it.
   if(sheet&&sheet.ok===false){ drop(); denied = {title:'Not on your sheet.',reason:(sheet.fact?sheet.fact[0].toUpperCase()+sheet.fact.slice(1)+'.':'Your character does not seem to have what this needs.'),steps:[],text,force:true}; save(); renderGame(); const ta = $('#say'); if(ta&&!ta.value) ta.value = text; return; }
   if(overrule) entry.sheet = 'The player has checked their own sheet and overruled the app: the character is able to attempt this.';
@@ -1698,7 +1761,7 @@ const wide = () => matchMedia('(min-width:901px)').matches;
 function chrome(inGame){
   $('#leftBtn').hidden = !inGame; $('#sideBtn').hidden = !inGame;
   $('#where').innerHTML = inGame&&cur?`<b>${esc(cur.title)}</b>${cur.location?' · '+esc(cur.location):''}`:'';
-  setMood(inGame&&cur?cur.mood:'forest');
+  setMood(inGame&&cur?(cur.inDm?'hearth':cur.mood):'forest');
 }
 function setDrawer(el,open){
   if(!el) return; el.classList.toggle('open',open); el.inert = !open;
@@ -1888,6 +1951,7 @@ function renderGame(){
 function chips(list){ const out = (list||[]).filter(n=>!/^Continuity pass/.test(n.t)&&!/^Met /.test(n.t)), met = (list||[]).filter(n=>/^Met /.test(n.t)).map(n=>n.t.slice(4));
   if(met.length) out.push({t:'Met '+met.join(', '),k:'ok'}); return out; }
 function renderLog(){
+  if(cur.inDm) return renderDm();
   const c = cur; if(selEntry>=c.log.length) selEntry = -1; if(editEntry>=c.log.length) editEntry = -1;
   const tools = (e,i) => i!==selEntry||busy?'':i===editEntry
     ?`<div class="eedit"><textarea class="inp" id="eBox" aria-label="Edit this entry">${esc(e.role==='aside'?e.a:e.text)}</textarea><div class="etools"><button data-act="eSave">Save</button>${e.role==='player'?'<button data-act="eSaveRedo">Save and redo from here</button>':''}<button data-act="eCancel">Cancel</button></div></div>`
@@ -1906,6 +1970,8 @@ function renderLog(){
 function scrollLog(){ const l = $('#log'); if(l) l.scrollTop = l.scrollHeight; }
 function renderComposer(){
   const c = cur, r = c.pendingRoll, keep = $('#say')?.value||'';
+  if(c.inDm){ $('#composer').innerHTML = `<form class="send" id="sendForm"><textarea id="say" rows="1" maxlength="2000" placeholder="${busy?esc(dmName())+' is typing…':'Say something to '+esc(dmName())+'…'}" ${busy?'disabled':''}></textarea>${busy?`<button type="button" class="btn" data-act="stop" aria-label="Stop" title="Stop">&#9632;</button>`:`<button class="btn primary" aria-label="Send" title="Send">&#8593;</button>`}</form>`;
+    placeTray(); const ta = $('#say'); ta.value = keep; if(!busy&&wide()) ta.focus(); return; }
   let h = '';
   if(r&&!busy){
     const ch = c.character; let b = r.ability?mod(ch.abilities[r.ability]):0;
@@ -1917,6 +1983,7 @@ function renderComposer(){
   if(denied&&!busy) h += `<div class="deny" role="status"><b>${esc(denied.title||'Not from here.')}</b><div class="hint">${esc(denied.reason)} Nothing was added to the story.</div>${denied.force?`<div class="sugg"><button data-act="force">My sheet says I can. Do it anyway</button></div>`:''}${denied.steps.length?`<div class="sugg">${denied.steps.map(x=>`<button data-act="sugg">${esc(x)}</button>`).join('')}</div>`:''}</div>`;
   if(c.shop&&!busy&&!r) h += `<details class="suggbox" data-sec="shop" ${store.ui.shop===false?'':'open'}><summary>Shop: ${esc(c.shop.name)}</summary><div class="shopcard"><div class="t"><b>${esc(c.shop.name)}</b><div>${c.shop.keeper?esc(c.shop.keeper)+' · ':''}${c.shop.items.length} things for sale · you have ${c.character.gold} gp</div></div><button class="btn primary" data-act="shop">Open shop</button></div></details>`;
   if(c.suggestions.length&&!busy&&!r) h += `<details class="suggbox" data-sec="sugg" ${store.ui.sugg===false?'':'open'}><summary>Suggestions (${c.suggestions.length})</summary><div class="sugg">${c.suggestions.map(s=>`<button data-act="sugg">${esc(s)}</button>`).join('')}</div></details>`;
+  if(!busy) h += `<div class="aside-link"><button type="button" data-act="dmEnter">Step aside and talk to ${esc(dmName())}</button></div>`;
   h += `<form class="send" id="sendForm"><textarea id="say" rows="1" maxlength="2000" placeholder="${busy?esc(dmName())+' is talking…':r?'Roll, or do something else instead…':'What do you do?'}" ${busy?'disabled':''}></textarea>
     ${busy?'':`<button type="button" class="btn" data-act="sayRoll" aria-label="Send this and roll a d20 for it" title="Send and roll a d20 for it">${DIE_SVG}</button>`}${busy?`<button type="button" class="btn" data-act="stop" aria-label="Stop the narrator" title="Stop">&#9632;</button>`:`<button class="btn primary" aria-label="Send" title="Send">&#8593;</button>`}</form>`;
   $('#composer').innerHTML = h; placeTray(); const ta = $('#say'); ta.value = keep; if(!busy&&wide()) ta.focus();
@@ -2275,6 +2342,8 @@ document.addEventListener('click',async ev=>{
     case 'regen': regenerate(); break;
     case 'sayRoll': { const ta = $('#say'), t = (ta?.value||'').trim(); if(busy||rolling) break; if(!t){ toast('!','Type what you attempt first, then tap the die to send it with a roll.'); break; } ta.value = ''; playerAct(t,false,false,true); break; }
     case 'force': if(denied&&!busy){ const t = denied.text; const ta = $('#say'); if(ta) ta.value = ''; playerAct(t,true,true); } break;
+    case 'dmEnter': if(cur&&!busy) enterDm(cur,false); break;
+    case 'dmExit': exitDm(); break;
     case 'eEdit': editEntry = selEntry; renderLog(); $('#eBox')?.focus(); break;
     case 'eCancel': editEntry = -1; renderLog(); break;
     case 'eSave': case 'eSaveRedo': { const e = c.log[selEntry], v = ($('#eBox')?.value||'').trim(); if(!e||!v) break;
@@ -2365,7 +2434,7 @@ document.addEventListener('click',async ev=>{
 });
 document.addEventListener('submit',ev=>{
   ev.preventDefault(); const f = ev.target;
-  if(f.id==='sendForm'){ const t = $('#say').value.trim(); if(t&&!busy){ $('#say').value = ''; playerAct(t); } }
+  if(f.id==='sendForm'){ const t = $('#say').value.trim(); if(t&&!busy){ $('#say').value = ''; if(cur&&cur.inDm) dmSay(t); else playerAct(t); } }
   else if(f.id==='itemForm'){ if(f.name.value.trim()) saveItem(f); }
   else if(f.id==='gsForm'){ saveGame(); closeModal(); }
   else if(f.id==='setForm'){ readSettings(); store.prefsAt = Date.now(); save(); closeModal(); if(!cur) renderHome(); else if(!cur.log.length&&!busy) takeTurn(null); }
@@ -2414,7 +2483,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611172217';
+const BUILD = '202611172221';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
