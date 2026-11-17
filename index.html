@@ -154,6 +154,16 @@ textarea.inp{resize:vertical;min-height:80px}
 .bondbar{display:flex;align-items:center;gap:8px}
 .bondbar i{flex:1;height:6px;border-radius:99px;background:linear-gradient(90deg,#f0796a,rgba(255,255,255,.14) 50%,#8fd18a);position:relative;display:block}
 .bondbar i::after{content:"";position:absolute;top:-3px;left:calc(var(--p) - 2px);width:4px;height:12px;border-radius:2px;background:var(--text)}
+.e[data-i]{cursor:pointer;border-radius:12px;transition:background .15s}
+.e.sel{background:var(--s1);box-shadow:0 0 0 8px var(--s1)}
+.e.player.sel,.e.roll.sel,.e.note.sel{flex-wrap:wrap}
+.etools{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;flex-basis:100%;cursor:default}
+.e.player .etools{justify-content:flex-end}.e.roll .etools,.e.note .etools{justify-content:center}
+.etools button{font-size:12.5px;border:1px solid var(--line2);background:var(--s2);color:var(--text);border-radius:99px;padding:5px 12px;min-height:32px}
+.etools button:hover{border-color:var(--ember)}
+.etools button.warn:hover{border-color:var(--danger);color:#ffb6a6}
+.eedit{flex-basis:100%;width:100%;cursor:default}
+.eedit textarea{min-height:120px;font-size:15px;line-height:1.55}
 .tools{margin-top:8px}
 .tools button{font-size:12px;background:none;border:0;color:var(--muted);padding:2px 0;text-decoration:underline;text-underline-offset:3px}
 .tools button:hover{color:var(--ember2)}
@@ -299,6 +309,7 @@ details.card[open]>summary{margin-bottom:10px}
 .suggbox[open]>summary::before{transform:rotate(45deg)}
 .suggbox>summary:hover{color:var(--text)}
 .suggbox .sugg{margin:4px 0 0}
+.suggbox .shopcard{margin:4px 0 0}
 .shopcard{background:var(--s2);border:1px solid var(--line2);border-radius:14px;padding:10px 14px;margin-bottom:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .shopcard .t{flex:1;min-width:160px}.shopcard .t b{font-family:var(--display);font-size:19px;color:var(--ember2)}.shopcard .t div{font-size:13px;color:var(--muted)}
 .item{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:9px 10px;border-radius:10px;background:rgba(0,0,0,.22)}
@@ -562,7 +573,7 @@ const TONES = {...MORE_TONES,classic:'Classic heroic fantasy: wonder, danger, an
 
 /* ============ storage ============ */
 const KEY = 'calis-tavern.v1';
-const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',forgeModel:'',useCheck:true,useGuard:true,announce:true,encumb:true,vulgar:false,diff:'standard',len:'adaptive',memToken:'',gistId:'',lastSync:0};
+const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,forgeModel:'',useCheck:true,useGuard:true,announce:true,encumb:true,vulgar:false,diff:'standard',len:'adaptive',memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
 try{ if(!localStorage.getItem(KEY)&&localStorage.getItem('emberglade.v1')) localStorage.setItem(KEY,localStorage.getItem('emberglade.v1')); }catch(e){}
 try{ const s = JSON.parse(localStorage.getItem(KEY)||'null'); if(s){ store = s; store.settings = {...DEFAULTS,...s.settings}; store.campaigns = s.campaigns||{}; } }catch(e){}
@@ -953,11 +964,11 @@ function buildMessages(c,intents){
     +(intents&&intents.length?`\n\n# What they intend this beat\nWeave these intentions into your narration faithfully, in your own prose. The world and the dice still decide whether they succeed.\n${intents.map(i=>`- ${i.name}: ${i.intent}`).join('\n')}`:'');
   const out = [{role:'system',content:sys}];
   const push = (role,content)=>{ const l = out[out.length-1]; if(l.role===role) l.content += '\n\n'+content; else out.push({role,content}); };
-  const from = c.sumIdx||0, lastEntry = c.log[c.log.length-1];
+  const from = c.sumIdx||0, lastEntry = c.log[c.log.length-1], lastAct = lastOf(c,'player');
   push('user',from?'(The adventure continues from the story so far.)':'Begin the adventure. Open with a scene that drops my character into the premise, makes clear where I am, and ends with a choice.');
   for(const e of c.log.slice(from)){
     if(e.role==='dm') push('assistant',e.text+'\n\n<state>\n'+JSON.stringify(e.state||{})+'\n</state>');
-    else if(e.role==='player') push('user',e.text+(e===lastEntry&&e.callRoll?`\n\n[App note, not written by the player: the dice gate judged that this needs a ${e.callRoll.label}${e.callRoll.dc?` against ${e.callRoll.damage?'AC':'DC'} ${e.callRoll.dc}`:''}. Narrate only the attempt, then end by telling the player to roll it. Do not narrate the outcome.]`:e===lastEntry&&e.noRoll?'\n\n[App note, not written by the player: the dice gate judged that this action needs no roll. Resolve it directly.]':''));
+    else if(e.role==='player') push('user',e.text+(e===lastAct&&e.sheet?`\n\n[Sheet check by the app, authoritative: ${e.sheet} Do not tell the player their character lacks it or cannot try.]`:'')+(e===lastEntry&&e.callRoll?`\n\n[App note, not written by the player: the dice gate judged that this needs a ${e.callRoll.label}${e.callRoll.dc?` against ${e.callRoll.damage?'AC':'DC'} ${e.callRoll.dc}`:''}. Narrate only the attempt, then end by telling the player to roll it. Do not narrate the outcome.]`:e===lastEntry&&e.noRoll?'\n\n[App note, not written by the player: the dice gate judged that this action needs no roll. Resolve it directly.]':''));
     else if(e.role==='roll') push('user','[Dice result from the app] '+e.text);
     else if(e.role==='note') push('user','[App note, already applied to the character sheet] '+e.text);
     else if(e.role==='aside') push('user',`[Out-of-story aside, already answered by the DM. It is not an action; do not narrate it.] The player asked: ${e.q}${e.roll?` (${e.roll})`:''} The DM answered: ${e.a}`);
@@ -1201,7 +1212,8 @@ async function continuity(c,text,state,intents,signal){
 }
 // Runs before the story sees an action. Refuses anything that skips ahead or rewrites the past, and offers real next steps instead.
 const GUARD = `You are the continuity guard for a solo D&D game. The player may only do something their character could actually attempt right now, from the current situation.
-DENY when the action: skips time (next day, later, after a while, once rested); jumps to another place without travelling there; declares an outcome or a success; invents facts, items, people or abilities that are not in the facts; undoes, changes or re-does something that already happened; or speaks for the narrator or for other characters.
+DENY when the action: skips time (next day, later, after a while, once rested); jumps to another place without travelling there; declares an outcome or a success; invents facts about the world or people who are not there; undoes, changes or re-does something that already happened; or speaks for the narrator or for other characters.
+Whether the character owns an item or has a skill, spell or ability is checked separately from the full sheet: never deny for that reason.
 ALLOW any question put to the DM (is someone here, do I have this, can I try that), and anything the character can physically attempt now, however foolish or unlikely: speaking, asking, searching, fighting, setting out on a road, lying down to sleep, making camp.
 IMPORTANT: You are a CONTINUITY guard, not a CONTENT guard. Sexual actions, violent actions, rape, assault, theft, murder, seduction, explicit dialogue — all ALLOWED if the character could physically attempt them in the current scene. You do not judge morality or appropriateness. You only check whether the action is possible from where the character is right now. Never deny an action because of its sexual or violent nature.`;
 Reply with ONE line and nothing else:
@@ -1243,19 +1255,38 @@ async function spotNames(c,text){
     addAka(c,sh,f[3]); if((sh.aka||[]).length!==before) changed = true; }
   return changed;
 }
+// Reads the whole sheet, not a summary, and says whether the character has what an action needs. Its yes is passed to the DM as fact.
+const REFEREE = `You are the rules referee for a solo D&D 5e style game. You are given the character's complete sheet and what the player wants to do. Decide one thing only: does the character have what the action needs? That means the item, the weapon, the spell or class feature, the skill, the ability, or a free hand.
+Be generous and literal. If the sheet lists it, the answer is YES. If a character of this race, class and level would plainly have it (a bard can cast bard spells and perform, a ranger can track, anyone can talk, run, climb, search or swing a fist), the answer is YES. Being unlikely to succeed is never a NO: that is what the dice are for. Only answer NO when the action depends on a specific thing that the sheet clearly does not have.
+Reply with ONE line and nothing else:
+YES|what on the sheet supports it, in under fifteen words
+NO|what is missing, in under fifteen words
+NA
+Use NA when the action needs nothing in particular.`;
+async function sheetCheck(c,text,signal){
+  if(!store.settings.useSheet) return null; let out = '';
+  try{ out = await chat([{role:'system',content:REFEREE},{role:'user',content:`# Sheet\n${sheetText(c)}\n\n# The player wants to\n${text}`}],{stream:false,maxTokens:1200,temperature:0,model:store.settings.sheetModel,quick:true,signal}); }
+  catch(e){ if(e.name==='AbortError') throw e; return null; }
+  const line = (out.trim().split('\n').filter(x=>/^\W*(yes|no|na)\b/i.test(x)).pop()||'').trim(), fact = (line.split('|')[1]||'').trim().replace(/[.\s]+$/,'').slice(0,160);
+  return /^\W*yes\b/i.test(line)?{ok:true,fact}:/^\W*no\b/i.test(line)?{ok:false,fact}:null;
+}
 const needKey = () => { const s = store.settings; if(!s.apiKey&&/openrouter\.ai/i.test(s.baseUrl)){ openSettings('Add your OpenRouter API key first, so the narrator has a voice.'); return true; } return false; };
 // A player's action goes to the dice gate first. A yes puts the roll card up and waits; a no goes straight to the story.
-async function playerAct(text,trusted){
+async function playerAct(text,trusted,overrule){
   if(busy||!cur||needKey()) return;
   const c = cur, entry = {role:'player',text}; c.log.push(entry); denied = null;
   c.suggestions = []; c.pendingRoll = null; lastErr = null; busy = true; aborter = new AbortController(); save(); renderGame();
   setLive(trusted||!store.settings.useGuard?'Asking whether the dice are needed…':'Checking this against the scene…');
-  let g = {ask:false,roll:null}, no = null, stopped = false;
-  try{ [g,no] = await Promise.all([gate(c,text,aborter.signal),trusted||c.god?null:guard(c,text,aborter.signal)]); }catch(e){ stopped = true; }
+  let g = {ask:false,roll:null}, no = null, sheet = null, stopped = false;
+  try{ [g,no,sheet] = await Promise.all([gate(c,text,aborter.signal),trusted||c.god?null:guard(c,text,aborter.signal),trusted||c.god?null:sheetCheck(c,text,aborter.signal)]); }catch(e){ stopped = true; }
   busy = false; aborter = null; if(cur!==c) return;
   const drop = () => { const k = c.log.indexOf(entry); if(k>=0) c.log.splice(k,1); };
   if(stopped||(no&&!g.ask)){ drop(); if(no) denied = {...no,text}; save(); renderGame(); const ta = $('#say'); if(ta&&!ta.value) ta.value = text; return; }
   if(g.ask){ drop(); if(g.roll){ c.pendingRoll = {...g.roll,ask:text}; save(); renderGame(); return; } save(); answerAside(c,text,null); return; }
+  // The sheet check found something missing: stop, say what, and let the player overrule it.
+  if(sheet&&sheet.ok===false){ drop(); denied = {title:'Not on your sheet.',reason:(sheet.fact?sheet.fact[0].toUpperCase()+sheet.fact.slice(1)+'.':'Your character does not seem to have what this needs.'),steps:[],text,force:true}; save(); renderGame(); const ta = $('#say'); if(ta&&!ta.value) ta.value = text; return; }
+  if(overrule) entry.sheet = 'The player has checked their own sheet and overruled the app: the character is able to attempt this.';
+  else if(sheet&&sheet.ok) entry.sheet = `The character can do this${sheet.fact?': '+sheet.fact:''}.`;
   if(g.roll&&!store.settings.announce){ c.pendingRoll = g.roll; save(); renderGame(); return; }
   if(g.roll) entry.callRoll = g.roll; else entry.noRoll = true; takeTurn(null);
 }
@@ -1291,7 +1322,7 @@ async function takeTurn(entry){
   if(cur!==c) return;
   if(text){
     const pre = snapshot(c);
-    c.log.forEach(e=>{ delete e.pre; });
+    { let kept = 0; for(let k=c.log.length-1;k>=0;k--) if(c.log[k].pre&&++kept>=KEEP_UNDO) delete c.log[k].pre; }
     const called = c.log[c.log.length-1]; c._acted = shifts.map(x=>x.name); const changes = applyState(c,state); delete c._acted;
     for(const x of shifts){ const n = c.npcs&&c.npcs[x.name], r0 = n&&shiftBond(n,x.shift); if(r0) changes.push({...r0,rel:1}); }
     rels = changes.filter(x=>x.rel);
@@ -1302,11 +1333,26 @@ async function takeTurn(entry){
   save(); renderGame(); relPop(rels); if(text) summarize(c);
   if(text&&!signal.aborted) spotNames(c,text).then(ch=>{ if(!ch) return; save(); if(cur===c){ renderLog(); if(tab==='people') renderSide(); } });
 }
-function regenerate(){
-  if(busy||!cur) return; const last = cur.log[cur.log.length-1];
-  if(!last||last.role!=='dm'||!last.pre) return;
-  Object.assign(cur,JSON.parse(last.pre)); cur.log.pop(); takeTurn(null);
+// Each scene keeps a snapshot of the sheet and the world from just before it, for the most recent scenes, so a scene can be redone with everything put back.
+const KEEP_UNDO = 15;
+let selEntry = -1, editEntry = -1;
+// Cuts the tale back to just before entry i. Restores the sheet and the world if a snapshot from that point survives; says whether it did.
+function rewindTo(c,i){
+  let j = i; while(j<c.log.length&&c.log[j].role!=='dm') j++;
+  const snap = c.log[j]&&c.log[j].pre; if(snap) Object.assign(c,JSON.parse(snap));
+  c.log.length = i; c.sumIdx = Math.min(c.sumIdx||0,i); c.pendingRoll = null; c.suggestions = []; denied = null; lastErr = null; selEntry = editEntry = -1;
+  return !!snap;
 }
+function redoEntry(i){
+  const c = cur, e = c&&c.log[i]; if(!e||busy||rolling) return;
+  if(e.role==='aside'){ c.log.splice(i,1); selEntry = -1; save(); answerAside(c,e.q,e.roll||null); return; }
+  if(e.role!=='dm'&&e.role!=='player') return;
+  const after = c.log.length-1-i, hasSnap = (()=>{ let j = i; while(j<c.log.length&&c.log[j].role!=='dm') j++; return !!(c.log[j]&&c.log[j].pre); })();
+  if(after>0&&!confirm(`Redo from here? The ${after} ${after===1?'entry':'entries'} after this one will be removed${hasSnap?', and your sheet and the world go back to how they were at this point.':'. This scene is too far back for the sheet to be put back, so hit points, items and people stay as they are now.'}`)) return;
+  const text = e.text; rewindTo(c,i); save();
+  if(e.role==='player') playerAct(text); else takeTurn(null);
+}
+function regenerate(){ if(cur&&cur.log.length) redoEntry(cur.log.length-1); }
 async function summarize(c){
   const from = c.sumIdx||0; if(c.log.length-from<34||c._summing) return;
   c._summing = true; const take = c.log.slice(from,from+18);
@@ -1335,7 +1381,7 @@ async function gh(path,opt={}){
   if(!r.ok){ const e = new Error(r.status===401?'GitHub rejected the token. Make a new one with the gist permission.':r.status===403?'GitHub refused (403). The token needs the gist permission.':'GitHub answered '+r.status+'.'); e.status = r.status; throw e; }
   return r.json();
 }
-const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','useCheck','useGuard','announce','encumb','vulgar','diff','len','temperature','maxTokens','stream'];
+const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','announce','encumb','vulgar','diff','len','temperature','maxTokens','stream'];
 const memCore = o => JSON.stringify([o.last||null,o.deleted||{},o.campaigns||{},o.prefs||null,o.prefsAt||0]);
 function memData(){ const campaigns = {}; for(const [id,c] of Object.entries(store.campaigns)){ const {_summing,...rest} = c; campaigns[id] = rest; }
   return {app:'calis-tavern',version:1,savedAt:Date.now(),last:store.last||null,deleted:store.deleted,campaigns,prefs:Object.fromEntries(PREFS.map(k=>[k,store.settings[k]])),prefsAt:store.prefsAt||0}; }
@@ -1663,16 +1709,20 @@ function renderGame(){
 function chips(list){ const out = (list||[]).filter(n=>!/^Continuity pass/.test(n.t)&&!/^Met /.test(n.t)), met = (list||[]).filter(n=>/^Met /.test(n.t)).map(n=>n.t.slice(4));
   if(met.length) out.push({t:'Met '+met.join(', '),k:'ok'}); return out; }
 function renderLog(){
-  const c = cur, last = c.log.length-1;
+  const c = cur; if(selEntry>=c.log.length) selEntry = -1; if(editEntry>=c.log.length) editEntry = -1;
+  const tools = (e,i) => i!==selEntry||busy?'':i===editEntry
+    ?`<div class="eedit"><textarea class="inp" id="eBox" aria-label="Edit this entry">${esc(e.role==='aside'?e.a:e.text)}</textarea><div class="etools"><button data-act="eSave">Save</button>${e.role==='player'?'<button data-act="eSaveRedo">Save and redo from here</button>':''}<button data-act="eCancel">Cancel</button></div></div>`
+    :`<div class="etools"><button data-act="eEdit">Edit</button>${e.role==='dm'||e.role==='player'||e.role==='aside'?`<button data-act="eRedo">${e.role==='aside'?'Ask again':'Redo'}</button>`:''}<button data-act="eCopy">Copy</button><button class="warn" data-act="eDel">Delete</button></div>`;
+  const open = i => `data-i="${i}" class="e ${c.log[i].role==='dm'?'dm':c.log[i].role}${i===selEntry?' sel':''}"`;
   $('#log').innerHTML = c.log.map((e,i)=>{
-    if(e.role==='player') return `<div class="e player"><div class="bub">${md(e.text)}</div></div>`;
-    if(e.role==='roll') return `<div class="e roll"><div class="bub">${DIE_SVG}<span>${esc(e.text)}</span></div></div>`;
-    if(e.role==='note') return `<div class="e note"><div class="bub">${esc(e.text)}</div></div>`;
-    if(e.role==='aside') return `<div class="e aside"><div class="lbl">DM note</div><div class="q">${esc(e.q)}</div>${md(e.a)}${e.roll?`<div class="r">${esc(e.roll)}</div>`:''}</div>`;
-    return `<div class="e dm"><div class="lbl">Narrator</div>${md(e.text)}${chips(e.changes).length?`<div class="chg">${chips(e.changes).map(n=>`<span class="${n.k||''}">${esc(n.t)}${n.arrows?`<b class="arw">${n.arrows}</b>`:''}</span>`).join('')}</div>`:''}${e.ok||(e.changes||[]).some(n=>/^Continuity pass/.test(n.t))?'<span class="ok-mark" title="Continuity checked" aria-label="Continuity checked">&#10003;</span>':''}
-      ${i===last&&e.pre&&!busy?`<div class="tools"><button data-act="regen">Retell this scene</button></div>`:''}</div>`;
+    const body = i===editEntry&&i===selEntry;
+    if(e.role==='player') return `<div ${open(i)}>${body?'':`<div class="bub">${md(e.text)}</div>`}${tools(e,i)}</div>`;
+    if(e.role==='roll') return `<div ${open(i)}>${body?'':`<div class="bub">${DIE_SVG}<span>${esc(e.text)}</span></div>`}${tools(e,i)}</div>`;
+    if(e.role==='note') return `<div ${open(i)}>${body?'':`<div class="bub">${esc(e.text)}</div>`}${tools(e,i)}</div>`;
+    if(e.role==='aside') return `<div ${open(i)}><div class="lbl">DM note</div><div class="q">${esc(e.q)}</div>${body?'':md(e.a)}${e.roll?`<div class="r">${esc(e.roll)}</div>`:''}${tools(e,i)}</div>`;
+    return `<div ${open(i)}><div class="lbl">Narrator</div>${body?'':md(e.text)}${chips(e.changes).length?`<div class="chg">${chips(e.changes).map(n=>`<span class="${n.k||''}">${esc(n.t)}${n.arrows?`<b class="arw">${n.arrows}</b>`:''}</span>`).join('')}</div>`:''}${e.ok||(e.changes||[]).some(n=>/^Continuity pass/.test(n.t))?'<span class="ok-mark" title="Continuity checked" aria-label="Continuity checked">&#10003;</span>':''}${tools(e,i)}</div>`;
   }).join('')+(lastErr?`<div class="e err"><span>${esc(lastErr)}</span><button class="btn small" data-act="retry">Try again</button><button class="btn small" data-act="settings">Models</button></div>`:'');
-  scrollLog();
+  if(selEntry<0) scrollLog(); else $('#log .e.sel')?.scrollIntoView({block:'nearest'});
 }
 function scrollLog(){ const l = $('#log'); if(l) l.scrollTop = l.scrollHeight; }
 function renderComposer(){
@@ -1685,8 +1735,8 @@ function renderComposer(){
       <button class="btn primary" data-act="pend" data-adv="${r.advantage}">Roll</button>${c.god?`<button class="btn small" data-act="skipRoll">Skip it (succeed)</button>`:''}
       ${r.advantage==='none'?`<button class="btn small" data-act="pend" data-adv="adv">Advantage</button><button class="btn small" data-act="pend" data-adv="dis">Disadvantage</button>`:''}<div id="chatTray"></div></div>`;
   }
-  if(denied&&!busy) h += `<div class="deny" role="status"><b>Not from here.</b><div class="hint">${esc(denied.reason)} Nothing was added to the story.</div>${denied.steps.length?`<div class="sugg">${denied.steps.map(x=>`<button data-act="sugg">${esc(x)}</button>`).join('')}</div>`:''}</div>`;
-  if(c.shop&&!busy) h += `<div class="shopcard"><div class="t"><b>${esc(c.shop.name)}</b><div>${c.shop.keeper?esc(c.shop.keeper)+' · ':''}${c.shop.items.length} things for sale · you have ${c.character.gold} gp</div></div><button class="btn primary" data-act="shop">Open shop</button></div>`;
+  if(denied&&!busy) h += `<div class="deny" role="status"><b>${esc(denied.title||'Not from here.')}</b><div class="hint">${esc(denied.reason)} Nothing was added to the story.</div>${denied.force?`<div class="sugg"><button data-act="force">My sheet says I can. Do it anyway</button></div>`:''}${denied.steps.length?`<div class="sugg">${denied.steps.map(x=>`<button data-act="sugg">${esc(x)}</button>`).join('')}</div>`:''}</div>`;
+  if(c.shop&&!busy&&!r) h += `<details class="suggbox" data-sec="shop" ${store.ui.shop===false?'':'open'}><summary>Shop: ${esc(c.shop.name)}</summary><div class="shopcard"><div class="t"><b>${esc(c.shop.name)}</b><div>${c.shop.keeper?esc(c.shop.keeper)+' · ':''}${c.shop.items.length} things for sale · you have ${c.character.gold} gp</div></div><button class="btn primary" data-act="shop">Open shop</button></div></details>`;
   if(c.suggestions.length&&!busy&&!r) h += `<details class="suggbox" data-sec="sugg" ${store.ui.sugg===false?'':'open'}><summary>Suggestions (${c.suggestions.length})</summary><div class="sugg">${c.suggestions.map(s=>`<button data-act="sugg">${esc(s)}</button>`).join('')}</div></details>`;
   h += `<form class="send" id="sendForm"><textarea id="say" rows="1" maxlength="2000" placeholder="${busy?'The narrator is speaking…':r?'Roll, or do something else instead…':'What do you do?'}" ${busy?'disabled':''}></textarea>
     ${busy?`<button type="button" class="btn" data-act="stop" aria-label="Stop the narrator" title="Stop">&#9632;</button>`:`<button class="btn primary" aria-label="Send" title="Send">&#8593;</button>`}</form>`;
@@ -1694,7 +1744,7 @@ function renderComposer(){
 }
 const openSecs = new Set(['abilities']);
 const sec = (id,head,body,cls='') => `<details class="card ${cls}" data-sec="${esc(id)}" ${openSecs.has(id)?'open':''}><summary>${head}</summary>${body}</details>`;
-document.addEventListener('toggle',ev=>{ const d = ev.target; if(d.dataset&&d.dataset.sec==='sugg'){ if(store.ui.sugg!==d.open){ store.ui.sugg = d.open; saveLocal(); } return; } if(d.dataset&&d.dataset.sec){ if(d.open) openSecs.add(d.dataset.sec); else openSecs.delete(d.dataset.sec); } },true);
+document.addEventListener('toggle',ev=>{ const d = ev.target; if(d.dataset&&(d.dataset.sec==='sugg'||d.dataset.sec==='shop')){ const k = d.dataset.sec; if(store.ui[k]!==d.open){ store.ui[k] = d.open; saveLocal(); } return; } if(d.dataset&&d.dataset.sec){ if(d.open) openSecs.add(d.dataset.sec); else openSecs.delete(d.dataset.sec); } },true);
 function renderSide(){
   const c = cur, ch = c.character, side = $('#side');
   const tabs = [['sheet','Sheet'],['pack','Pack'],['quests','Quests'],['people','People'],['notes','Notes'],['dice','Dice']];
@@ -1854,6 +1904,7 @@ function openGame(tabName){
       <label class="f">How much the DM writes<select class="inp" name="len">${o('adaptive','Fits the moment',st.len)}${o('short','Always short',st.len)}${o('medium','Always medium',st.len)}${o('long','Always long',st.len)}</select></label>
       ${c?`<label class="f">Tone of this tale<select class="inp" name="tone">${TONE_LIST.map(([v,l])=>o(v,l,c.tone)).join('')}${o('unfiltered','Unfiltered (adult)',c.tone)}</select></label>`:''}</div>
     ${ck('announce',st.announce,'The DM sets the scene and tells me what to roll at the end. Off: the roll comes up straight away with no lead-in.')}
+    ${ck('useSheet',st.useSheet,'Check my sheet before each action: a model reads my full sheet and pack, tells the DM what I really have, and stops me only if something is missing (with a button to do it anyway).')}
     ${ck('useGuard',st.useGuard,'Hold me to the scene: refuse actions that skip time, jump somewhere else, or rewrite what happened.')}
     ${ck('useCheck',st.useCheck,'Run a continuity check on each scene (one extra model call per turn). Skipped during fights to keep them fast.')}
     ${ck('vulgar',st.vulgar,'Vulgar language: the DM and the people you meet swear freely and naturally (fuck, shit, bitch and so on), where it fits.')}
@@ -1900,7 +1951,7 @@ function openGame(tabName){
 }
 function saveGame(){
   const f = $('#gsForm'), c = cur, st = store.settings; if(!f) return;
-  if(gsTab==='game'){ Object.assign(st,{diff:f.diff.value,len:f.len.value,announce:f.announce.checked,useGuard:f.useGuard.checked,useCheck:f.useCheck.checked,encumb:f.encumb.checked,vulgar:f.vulgar.checked}); store.prefsAt = Date.now();
+  if(gsTab==='game'){ Object.assign(st,{diff:f.diff.value,len:f.len.value,announce:f.announce.checked,useGuard:f.useGuard.checked,useSheet:f.useSheet.checked,useCheck:f.useCheck.checked,encumb:f.encumb.checked,vulgar:f.vulgar.checked}); store.prefsAt = Date.now();
     if(c){ c.tone = f.tone.value; c.god = f.god.checked; refresh(c.character); } }
   else if(gsTab==='char'){ const ch = c.character; ch.name = f.name.value.trim().slice(0,40)||ch.name; ch.race = f.race.value.trim().slice(0,30)||ch.race; ch.cls = f.cls.value.trim().slice(0,30)||ch.cls; ch.background = f.background.value.trim().slice(0,40);
     ch.level = clamp(num(f.level.value)||1,1,20); ch.xp = Math.max(0,num(f.xp.value)); ch.maxHp = Math.max(1,num(f.maxHp.value)||1); ch.hp = clamp(num(f.hp.value),0,ch.maxHp); ch.gold = Math.max(0,num(f.gold.value)); ch.acMisc = clamp(num(f.acMisc.value),-10,10);
@@ -1927,9 +1978,10 @@ function openSettings(msg){
       <label class="f">Proxy / API base URL (a web address, not the model)<input class="inp" name="baseUrl" value="${esc(s.baseUrl)}" placeholder="https://openrouter.ai/api/v1" required></label>
       <label class="f">API key<input class="inp" name="apiKey" type="password" value="${esc(s.apiKey)}" placeholder="sk-or-…" autocomplete="off"></label>
       <label class="f">Model<span style="display:flex;gap:6px"><input class="inp" name="model" value="${esc(s.model)}" list="modelList" placeholder="openrouter/auto" required><button type="button" class="btn small" data-act="loadModels">Load list</button></span><datalist id="modelList"></datalist></label>
-      <div class="hint" style="margin-top:-4px">The model above tells the story. Four helpers work beside it; leave one blank to use the story model for it.</div>
+      <div class="hint" style="margin-top:-4px">The model above tells the story. Five helpers work beside it; leave one blank to use the story model for it.</div>
       <label class="f">Dice gate model (decides yes or no on a roll; pick something small and fast)<input class="inp" name="gateModel" value="${esc(s.gateModel)}" list="modelList" placeholder="same as the story model"></label>
       <label class="f">Character model (plays each person in the scene, up to three at once)<input class="inp" name="charModel" value="${esc(s.charModel)}" list="modelList" placeholder="same as the story model"></label>
+      <label class="f">Sheet model (reads your whole sheet and pack to confirm what your character can do)<input class="inp" name="sheetModel" value="${esc(s.sheetModel)}" list="modelList" placeholder="same as the story model"></label>
       <label class="f">Character builder model (builds a new character from your description; pick something small and fast)<input class="inp" name="forgeModel" value="${esc(s.forgeModel)}" list="modelList" placeholder="same as the story model"></label>
       <label class="f">Continuity model (checks the scene holds together)<input class="inp" name="checkModel" value="${esc(s.checkModel)}" list="modelList" placeholder="same as the story model"></label>
       <div class="hint">Game options such as the continuity check, god mode and the edit panel are under <b>Settings</b>.</div>
@@ -1950,17 +2002,23 @@ function openSettings(msg){
   $('#setForm input').focus(); memLabel();
 }
 function readSettings(){ const f = $('#setForm'); if(!f) return; Object.assign(store.settings,{baseUrl:f.baseUrl.value.trim()||DEFAULTS.baseUrl,apiKey:f.apiKey.value.trim(),model:f.model.value.trim()||DEFAULTS.model,
-  temperature:clamp(Number(f.temperature.value)||0,0,2),maxTokens:clamp(num(f.maxTokens.value)||1000,200,8000),stream:f.stream.checked,localProxy:f.localProxy.checked,gateModel:f.gateModel.value.trim(),charModel:f.charModel.value.trim(),checkModel:f.checkModel.value.trim(),forgeModel:f.forgeModel.value.trim()});
+  temperature:clamp(Number(f.temperature.value)||0,0,2),maxTokens:clamp(num(f.maxTokens.value)||1000,200,8000),stream:f.stream.checked,localProxy:f.localProxy.checked,gateModel:f.gateModel.value.trim(),charModel:f.charModel.value.trim(),checkModel:f.checkModel.value.trim(),forgeModel:f.forgeModel.value.trim(),sheetModel:f.sheetModel.value.trim()});
   const tok = f.memToken.value.trim(); if(tok!==store.settings.memToken) Object.assign(store.settings,{memToken:tok,gistId:'',lastSync:0});
   if(!/^https?:\/\/[^\s/]+/i.test(store.settings.baseUrl)){ store.settings.baseUrl = DEFAULTS.baseUrl; f.baseUrl.value = DEFAULTS.baseUrl; toast('!','The base URL has to be a web address, so it was reset to OpenRouter. Model names go in the Model box.'); } }
 function closeModal(){ $('#modalRoot').innerHTML = ''; }
 
 /* ============ events ============ */
-function go(){ const id = location.hash.slice(1); if(id==='new') return renderCreate(); if(store.campaigns[id]){ denied = null; cur = store.campaigns[id]; upgrade(cur); store.last = id; saveLocal(); lastErr = null; main.innerHTML = ''; renderGame(); if(!cur.log.length) takeTurn(null); return; } renderHome(); }
+function go(){ const id = location.hash.slice(1); if(id==='new') return renderCreate(); if(store.campaigns[id]){ denied = null; selEntry = editEntry = -1; cur = store.campaigns[id]; upgrade(cur); store.last = id; saveLocal(); lastErr = null; main.innerHTML = ''; renderGame(); if(!cur.log.length) takeTurn(null); return; } renderHome(); }
 window.addEventListener('hashchange',()=>{ if(aborter) aborter.abort(); busy = false; go(); });
 
 document.addEventListener('click',async ev=>{
-  const el = ev.target.closest('[data-act]'); if(!el) return; const act = el.dataset.act, c = cur;
+  const el = ev.target.closest('[data-act]');
+  if(!el){ // tapping an entry in the chat picks it; tapping it again, or elsewhere, lets go
+    const en = ev.target.closest('#log .e[data-i]'); if(cur&&!busy&&!ev.target.closest('.eedit')&&!String(getSelection()).trim()){ const i = en?num(en.dataset.i):-1;
+      if(i!==selEntry||(i<0&&selEntry>=0)){ if(en||ev.target.closest('#log')){ const keep = $('#log').scrollTop; selEntry = i===selEntry?-1:i; editEntry = -1; renderLog(); if(selEntry<0) $('#log').scrollTop = keep; } }
+      else if(en){ const keep = $('#log').scrollTop; selEntry = -1; editEntry = -1; renderLog(); $('#log').scrollTop = keep; } }
+    return; }
+  const act = el.dataset.act, c = cur;
   switch(act){
     case 'home': location.hash = ''; if(!location.hash) go(); break;
     case 'create': draft = null; location.hash = 'new'; break;
@@ -1990,6 +2048,17 @@ document.addEventListener('click',async ev=>{
     case 'stop': if(aborter) aborter.abort(); break;
     case 'retry': takeTurn(null); break;
     case 'regen': regenerate(); break;
+    case 'force': if(denied&&!busy){ const t = denied.text; const ta = $('#say'); if(ta) ta.value = ''; playerAct(t,true,true); } break;
+    case 'eEdit': editEntry = selEntry; renderLog(); $('#eBox')?.focus(); break;
+    case 'eCancel': editEntry = -1; renderLog(); break;
+    case 'eSave': case 'eSaveRedo': { const e = c.log[selEntry], v = ($('#eBox')?.value||'').trim(); if(!e||!v) break;
+      if(e.role==='aside') e.a = v; else e.text = v; const at = selEntry; editEntry = -1; c.updated = Date.now(); save();
+      if(act==='eSaveRedo') redoEntry(at); else renderLog(); break; }
+    case 'eRedo': redoEntry(selEntry); break;
+    case 'eCopy': { const e = c.log[selEntry]; if(!e) break; const t = e.role==='aside'?`${e.q}\n${e.a}`:e.text;
+      try{ await navigator.clipboard.writeText(t); el.textContent = 'Copied'; }catch(err){ el.textContent = 'Could not copy'; } break; }
+    case 'eDel': { const e = c.log[selEntry]; if(!e) break; if(!confirm('Delete this entry from the tale? Your sheet is not changed.')) break;
+      c.log.splice(selEntry,1); c.sumIdx = Math.min(c.sumIdx||0,c.log.length); selEntry = editEntry = -1; c.updated = Date.now(); save(); renderGame(); break; }
     case 'hp': c.character.hp = clamp(c.character.hp+num(el.dataset.d),0,c.character.maxHp); save(); renderSide(); break;
     case 'drop': c.character.inventory.splice(num(el.dataset.k),1); refresh(c.character); save(); renderSide(); break;
     case 'use': useItem(num(el.dataset.k)); break;
@@ -2100,7 +2169,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170913';
+const BUILD = '202611170915';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
