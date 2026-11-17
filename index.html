@@ -2,7 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#0d1410">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Emberglade">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
 <title>Emberglade — a solo adventure by firelight</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -253,18 +261,53 @@ ul.list li button:hover{color:var(--danger)}
 .check{display:flex;gap:10px;align-items:flex-start;font-size:14px}
 .check input{margin-top:3px;accent-color:var(--ember)}
 
+#scrim,.dclose{display:none}
+.sm{display:none}
+#app{padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+header.bar{padding-top:calc(10px + env(safe-area-inset-top,0px))}
 @media (max-width:900px){
-  .drawer{position:fixed;top:0;bottom:0;z-index:20;width:min(330px,90vw)!important;transition:transform .25s;background:var(--solid)!important}
-  .drawer>div{width:100%}
+  .drawer{position:fixed;top:0;bottom:0;z-index:20;width:min(340px,92vw)!important;transition:transform .25s;background:var(--solid)!important}
+  .drawer>div{width:100%;padding:calc(12px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))}
   #leftD{left:0;transform:translateX(-102%);border-right:1px solid var(--line2)}
   #rightD{right:0;transform:translateX(102%);border-left:1px solid var(--line2)}
   .drawer.open{transform:none!important;box-shadow:0 0 80px rgba(0,0,0,.7)}
-  header.bar{padding:9px 10px;gap:7px}
-  .brand span,.mem{display:none}
-  #log{padding:18px 14px 8px}
-  .composer{padding:6px 12px 12px}
+  #scrim{display:block;position:fixed;inset:0;z-index:19;background:rgba(0,0,0,.55);border:0;padding:0}
+  .dclose{display:block;align-self:flex-end}
+  header.bar{padding:calc(8px + env(safe-area-inset-top,0px)) 10px 8px;gap:6px}
+  .brand span,.mem,.lg{display:none}
+  .sm{display:inline}
+  #log{padding:16px 14px 8px}
+  .composer{padding:6px 12px calc(12px + env(safe-area-inset-bottom,0px))}
+  .wrap{padding:24px 16px calc(40px + env(safe-area-inset-bottom,0px))}
   .abil{grid-template-columns:repeat(3,1fr)}
-  #diceStage{bottom:130px}.dicerow{gap:16px}.dw{width:68px;height:68px}.d3{zoom:.79}
+  .hooks{grid-template-columns:1fr 1fr}
+  .dw{width:68px;height:68px}
+  /* thumb-sized targets, and 16px inputs so phones do not zoom on focus */
+  .btn,.btn.small{min-height:44px;padding:8px 14px;font-size:14px}
+  .bar .btn{min-width:44px}
+  .brand{min-width:44px;min-height:44px;justify-content:center}
+  .inp,.send textarea{font-size:16px}
+  .inp{min-height:46px}
+  .send .btn{width:44px;height:44px;min-height:44px}
+  .send textarea{min-height:44px;padding:10px 0}
+  .sugg button{min-height:44px;padding:8px 14px;font-size:14.5px}
+  .tabs button{min-height:42px}
+  .skill{min-height:40px;align-items:center;padding:4px 8px;font-size:14px}
+  .stat{padding:10px 4px}
+  .tale{padding:12px}
+  .tools button{min-height:40px;font-size:13px}
+  ul.list li{min-height:44px}ul.list li button{min-width:40px;min-height:40px;font-size:20px}
+  .hprow .btn{padding:0 14px;min-width:44px}
+  .rollcard .t{flex:1 1 100%;min-width:0}.rollcard .btn.primary{flex:1 1 100%}.rollcard .btn.small{flex:1}
+  .check{padding:6px 0}.check input{width:22px;height:22px;flex:none;margin-top:0}
+  .hook{padding:14px}
+  .modal{padding:0;place-items:end stretch}
+  .modal .box{width:100%;max-height:94dvh;border-radius:18px 18px 0 0;padding:20px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+  .modal .actions:last-child{position:sticky;bottom:calc(-16px - env(safe-area-inset-bottom,0px));background:var(--solid);padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));margin-bottom:calc(-16px - env(safe-area-inset-bottom,0px))}
+  .modal .actions:last-child .btn{flex:1}
+  #createForm>.actions{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 35%);padding:22px 0 calc(10px + env(safe-area-inset-bottom,0px))}
+  #createForm>.actions .btn{flex:1}
+  #toast{bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 }
 </style>
 </head>
@@ -281,7 +324,7 @@ ul.list li button:hover{color:var(--danger)}
     <div class="where" id="where"></div>
     <button class="mem" id="mem" data-act="settings" title="Where your tales are kept"></button>
     <button class="btn small" data-act="toggleSide" hidden id="sideBtn" title="Character sheet, pack, quests and dice">Sheet</button>
-    <button class="btn small ghost" data-act="settings">Settings</button>
+    <button class="btn small ghost" data-act="settings" aria-label="Settings"><span class="lg">Settings</span><span class="sm" aria-hidden="true">&#9881;</span></button>
   </header>
   <main id="main"></main>
 </div>
@@ -454,10 +497,10 @@ function flatDice(dice){
 async function openTray(){
   tab = 'dice'; renderSide(); trayNode.classList.remove('crit','fumble');
   const d = $('#rightD'), was = d.classList.contains('open');
-  if(!was){ if(!wide()) $('#leftD').classList.remove('open'); d.classList.add('open'); $('#sideBtn').setAttribute('aria-pressed','true'); await sleep(320); }
+  if(!was){ if(!wide()) setDrawer($('#leftD'),false); setDrawer(d,true); await sleep(320); }
   return !was;
 }
-function closeTray(opened){ if(!opened) return; setTimeout(()=>{ if(rolling||(wide()&&store.ui.right)) return; const d = $('#rightD'); if(d){ d.classList.remove('open'); $('#sideBtn').setAttribute('aria-pressed','false'); } },1700); }
+function closeTray(opened){ if(!opened) return; setTimeout(()=>{ if(rolling||(wide()&&store.ui.right)) return; setDrawer($('#rightD'),false); },1700); }
 // Throws real dice in the tray and returns what they landed on: one array of values per group.
 async function throwDice(groups,keep){
   let vals = null;
@@ -483,7 +526,7 @@ async function throwDice(groups,keep){
 /* ============ state ============ */
 let cur = null;       // active campaign
 const MOODS = ['forest','night','fire'];
-function setMood(m){ document.body.dataset.mood = MOODS.includes(m)?m:'forest'; }
+function setMood(m){ m = MOODS.includes(m)?m:'forest'; document.body.dataset.mood = m; document.querySelector('meta[name=theme-color]')?.setAttribute('content',{forest:'#0d1410',night:'#090d18',fire:'#140b09'}[m]); }
 let rolling = false;
 let busy = false, aborter = null, tab = 'sheet', lastErr = null, trayHist = [], lastTray = null;
 
@@ -929,15 +972,22 @@ function chrome(inGame){
   $('#where').innerHTML = inGame&&cur?`<b>${esc(cur.title)}</b>${cur.location?' · '+esc(cur.location):''}`:'';
   setMood(inGame&&cur?cur.mood:'forest');
 }
+function setDrawer(el,open){
+  if(!el) return; el.classList.toggle('open',open); el.inert = !open;
+  const l = $('#leftD'), r = $('#rightD'), sc = $('#scrim');
+  $('#leftBtn').setAttribute('aria-pressed',l.classList.contains('open')); $('#sideBtn').setAttribute('aria-pressed',r.classList.contains('open'));
+  if(sc) sc.hidden = wide()||!(l.classList.contains('open')||r.classList.contains('open'));
+}
 function drawer(which,open){
   const el = $(which==='left'?'#leftD':'#rightD'); if(!el) return;
-  open = open??!el.classList.contains('open'); el.classList.toggle('open',open);
-  if(wide()){ store.ui[which] = open; saveLocal(); } else if(open) $(which==='left'?'#rightD':'#leftD').classList.remove('open');
-  $('#leftBtn').setAttribute('aria-pressed',$('#leftD').classList.contains('open')); $('#sideBtn').setAttribute('aria-pressed',$('#rightD').classList.contains('open'));
+  open = open??!el.classList.contains('open');
+  if(wide()){ store.ui[which] = open; saveLocal(); } else if(open) setDrawer($(which==='left'?'#rightD':'#leftD'),false);
+  setDrawer(el,open);
 }
+function closeDrawers(){ setDrawer($('#leftD'),false); setDrawer($('#rightD'),false); }
 function renderTales(){
   const list = Object.values(store.campaigns).sort((a,b)=>b.updated-a.updated);
-  $('#tales').innerHTML = `<button class="btn primary" data-act="create">New tale</button><div class="dlabel">Your tales</div>
+  $('#tales').innerHTML = `<button class="btn small ghost dclose" data-act="closeDrawers">Close &#10005;</button><button class="btn primary" data-act="create">New tale</button><div class="dlabel">Your tales</div>
     ${list.map(c=>`<button class="tale ${cur&&c.id===cur.id?'on':''}" data-act="open" data-id="${esc(c.id)}"><b>${esc(c.title)}</b><span>Level ${c.character.level} ${esc(c.character.cls)}${c.location?' · '+esc(c.location):''}</span></button>`).join('')}
     <button class="btn small ghost" data-act="home" style="margin-top:auto">All tales and saves</button>`;
 }
@@ -1008,10 +1058,10 @@ function showMods(){ const f = $('#createForm'); if(!f) return;
 function renderGame(){
   if(!cur) return renderHome();
   chrome(true);
-  if(!$('#game')){ main.innerHTML = `<div id="game"><aside class="drawer" id="leftD"><div id="tales"></div></aside>
+  if(!$('#game')){ main.innerHTML = `<div id="game"><button id="scrim" data-act="closeDrawers" aria-label="Close panel" hidden></button><aside class="drawer" id="leftD" aria-label="Your tales"><div id="tales"></div></aside>
       <section class="chat"><div id="log" aria-live="polite"></div><div class="composer" id="composer"></div></section>
-      <aside class="drawer" id="rightD"><div id="side"></div></aside></div>`;
-    if(wide()){ drawer('left',!!store.ui.left); drawer('right',!!store.ui.right); } }
+      <aside class="drawer" id="rightD" aria-label="Character sheet"><div id="side"></div></aside></div>`;
+    setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); }
   renderTales(); renderLog(); renderComposer(); renderSide();
 }
 function renderLog(){
@@ -1043,7 +1093,7 @@ function renderComposer(){
 function renderSide(){
   const c = cur, ch = c.character, side = $('#side');
   const tabs = [['sheet','Sheet'],['pack','Pack'],['quests','Quests'],['people','People'],['dice','Dice']];
-  let h = `<div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" aria-selected="${tab===k}" data-act="tab" data-tab="${k}">${l}</button>`).join('')}</div>`;
+  let h = `<button class="btn small ghost dclose" data-act="closeDrawers">Close &#10005;</button><div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" aria-selected="${tab===k}" data-act="tab" data-tab="${k}">${l}</button>`).join('')}</div>`;
   if(tab==='sheet'){
     const next = ch.level<20?XP[ch.level]:null;
     h += `<div class="card who"><h3>${esc(ch.name)}</h3><div class="sub">Level ${ch.level} ${esc(ch.race)} ${esc(ch.cls)}${ch.background?' · '+esc(ch.background):''}</div>
@@ -1125,12 +1175,13 @@ document.addEventListener('click',async ev=>{
   switch(act){
     case 'home': location.hash = ''; if(!location.hash) go(); break;
     case 'create': location.hash = 'new'; break;
-    case 'open': location.hash = el.dataset.id; break;
+    case 'open': if(cur&&cur.id===el.dataset.id&&!wide()) closeDrawers(); location.hash = el.dataset.id; break;
     case 'settings': openSettings(); break;
     case 'closeModal': closeModal(); break;
     case 'closeModalBg': if(ev.target===el) closeModal(); break;
     case 'toggleSide': drawer('right'); break;
     case 'toggleLeft': drawer('left'); break;
+    case 'closeDrawers': closeDrawers(); break;
     case 'del': { const x = store.campaigns[el.dataset.id]; if(x&&confirm(`Delete "${x.title}"? This cannot be undone.`)){ delete store.campaigns[el.dataset.id]; store.deleted[el.dataset.id] = Date.now(); if(store.last===el.dataset.id) store.last = null; save(); renderHome(); } break; }
     case 'export': { const x = store.campaigns[el.dataset.id]; if(!x) break; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(x,null,2)],{type:'application/json'}));
       a.download = x.title.replace(/[^\w-]+/g,'_')+'.emberglade.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); break; }
@@ -1201,9 +1252,10 @@ document.addEventListener('input',ev=>{
 });
 document.addEventListener('keydown',ev=>{
   if(ev.target.id==='say'&&ev.key==='Enter'&&!ev.shiftKey&&!ev.isComposing){ ev.preventDefault(); $('#sendForm').requestSubmit(); }
-  if(ev.key==='Escape'){ if($('#modalRoot').firstChild) closeModal(); else if(!wide()){ $('#leftD')?.classList.remove('open'); $('#rightD')?.classList.remove('open'); } }
+  if(ev.key==='Escape'){ if($('#modalRoot').firstChild) closeModal(); else if(!wide()&&$('#game')) closeDrawers(); }
 });
 
+matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 /* fireflies */
 (function(){ const f = $('#flies'); for(let i=0;i<16;i++){ const s = document.createElement('i'); s.style.left = Math.random()*100+'%'; s.style.top = 25+Math.random()*75+'%';
   s.style.animationDelay = (-Math.random()*14)+'s'; s.style.animationDuration = 10+Math.random()*10+'s'; f.appendChild(s); } })();
