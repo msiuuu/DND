@@ -233,6 +233,14 @@ ul.list li button:hover{color:var(--danger)}
 .deny b{display:block;font-size:14px;color:#ffc9bd}
 .deny .hint{margin:2px 0 8px}
 .deny .sugg{margin:0}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 16px}
+.steps button{border:1px solid var(--line);background:none;border-radius:99px;padding:6px 13px;font-size:13px;color:var(--muted)}
+.steps button.on{background:var(--ember);color:#17120a;border-color:transparent;font-weight:600}
+.steps button.done{color:var(--text);border-color:var(--line2)}
+.steps button:disabled{opacity:.45;cursor:default}
+.about{font-size:13px;color:var(--muted);line-height:1.45;letter-spacing:0;text-transform:none;min-height:18px}
+.review{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.review .card b{color:var(--ember2)}
 .shopcard{background:var(--s2);border:1px solid var(--line2);border-radius:14px;padding:10px 14px;margin-bottom:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .shopcard .t{flex:1;min-width:160px}.shopcard .t b{font-family:var(--display);font-size:19px;color:var(--ember2)}.shopcard .t div{font-size:13px;color:var(--muted)}
 .item{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:9px 10px;border-radius:10px;background:rgba(0,0,0,.22)}
@@ -399,6 +407,40 @@ const CLASSES = {
 };
 const RACES = {Human:{str:1,dex:1,con:1,int:1,wis:1,cha:1},Elf:{dex:2,wis:1},Dwarf:{con:2,wis:1},Halfling:{dex:2,cha:1},'Half-Elf':{cha:2,dex:1,con:1},
   'Half-Orc':{str:2,con:1},Gnome:{int:2,con:1},Tiefling:{cha:2,int:1},Dragonborn:{str:2,cha:1}};
+Object.assign(RACES,{Orc:{str:2,con:1},Goblin:{dex:2,con:1},Kobold:{dex:2,int:1},Lizardfolk:{con:2,wis:1},Catfolk:{dex:2,cha:1},Birdfolk:{dex:2,wis:1},Ratfolk:{dex:2,int:1},
+  'Giant-kin':{str:2,con:1},Minotaur:{str:2,con:1},Centaur:{str:2,wis:1},Satyr:{cha:2,dex:1},Fairy:{dex:2,cha:1},'Fey-touched':{cha:2,wis:1},'Celestial-blooded':{cha:2,wis:1},
+  Merfolk:{con:2,cha:1},Changeling:{cha:2,dex:1},Forged:{con:2,str:1}});
+const RACE_ABOUT = {Human:'Adaptable and ambitious; a little good at everything.',Elf:'Long-lived, keen-eyed, light on their feet.',Dwarf:'Stout, stubborn, hard to kill.',Halfling:'Small, nimble, improbably lucky.',
+  'Half-Elf':'Between two worlds, at ease in both.','Half-Orc':'Strong, enduring, quick to anger.',Gnome:'Small, curious, sharp as a tack.',Tiefling:'Marked by an infernal bloodline; magnetic and mistrusted.',
+  Dragonborn:'Proud draconic folk with breath to match.',Orc:'Fierce, tireless, raised on hardship.',Goblin:'Small, quick, and hard to corner.',Kobold:'Tiny, cunning trap-makers.',
+  Lizardfolk:'Cold-blooded, patient, practical to a fault.',Catfolk:'Graceful wanderers with restless curiosity.',Birdfolk:'Feathered, far-sighted, light-boned.',Ratfolk:'Scrappy scavengers who always know a way through.',
+  'Giant-kin':'Towering highlanders with giant blood.',Minotaur:'Horned, powerful, never lost.',Centaur:'Half horse, all stamina; reads the wild well.',Satyr:'Goat-legged revellers, charming and reckless.',
+  Fairy:'Tiny, winged, touched by wild magic.','Fey-touched':'Mortal, but the fey courts left their mark.','Celestial-blooded':'A spark of the heavens in mortal skin.',
+  Merfolk:'Born to the water, at home on shore for a while.',Changeling:'Wears whatever face the moment needs.',Forged:'A made thing of metal and wood that learned to want.'};
+const A = (m,x) => m2(x);
+Object.assign(CLASSES,{
+  Artificer:{hd:8,saves:['con','int'],prio:['int','con','dex','wis','cha','str'],skills:['Arcana','Investigation'],feat:'Magical Tinkering, Infusions',gear:[['Light crossbow',1],['Crossbow bolt',20],["Tinker's tools",1],['Leather armor',1]],ac:m=>11+m.dex},
+  Alchemist:{hd:8,saves:['con','int'],prio:['int','con','dex','wis','cha','str'],skills:['Medicine','Nature'],feat:'Brew Concoctions, Volatile Flask',gear:[['Dagger',2],["Alchemist's supplies",1],['Leather armor',1],['Potion of healing',1]],ac:m=>11+m.dex},
+  Witch:{hd:6,saves:['wis','cha'],prio:['cha','wis','con','int','dex','str'],skills:['Arcana','Nature'],feat:'Hexes, Familiar',gear:[['Dagger',1],['Hexing focus',1],['Herb pouch',1]],ac:m=>10+m.dex},
+  Necromancer:{hd:6,saves:['int','wis'],prio:['int','con','wis','dex','cha','str'],skills:['Arcana','Religion'],feat:'Necromancy spellcasting, Grim Harvest',gear:[['Quarterstaff',1],['Bone focus',1],['Grimoire',1]],ac:m=>10+m.dex},
+  Shaman:{hd:8,saves:['wis','con'],prio:['wis','con','cha','str','dex','int'],skills:['Nature','Medicine'],feat:'Spirit Totems, Shaman spellcasting',gear:[['Spear',1],['Totem',1],['Hide armor',1]],ac:m=>12+m2(m.dex)},
+  Knight:{hd:10,saves:['str','con'],prio:['str','con','cha','wis','dex','int'],skills:['Athletics','History'],feat:'Challenge, Mounted Combat',gear:[['Longsword',1],['Shield',1],['Chain mail',1],['Lance',1]],ac:()=>18},
+  Swashbuckler:{hd:8,saves:['dex','cha'],prio:['dex','cha','con','wis','int','str'],skills:['Acrobatics','Persuasion','Athletics'],feat:'Fancy Footwork, Panache',gear:[['Rapier',1],['Dagger',2],['Leather armor',1]],ac:m=>11+m.dex},
+  Gunslinger:{hd:10,saves:['dex','wis'],prio:['dex','wis','con','int','cha','str'],skills:['Perception','Sleight of Hand'],feat:'Deadeye, Quick Draw',gear:[['Flintlock pistol',1],['Shot and powder',20],['Dagger',1],['Leather armor',1]],ac:m=>11+m.dex},
+  Spellblade:{hd:8,saves:['int','str'],prio:['str','int','con','dex','wis','cha'],skills:['Arcana','Athletics'],feat:'Bonded Weapon, War Magic',gear:[['Longsword',1],['Chain shirt',1],['Arcane focus',1]],ac:m=>13+m2(m.dex)},
+  Beastmaster:{hd:10,saves:['str','wis'],prio:['wis','dex','con','str','cha','int'],skills:['Animal Handling','Survival','Nature'],feat:'Animal Companion, Primal Bond',gear:[['Spear',1],['Shortbow',1],['Arrow',20],['Hide armor',1]],ac:m=>12+m2(m.dex)},
+  Inquisitor:{hd:8,saves:['wis','int'],prio:['wis','int','con','str','dex','cha'],skills:['Insight','Investigation','Intimidation'],feat:'Zeal, Stern Gaze',gear:[['Mace',1],['Chain shirt',1],['Holy symbol',1]],ac:m=>13+m2(m.dex)},
+});
+CLASSES.Bard.prio = ['cha','con','wis','int','str','dex'];
+const CLASS_ABOUT = {Barbarian:'Rage-fuelled bruiser. Enormous Strength, little book learning.',Bard:'Silver-tongued performer whose words are magic. Sky-high Charisma, clumsy on their feet.',Cleric:'Armoured servant of a god; heals and smites. Lives on Wisdom.',
+  Druid:'Speaks for the wild and wears its shapes. Lives on Wisdom.',Fighter:'Master of arms and armour. Strength and grit.',Monk:'Bare hands, bare feet, perfect control. Dexterity and Wisdom.',
+  Paladin:'Oath-bound holy knight. Strength and force of presence.',Ranger:'Hunter and tracker of the wilds. Dexterity and sharp senses.',Rogue:'Thief, spy, knife in the dark. Dexterity above all.',
+  Sorcerer:'Magic in the blood. Raw Charisma, fragile body.',Warlock:'Power borrowed from something that will want it back. Charisma.',Wizard:'Scholar of the arcane. Towering Intelligence, feeble arm.',
+  Artificer:'Inventor who builds magic into things. Intelligence.',Alchemist:'Brewer of cures and catastrophes. Intelligence.',Witch:'Hexes, omens and a familiar. Charisma and Wisdom.',
+  Necromancer:'Student of death and what comes after. Intelligence.',Shaman:'Bargains with spirits of place and ancestor. Wisdom.',Knight:'Heavy armour, heavier honour. Strength and Constitution.',
+  Swashbuckler:'Blade, banter and bravado. Dexterity and Charisma.',Gunslinger:'Black powder and steady nerves. Dexterity.',Spellblade:'Sword in one hand, spell in the other. Strength and Intelligence.',
+  Beastmaster:'Fights beside a bonded animal. Wisdom and Dexterity.',Inquisitor:'Hunter of lies and heresy. Wisdom and Intelligence.'};
+const ARMOR = {none:{label:'No armour',ac:m=>10+m.dex},light:{label:'Light armour',item:'Leather armor',ac:m=>11+m.dex},medium:{label:'Medium armour',item:'Chain shirt',ac:m=>13+m2(m.dex)},heavy:{label:'Heavy armour',item:'Chain mail',ac:()=>16}};
 const NAMES = ['Wren Ashdown','Corin Vale','Tamsin Roe','Bram Oakhollow','Isolde Fenn','Garrick Thorne','Maeve Underbough','Ode Larkspur','Renna Vesk','Hale Briarwood','Sable Quill','Dunmar Stonewake'];
 const BACKGROUNDS = {Acolyte:['Insight','Religion'],Charlatan:['Deception','Sleight of Hand'],Criminal:['Deception','Stealth'],Entertainer:['Acrobatics','Performance'],
   'Folk Hero':['Animal Handling','Survival'],'Guild Artisan':['Insight','Persuasion'],Hermit:['Medicine','Religion'],Noble:['History','Persuasion'],Outlander:['Athletics','Survival'],
@@ -587,19 +629,36 @@ function setMood(m){ m = MOODS.includes(m)?m:'forest'; document.body.dataset.moo
 let rolling = false;
 let busy = false, aborter = null, tab = 'sheet', lastErr = null, trayHist = [], lastTray = null;
 
-function newCharacter(f){
-  const cls = CLASSES[f.cls], race = RACES[f.race]||{};
-  const ab = {}; ABIL.forEach(a=>ab[a]=clamp(num(f.abilities[a])||10,3,18)+(race[a]||0));
+// Works out the race and class behind a draft, whether picked from the lists or made up.
+function raceDef(d){
+  if(d.race!=='__custom') return {name:d.race,bonus:RACES[d.race]||{},about:''};
+  const b = {[d.cRace.plus2]:2}; if(d.cRace.plus1!==d.cRace.plus2) b[d.cRace.plus1] = 1;
+  return {name:d.cRace.name.trim()||'Unknown folk',bonus:b,about:d.cRace.about.trim()};
+}
+function classDef(d){
+  if(d.cls!=='__custom') return {...CLASSES[d.cls],name:d.cls,about:''};
+  const c = d.cCls, main = c.main, second = c.second===main?(main==='con'?'dex':'con'):c.second;
+  const prio = [main,second,...['con','dex','wis','cha','int','str'].filter(a=>a!==main&&a!==second)];
+  const skills = (c.skills||[]).filter(k=>SKILLS[k]).slice(0,4);
+  if(skills.length<2) for(const k of [...Object.keys(SKILLS).filter(k=>SKILLS[k]===main),'Perception','Athletics']) if(skills.length<3&&!skills.includes(k)) skills.push(k);
+  const arm = ARMOR[c.armor]||ARMOR.light, gear = (c.gear||[]).filter(g=>g&&g[0]).slice(0,8);
+  return {name:c.name.trim()||'Wanderer',about:c.about.trim(),hd:[6,8,10,12].includes(num(c.hd))?num(c.hd):8,saves:[main,second],prio,skills,feat:(c.feat||c.about||'A path of their own making').trim().slice(0,200),
+    gear:gear.length?gear:[['Dagger',1],...(arm.item?[[arm.item,1]]:[])],ac:arm.ac};
+}
+const presetFor = def => { const o = {}; [18,14,13,12,10,8].forEach((v,i)=>{ o[def.prio[i]] = v; }); return o; };
+function newCharacter(d){
+  const cls = classDef(d), race = raceDef(d), bg = d.background==='__custom'?(d.cBg.trim()||'Wanderer'):d.background;
+  const ab = {}; ABIL.forEach(a=>ab[a]=clamp(num(d.abilities[a])||10,3,18)+(race.bonus[a]||0));
   const mods = {}; ABIL.forEach(a=>mods[a]=mod(ab[a]));
   const maxHp = Math.max(1,cls.hd+mods.con);
-  const inv = cls.gear.map(([name,qty])=>({name,qty}));
+  const inv = cls.gear.map(([name,qty])=>({name,qty:Math.max(1,num(qty)||1)}));
   inv.push({name:'Rations (day)',qty:5},{name:'Waterskin',qty:1},{name:'Torch',qty:3},{name:'Bedroll',qty:1});
-  const ch = {name:f.name,race:f.race,cls:f.cls,background:f.background,alignment:f.alignment||'',appearance:f.appearance||'',backstory:f.backstory||'',
-    level:1,xp:0,hp:maxHp,maxHp,ac:cls.ac(mods),abilities:ab,profs:[...new Set([...cls.skills,...(BACKGROUNDS[f.background]||[])])],saves:[...cls.saves],
+  const ch = {name:d.name.trim(),race:race.name,cls:cls.name,hd:cls.hd,raceAbout:race.about,clsAbout:cls.about,background:bg,alignment:d.alignment||'',appearance:(d.appearance||'').trim(),backstory:(d.backstory||'').trim(),
+    level:1,xp:0,hp:maxHp,maxHp,ac:cls.ac(mods),abilities:ab,profs:[...new Set([...cls.skills,...(BACKGROUNDS[bg]||[])])],saves:[...new Set(cls.saves)],
     features:cls.feat,inventory:inv,gold:15,conditions:[],boons:[],flaws:[]};
-  for(const b of BOONS.filter(x=>(f.boons||[]).includes(x.id))){ ch.boons.push({name:b.name,text:b.text}); if(b.apply) b.apply(ch);
+  for(const b of BOONS.filter(x=>(d.boons||[]).includes(x.id))){ ch.boons.push({name:b.name,text:b.text}); if(b.apply) b.apply(ch);
     if(b.skill&&!ch.profs.includes(b.skill)) ch.profs.push(b.skill); if(b.save&&!ch.saves.includes(b.save)) ch.saves.push(b.save); }
-  for(const w of FLAWS.filter(x=>(f.flaws||[]).includes(x.id))){ ch.flaws.push({name:w.name,text:w.text}); if(w.apply) w.apply(ch); }
+  for(const w of FLAWS.filter(x=>(d.flaws||[]).includes(x.id))){ ch.flaws.push({name:w.name,text:w.text}); if(w.apply) w.apply(ch); }
   ch.hp = ch.maxHp; return ch;
 }
 function skillMod(ch,skill){ return mod(ch.abilities[SKILLS[skill]])+(ch.profs.includes(skill)?prof(ch.level):0); }
@@ -639,7 +698,7 @@ function sheetText(c){
   const inv = ch.inventory.map(i=>i.qty>1?`${i.name} x${i.qty}`:i.name).join(', ')||'nothing';
   const q = c.quests.length?c.quests.map(x=>`- [${x.status}] ${x.title}${x.note?': '+x.note:''}`).join('\n'):'- none yet';
   const list = a => (a||[]).map(x=>`${x.name} (${x.text})`).join('; ')||'none';
-  return `Name: ${ch.name}. ${ch.race} ${ch.cls}, level ${ch.level} (${ch.xp} XP). Background: ${ch.background||'unknown'}. Alignment: ${ch.alignment||'unstated'}.
+  return `Name: ${ch.name}. ${ch.race} ${ch.cls}, level ${ch.level} (${ch.xp} XP). Background: ${ch.background||'unknown'}. Alignment: ${ch.alignment||'unstated'}.${ch.raceAbout?`\n${ch.race} (a people particular to this tale): ${ch.raceAbout}`:''}${ch.clsAbout?`\n${ch.cls} (a class particular to this tale): ${ch.clsAbout}`:''}
 Appearance: ${ch.appearance||'not described'}.
 Backstory: ${ch.backstory||'not given; leave room for the player to define it'}.
 Boons: ${list(ch.boons)}.
@@ -752,7 +811,7 @@ function applyState(c,s){
     else{ c.quests.push({title,status,note:typeof q.note==='string'?q.note.slice(0,240):''}); note('New quest: '+title,'ok'); }
   }
   const xp = num(s.xp_delta); if(xp>0){ ch.xp += xp; note(`+${xp} XP`,'ok');
-    while(ch.level<20&&ch.xp>=XP[ch.level]){ ch.level++; const gain = Math.max(1,CLASSES[ch.cls].hd/2+1+mod(ch.abilities.con)); ch.maxHp += gain; ch.hp += gain; note(`Level ${ch.level}! +${gain} max HP`,'ok'); } }
+    while(ch.level<20&&ch.xp>=XP[ch.level]){ ch.level++; const gain = Math.max(1,(ch.hd||CLASSES[ch.cls]?.hd||8)/2+1+mod(ch.abilities.con)); ch.maxHp += gain; ch.hp += gain; note(`Level ${ch.level}! +${gain} max HP`,'ok'); } }
   c.npcs ||= {}; c.present ||= [];
   const sheetFor = name => { const k = Object.keys(c.npcs).find(x=>x.toLowerCase()===name.toLowerCase()); if(k) return c.npcs[k];
     if(Object.keys(c.npcs).length>=40) return null; return c.npcs[name] = {name,about:'',traits:[],wants:'',attitude:'neutral'}; };
@@ -781,7 +840,7 @@ function applyState(c,s){
 }
 
 /* ============ the cast of models: dice gate, character players, continuity ============ */
-const npcLine = n => `- ${n.name}: ${n.about||'not yet described'}. Traits: ${(n.traits||[]).join(', ')||'none noted yet'}. Skills: ${(n.skills||[]).join(', ')||'none noted'}. Wants: ${n.wants||'unclear'}. Stance toward the player character: ${stanceOf(n)} (${n.attitude||'neutral'}).`;
+const npcLine = n => `- ${n.name}: ${n.about||'not yet described'}. Traits: ${(n.traits||[]).join(', ')||'none noted yet'}. Skills: ${(n.skills||[]).join(', ')||'none noted'}. Wants: ${n.wants||'unclear'}. Stance toward the player character: ${stanceOf(n)} (${n.attitude||'neutral'}).${(n.memory||[]).length?' Remembers: '+n.memory.map(m=>m.t).join(' / ')+'.':''}`;
 const clip = (t,n) => t.length>n?'…'+t.slice(-n):t;
 const lastOf = (c,role) => { for(let i=c.log.length-1;i>=0;i--) if(c.log[i].role===role) return c.log[i]; return null; };
 function jsonIn(t){ const a = t.indexOf('{'), b = t.lastIndexOf('}'); if(a<0||b<=a) return null; const j = t.slice(a,b+1); try{ return JSON.parse(j); }catch(e){ try{ return JSON.parse(j.replace(/,\s*([}\]])/g,'$1')); }catch(e2){ return null; } } }
@@ -819,20 +878,23 @@ Action: ${text}${guess?`\n(Keyword guess from the app: ${guess}.)`:''}`}],{strea
 // One model per person in the scene, three at most. Each decides what its character does next and keeps that character's sheet up to date.
 const ACTOR = `You play exactly one non-player character in a solo D&D story. Stay strictly inside this character: what they know, what they want, how they talk. You do not narrate the world, you do not decide what the player character does, and you do not decide the result of any dice.
 Reply with JSON only, in this form:
-{"intent":"what you say and do in the next beat, one or two sentences","attitude":"one or two words for how you now feel about the player character","wants":"your current goal in a few words","stance":"friendly, neutral, wary, hostile or strange: your stance toward the player character right now","new_traits":["a short trait this beat revealed or developed in you, only if it is genuinely new"],"skills":["up to four things you are notably good at, only ones not already on your sheet"]}`;
+{"intent":"what you say and do in the next beat, one or two sentences","attitude":"one or two words for how you now feel about the player character","wants":"your current goal in a few words","stance":"friendly, neutral, wary, hostile or strange: your stance toward the player character right now","new_traits":["a short trait this beat revealed or developed in you, only if it is genuinely new"],"skills":["up to four things you are notably good at, only ones not already on your sheet"],"remember":"one short line, in your own voice, of what you will remember about the player character from this beat; empty if nothing worth keeping","lasting":false}
+Set "lasting" to true only for something you would never forget: a promise, a debt, a betrayal, a life saved.`;
 async function castBeat(c,signal){
   const names = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]).slice(0,3); if(!names.length) return [];
   const ch = c.character, dm = lastOf(c,'dm'), tail = []; for(let i=c.log.length-1;i>=0&&c.log[i].role!=='dm';i--) tail.unshift(c.log[i]);
   const happened = `${dm?clip(dm.text,900):''}\n${tail.map(e=>e.role==='player'?`${ch.name} (the player character): ${e.text}`:`Dice: ${e.text}`).join('\n')}`;
   const out = await Promise.all(names.map(async name=>{ const n = c.npcs[name];
     try{
-      const t = await chat([{role:'system',content:ACTOR},{role:'user',content:`Your sheet:\nName: ${n.name}\nAbout: ${n.about||'not yet described; define yourself through how you act'}\nTraits: ${(n.traits||[]).join(', ')||'none noted yet'}\nSkills: ${(n.skills||[]).join(', ')||'none noted yet'}\nWants: ${n.wants||'unclear'}\nFeeling toward the player character: ${n.attitude||'neutral'}\n\nThe player character: ${ch.name}, a ${ch.race} ${ch.cls}. ${ch.appearance||''}\nOthers present: ${names.filter(x=>x!==name).join(', ')||'no one else'}\n\nWhat just happened:\n${happened}`}],
+      const t = await chat([{role:'system',content:ACTOR},{role:'user',content:`Your sheet:\nName: ${n.name}\nAbout: ${n.about||'not yet described; define yourself through how you act'}\nTraits: ${(n.traits||[]).join(', ')||'none noted yet'}\nSkills: ${(n.skills||[]).join(', ')||'none noted yet'}\nWants: ${n.wants||'unclear'}\nWhat you remember of the player character: ${(n.memory||[]).map(m=>m.t).join(' / ')||'nothing yet; you have only just met'}\nFeeling toward the player character: ${n.attitude||'neutral'}\n\nThe player character: ${ch.name}, a ${ch.race} ${ch.cls}. ${ch.appearance||''}\nOthers present: ${names.filter(x=>x!==name).join(', ')||'no one else'}\n\nWhat just happened:\n${happened}`}],
         {stream:false,maxTokens:400,temperature:0.8,model:store.settings.charModel,quick:true,signal});
       const j = jsonIn(t); if(!j||typeof j.intent!=='string'||!j.intent.trim()) return null;
       if(typeof j.attitude==='string'&&j.attitude.trim()) n.attitude = j.attitude.trim().slice(0,40);
       if(typeof j.wants==='string'&&j.wants.trim()) n.wants = j.wants.trim().slice(0,120);
       if(STANCES.includes(String(j.stance||'').toLowerCase().trim())) n.stance = String(j.stance).toLowerCase().trim(); else if(typeof j.attitude==='string'&&j.attitude.trim()) delete n.stance;
       n.skills ||= []; for(const k of (Array.isArray(j.skills)?j.skills:[])) if(typeof k==='string'&&k.trim()&&n.skills.length<6&&!n.skills.some(x=>x.toLowerCase()===k.trim().toLowerCase())) n.skills.push(k.trim().slice(0,40));
+      if(typeof j.remember==='string'&&j.remember.trim()&&!(n.memory||[]).some(m=>m.t.toLowerCase()===j.remember.trim().slice(0,140).toLowerCase())){ n.memory ||= []; n.memory.push({t:j.remember.trim().slice(0,140),k:j.lasting===true});
+        const keep = n.memory.filter(m=>m.k).slice(-4), recent = n.memory.filter(m=>!m.k).slice(-8); n.memory = n.memory.filter(m=>keep.includes(m)||recent.includes(m)); }
       n.traits ||= []; for(const tr of (Array.isArray(j.new_traits)?j.new_traits:[])) if(typeof tr==='string'&&tr.trim()&&!n.traits.some(x=>x.toLowerCase()===tr.trim().toLowerCase())){ n.traits.push(tr.trim().slice(0,60)); if(n.traits.length>12) n.traits.shift(); }
       return {name:n.name,intent:j.intent.trim().slice(0,420)};
     }catch(e){ if(e.name==='AbortError') throw e; return null; } }));
@@ -1128,47 +1190,114 @@ function renderHome(){
     <div class="actions" style="margin-top:16px"><button class="btn small ghost" data-act="import">Import a saved tale</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
   </div>`;
 }
+let draft = null, forging = false;
+const STEPS = ['Who you are','Attributes','Boons','Flaws','Story','Review'];
+function newDraft(){ const d = {step:0,seen:0,wish:'',name:'',race:'Human',cls:'Fighter',background:'Outlander',cBg:'',alignment:'True Neutral',appearance:'',backstory:'',abilities:null,abTouched:false,boons:[],flaws:[],msg:'',
+  cRace:{name:'',about:'',plus2:'str',plus1:'con'},cCls:{name:'',about:'',main:'str',second:'con',hd:8,armor:'light',skills:[],gear:[],feat:''}};
+  d.abilities = presetFor(classDef(d)); return d; }
+const rollArray = () => Array.from({length:6},()=>{ const x = [rnd(6),rnd(6),rnd(6),rnd(6)].sort((a,b)=>a-b); return x[1]+x[2]+x[3]; });
+function placeStats(vals){ const prio = classDef(draft).prio, sorted = [...vals].sort((a,b)=>b-a); prio.forEach((a,i)=>{ draft.abilities[a] = sorted[i]; }); }
 function renderCreate(){
-  cur = null; chrome(false);
-  const opt = o => (Array.isArray(o)?o:Object.keys(o)).map(k=>`<option>${k}</option>`).join('');
-  const pick = (name,arr) => `<div class="hooks">${arr.map(h=>`<label class="hook"><input type="checkbox" name="${name}" value="${h.id}"><b>${esc(h.name)}</b><span>${esc(h.text)}</span></label>`).join('')}</div>`;
-  main.innerHTML = `<div class="wrap"><h2 class="sec" style="margin-top:0;font-size:36px">Character sheet</h2>
-  <form id="createForm">
-    <div class="panel"><h3>Identity</h3><div class="grid2">
-      <label class="f">Name<span style="display:flex;gap:6px"><input class="inp" name="name" required maxlength="40" placeholder="Wren Ashdown"><button type="button" class="btn small" data-act="randName" title="Random name">Random</button></span></label>
-      <label class="f">Race<select class="inp" name="race">${opt(RACES)}</select></label>
-      <label class="f">Class<select class="inp" name="cls">${opt(CLASSES)}</select></label>
-      <label class="f">Background<select class="inp" name="background">${opt(BACKGROUNDS)}</select></label>
-      <label class="f">Alignment<select class="inp" name="alignment">${opt(ALIGNMENTS)}</select></label>
-      <label class="f">Appearance<input class="inp" name="appearance" maxlength="140" placeholder="Tall, rain-grey eyes, a burn scar on one hand"></label></div>
-      <p class="hint" id="classLine" style="margin:14px 0 0"></p></div>
-    <div class="panel"><h3>Attributes</h3>
-      <div class="abil">${ABIL.map(a=>`<label class="f">${a}<input class="inp" type="number" name="ab_${a}" min="3" max="18" value="10"><small id="m_${a}"></small></label>`).join('')}</div>
-      <div class="actions" style="justify-content:flex-start;margin-top:14px"><button type="button" class="btn small" data-act="rollStats">Roll 4d6, drop lowest</button><button type="button" class="btn small" data-act="stdArray">Standard array</button></div>
-      <p class="hint" style="margin-bottom:0">Scores are placed to suit your class, and you can edit them. The bonus in brackets comes from your race and is added when you begin.</p></div>
-    <div class="panel"><h3>Boons <small class="hint" id="boonCount"></small></h3>
-      <p class="hint" style="margin-top:-6px">Choose up to two. Every boon has to be paid for with a flaw.</p>${pick('boons',BOONS)}</div>
-    <div class="panel"><h3>Flaws <small class="hint" id="flawCount"></small></h3>
-      <p class="hint" style="margin-top:-6px">Choose up to two. The narrator will use them against you.</p>${pick('flaws',FLAWS)}</div>
-    <div class="panel"><h3>Backstory</h3>
-      <label class="f">Where you come from, and what you want<textarea class="inp" name="backstory" maxlength="1200" placeholder="Optional. A few lines is plenty; the narrator builds the opening around it."></textarea></label></div>
-    <div id="createMsg" style="color:#ffb6a6;min-height:20px;margin-bottom:10px;text-align:right" role="alert"></div>
-    <div class="actions"><button type="button" class="btn ghost" data-act="home">Cancel</button><button class="btn primary">Step into the clearing</button></div>
-  </form></div>`;
-  fillStats([15,14,13,12,10,8]);
+  cur = null; chrome(false); draft ||= newDraft();
+  const d = draft, cls = classDef(d), race = raceDef(d), sel = (o,v,extra='') => (Array.isArray(o)?o:Object.keys(o)).map(k=>`<option ${k===v?'selected':''}>${esc(k)}</option>`).join('')+extra;
+  const custom = v => `<option value="__custom" ${v==='__custom'?'selected':''}>Custom…</option>`, abSel = v => ABIL.map(a=>`<option value="${a}" ${a===v?'selected':''}>${ABIL_NAME[a]}</option>`).join('');
+  const pick = (name,arr) => `<div class="hooks">${arr.map(h=>`<label class="hook"><input type="checkbox" name="${name}" value="${h.id}" ${d[name].includes(h.id)?'checked':''}><b>${esc(h.name)}</b><span>${esc(h.text)}</span></label>`).join('')}</div>`;
+  const bg = d.background==='__custom'?(d.cBg||'Custom'):d.background;
+  const profs = [...new Set([...cls.skills,...(BACKGROUNDS[bg]||[]),...BOONS.filter(x=>d.boons.includes(x.id)&&x.skill).map(x=>x.skill)])];
+  let body = '';
+  if(d.step===0) body = `
+    <div class="panel"><h3>Let the model build it</h3>
+      <label class="f">Describe who you want to be<textarea class="inp" data-d="wish" maxlength="600" placeholder="A washed-up opera singer who talks her way out of everything and cannot fight to save her life. Or just: surprise me.">${esc(d.wish)}</textarea></label>
+      <div class="actions" style="justify-content:flex-start;margin-top:12px"><button type="button" class="btn primary" data-act="forge" ${forging?'disabled':''}>${forging?'Building…':'Build my character'}</button></div>
+      <p class="hint" style="margin-bottom:0">Your story model picks the race, class and background (or invents new ones), sets the attributes, chooses boons and flaws, and writes the appearance and backstory. You can change anything afterwards. Or skip this and choose by hand below.</p></div>
+    <div class="panel"><h3>Who you are</h3><div class="grid2">
+      <label class="f">Name<span style="display:flex;gap:6px"><input class="inp" data-d="name" value="${esc(d.name)}" maxlength="40" placeholder="Wren Ashdown"><button type="button" class="btn small" data-act="randName">Random</button></span></label>
+      <label class="f">Alignment<select class="inp" data-d="alignment">${sel(ALIGNMENTS,d.alignment)}</select></label>
+      <label class="f">Race<select class="inp" data-d="race" data-re="1">${sel(RACES,d.race,custom(d.race))}</select><span class="about">${d.race==='__custom'?'Make up your own people.':esc(RACE_ABOUT[d.race]||'')+' '+ABIL.filter(a=>RACES[d.race][a]).map(a=>`+${RACES[d.race][a]} ${a.toUpperCase()}`).join(', ')}</span></label>
+      <label class="f">Class<select class="inp" data-d="cls" data-re="1">${sel(CLASSES,d.cls,custom(d.cls))}</select><span class="about">${d.cls==='__custom'?'Make up your own calling.':esc(CLASS_ABOUT[d.cls]||'')}</span></label>
+      <label class="f">Background<select class="inp" data-d="background" data-re="1">${sel(BACKGROUNDS,d.background,custom(d.background))}</select><span class="about">${d.background==='__custom'?'':'Skills: '+BACKGROUNDS[d.background].join(', ')}</span></label>
+      ${d.background==='__custom'?`<label class="f">Your background<input class="inp" data-d="cBg" value="${esc(d.cBg)}" maxlength="40" placeholder="Lighthouse keeper"></label>`:''}</div>
+      ${d.race==='__custom'?`<h3 style="margin-top:20px">Custom race</h3><div class="grid2">
+        <label class="f">What they are called<input class="inp" data-d="cRace.name" value="${esc(d.cRace.name)}" maxlength="30" placeholder="Mothfolk"></label>
+        <label class="f">+2 to<select class="inp" data-d="cRace.plus2">${abSel(d.cRace.plus2)}</select></label><label class="f">+1 to<select class="inp" data-d="cRace.plus1">${abSel(d.cRace.plus1)}</select></label></div>
+        <label class="f" style="margin-top:12px">What they are like<textarea class="inp" data-d="cRace.about" maxlength="240" placeholder="Dusty-winged night folk drawn to lamplight; they see in the dark and tire in the sun.">${esc(d.cRace.about)}</textarea></label>`:''}
+      ${d.cls==='__custom'?`<h3 style="margin-top:20px">Custom class</h3><div class="grid2">
+        <label class="f">What it is called<input class="inp" data-d="cCls.name" value="${esc(d.cCls.name)}" maxlength="30" placeholder="Lamplighter"></label>
+        <label class="f">Main attribute<select class="inp" data-d="cCls.main" data-re="1">${abSel(d.cCls.main)}</select></label><label class="f">Second attribute<select class="inp" data-d="cCls.second" data-re="1">${abSel(d.cCls.second)}</select></label>
+        <label class="f">Toughness<select class="inp" data-d="cCls.hd">${[[6,'Fragile (d6)'],[8,'Average (d8)'],[10,'Tough (d10)'],[12,'Very tough (d12)']].map(([v,l])=>`<option value="${v}" ${num(d.cCls.hd)===v?'selected':''}>${l}</option>`).join('')}</select></label>
+        <label class="f">Armour<select class="inp" data-d="cCls.armor">${Object.keys(ARMOR).map(k=>`<option value="${k}" ${d.cCls.armor===k?'selected':''}>${ARMOR[k].label}</option>`).join('')}</select></label></div>
+        <label class="f" style="margin-top:12px">What it does<textarea class="inp" data-d="cCls.about" maxlength="240" placeholder="Keeps the dark back with a blessed lantern; part priest, part watchman.">${esc(d.cCls.about)}</textarea></label>`:''}
+      <p class="hint" style="margin:14px 0 0">Hit die d${cls.hd}. Saving throws: ${cls.saves.map(a=>ABIL_NAME[a]).join(', ')}. Skills: ${profs.join(', ')}. Features: ${esc(cls.feat)}.</p></div>`;
+  else if(d.step===1) body = `<div class="panel"><h3>Attributes</h3>
+      <div class="abil">${ABIL.map(a=>{ const r = race.bonus[a]||0; return `<label class="f">${a}<input class="inp" type="number" data-ab="${a}" min="3" max="18" value="${d.abilities[a]}"><small id="m_${a}">${sgn(mod(clamp(num(d.abilities[a])||10,3,18)+r))}${r?` (+${r})`:''}</small></label>`; }).join('')}</div>
+      <div class="actions" style="justify-content:flex-start;margin-top:14px"><button type="button" class="btn small primary" data-act="presetStats">${esc(cls.name)} preset</button><button type="button" class="btn small" data-act="rollStats">Roll 4d6, drop lowest</button><button type="button" class="btn small" data-act="stdArray">Standard array</button></div>
+      <p class="hint" style="margin-bottom:0">The preset is built for a ${esc(cls.name)}: ${ABIL_NAME[cls.prio[0]]} sky-high, ${ABIL_NAME[cls.prio[5]]} as the weak spot. You can edit any score. The bonus in brackets comes from being ${esc(race.name)} and is added when you begin.</p></div>`;
+  else if(d.step===2) body = `<div class="panel"><h3>Boons <small class="hint">${d.boons.length} of 2</small></h3><p class="hint" style="margin-top:-6px">Choose up to two. Every boon has to be paid for with a flaw on the next step.</p>${pick('boons',BOONS)}</div>`;
+  else if(d.step===3) body = `<div class="panel"><h3>Flaws <small class="hint">${d.flaws.length} of 2</small></h3><p class="hint" style="margin-top:-6px">Choose up to two${d.boons.length?`, and at least ${d.boons.length} to pay for your boon${d.boons.length>1?'s':''}`:''}. The narrator will use them against you.</p>${pick('flaws',FLAWS)}</div>`;
+  else if(d.step===4) body = `<div class="panel"><h3>Appearance and backstory</h3>
+      <label class="f">Appearance<input class="inp" data-d="appearance" value="${esc(d.appearance)}" maxlength="200" placeholder="Tall, rain-grey eyes, a burn scar on one hand"></label>
+      <label class="f" style="margin-top:12px">Where you come from, and what you want<textarea class="inp" data-d="backstory" maxlength="1200" style="min-height:150px" placeholder="Optional. A few lines is plenty; the narrator builds the opening around it.">${esc(d.backstory)}</textarea></label>
+      <div class="actions" style="justify-content:flex-start;margin-top:12px"><button type="button" class="btn small" data-act="forgeStory" ${forging?'disabled':''}>${forging?'Writing…':'Write these for me'}</button></div></div>`;
+  else { const ab = ABIL.map(a=>`${a.toUpperCase()} ${clamp(num(d.abilities[a])||10,3,18)+(race.bonus[a]||0)}`).join(' · '), names = (ids,arr) => arr.filter(x=>ids.includes(x.id)).map(x=>x.name).join(', ')||'none';
+    body = `<div class="review"><div class="card"><h4>Who</h4><b style="font-family:var(--display);font-size:24px">${esc(d.name||'Nameless')}</b><div class="hint">${esc(race.name)} ${esc(cls.name)} · ${esc(bg)} · ${esc(d.alignment)}</div>
+        ${race.about?`<div class="hint" style="margin-top:8px">${esc(race.name)}: ${esc(race.about)}</div>`:''}${cls.about?`<div class="hint" style="margin-top:8px">${esc(cls.name)}: ${esc(cls.about)}</div>`:''}</div>
+      <div class="card"><h4>Attributes</h4><div style="font-size:14px;line-height:1.8">${ab}</div><div class="hint" style="margin-top:6px">Hit die d${cls.hd} · Skills: ${profs.join(', ')}</div></div>
+      <div class="card"><h4>Boons and flaws</h4><div class="hint" style="color:var(--text)">Boons: ${names(d.boons,BOONS)}<br>Flaws: ${names(d.flaws,FLAWS)}</div></div>
+      <div class="card"><h4>Story</h4><div class="hint" style="color:var(--text)">${esc(d.appearance||'No appearance given.')}<br><br>${esc(d.backstory||'No backstory given; the narrator will leave room for it.')}</div></div></div>`; }
+  main.innerHTML = `<div class="wrap"><h2 class="sec" style="margin-top:0;font-size:34px">Character sheet</h2>
+    <div class="steps">${STEPS.map((t,i)=>`<button type="button" data-act="step" data-k="${i}" class="${i===d.step?'on':i<=d.seen?'done':''}" ${i>d.seen?'disabled':''} ${i===d.step?'aria-current="step"':''}>${i+1}. ${t}</button>`).join('')}</div>
+    <form id="createForm">${body}
+      <div id="createMsg" style="color:#ffb6a6;min-height:20px;margin-bottom:10px;text-align:right" role="alert">${esc(d.msg||'')}</div>
+      <div class="actions"><button type="button" class="btn ghost" data-act="${d.step?'stepBack':'cancelCreate'}">${d.step?'Back':'Cancel'}</button><button class="btn primary">${d.step===5?'Step into the clearing':'Next'}</button></div>
+    </form></div>`;
+  d.msg = '';
 }
-function fillStats(vals){
-  const f = $('#createForm'); if(!f) return; const prio = CLASSES[f.cls.value].prio; const sorted = [...vals].sort((a,b)=>b-a);
-  prio.forEach((a,i)=>{ f['ab_'+a].value = sorted[i]; }); showMods();
+// The story model turns a one-line wish into a whole character. It may pick from the lists or invent a race or class of its own.
+const FORGE = () => `You design a level 1 character for a solo fantasy tabletop game that follows D&D 5e style rules. Reply with JSON only, in this form:
+{"name":"","race":"","race_about":"one line, only if the race is not in the list","race_bonus":{"cha":2,"con":1},"class":"","class_about":"one line, only if the class is not in the list","class_main":"cha","class_second":"con","hit_die":8,"armor":"none|light|medium|heavy","class_skills":["Persuasion","Performance"],"class_features":"two or three short feature names","gear":[{"name":"Rapier","qty":1}],"background":"","alignment":"","abilities":{"str":8,"dex":8,"con":14,"int":12,"wis":13,"cha":18},"appearance":"one vivid line","backstory":"60 to 100 words, ending on what they want","boons":["id"],"flaws":["id"]}
+Rules: prefer a race and class from the lists, but invent one when the wish clearly calls for something else. Abilities are six scores from 8 to 18 before racial bonuses; make the class's main ability very high (17 or 18) and give a real weakness (8) where it fits the concept. Choose zero to two boons and at least as many flaws as boons, by id.
+Races: ${Object.keys(RACES).join(', ')}.
+Classes: ${Object.keys(CLASSES).join(', ')}.
+Backgrounds: ${Object.keys(BACKGROUNDS).join(', ')}.
+Alignments: ${ALIGNMENTS.join(', ')}.
+Skills: ${Object.keys(SKILLS).join(', ')}.
+Boons: ${BOONS.map(b=>`${b.id} (${b.name})`).join(', ')}.
+Flaws: ${FLAWS.map(b=>`${b.id} (${b.name})`).join(', ')}.`;
+const findKey = (o,v) => (Array.isArray(o)?o:Object.keys(o)).find(k=>k.toLowerCase()===String(v||'').trim().toLowerCase());
+const abil3 = v => { const a = String(v||'').toLowerCase().slice(0,3); return ABIL.includes(a)?a:null; };
+async function forge(){
+  if(forging||needKey()) return; const d = draft; forging = true; d.msg = ''; renderCreate();
+  try{
+    const out = await chat([{role:'system',content:FORGE()},{role:'user',content:`The player's wish: ${d.wish.trim()||'Surprise me with someone interesting.'}${d.name.trim()?`\nKeep the name: ${d.name.trim()}`:''}`}],{stream:false,maxTokens:Math.max(1200,Number(store.settings.maxTokens)),temperature:1});
+    const j = jsonIn(out); if(!j) throw new Error('The model did not send back a character. Try again, or choose by hand.');
+    if(typeof j.name==='string'&&j.name.trim()&&!d.name.trim()) d.name = j.name.trim().slice(0,40);
+    const rk = findKey(RACES,j.race);
+    if(rk) d.race = rk; else if(typeof j.race==='string'&&j.race.trim()){ const b = Object.entries(j.race_bonus||{}).map(([k,v])=>[abil3(k),num(v)]).filter(x=>x[0]).sort((a,b)=>b[1]-a[1]);
+      d.race = '__custom'; d.cRace = {name:j.race.trim().slice(0,30),about:String(j.race_about||'').slice(0,240),plus2:(b[0]||['con'])[0],plus1:(b[1]||b[0]||['wis'])[0]}; }
+    const ck = findKey(CLASSES,j.class);
+    if(ck) d.cls = ck; else if(typeof j.class==='string'&&j.class.trim()){ d.cls = '__custom';
+      d.cCls = {name:j.class.trim().slice(0,30),about:String(j.class_about||'').slice(0,240),main:abil3(j.class_main)||'str',second:abil3(j.class_second)||'con',hd:num(j.hit_die)||8,armor:ARMOR[j.armor]?j.armor:'light',
+        skills:(Array.isArray(j.class_skills)?j.class_skills:[]).map(k=>findKey(SKILLS,k)).filter(Boolean),gear:(Array.isArray(j.gear)?j.gear:[]).filter(g=>g&&typeof g.name==='string'&&g.name.trim()).map(g=>[g.name.trim().slice(0,40),Math.max(1,num(g.qty)||1)]),feat:String(j.class_features||'').slice(0,200)}; }
+    const bk = findKey(BACKGROUNDS,j.background); if(bk) d.background = bk; else if(typeof j.background==='string'&&j.background.trim()){ d.background = '__custom'; d.cBg = j.background.trim().slice(0,40); }
+    d.alignment = findKey(ALIGNMENTS,j.alignment)||d.alignment;
+    const preset = presetFor(classDef(d)); ABIL.forEach(a=>{ const v = num(j.abilities&&j.abilities[a]); d.abilities[a] = v>=3&&v<=18?v:preset[a]; }); d.abTouched = true;
+    if(typeof j.appearance==='string') d.appearance = j.appearance.trim().slice(0,200);
+    if(typeof j.backstory==='string') d.backstory = j.backstory.trim().slice(0,1200);
+    d.boons = (Array.isArray(j.boons)?j.boons:[]).filter(x=>BOONS.some(b=>b.id===x)).slice(0,2); d.flaws = (Array.isArray(j.flaws)?j.flaws:[]).filter(x=>FLAWS.some(b=>b.id===x)).slice(0,2);
+    d.boons = d.boons.slice(0,d.flaws.length); d.seen = 5; d.step = 5;
+  }catch(e){ d.msg = e.message||'The model could not be reached.'; }
+  forging = false; if(draft===d&&$('#createForm')) renderCreate();
 }
-function picked(f,name){ return [...f.querySelectorAll(`[name=${name}]:checked`)].map(x=>x.value); }
-function showMods(){ const f = $('#createForm'); if(!f) return;
-  const cls = CLASSES[f.cls.value], b = picked(f,'boons'), w = picked(f,'flaws');
-  const profs = [...new Set([...cls.skills,...BACKGROUNDS[f.background.value],...BOONS.filter(x=>b.includes(x.id)&&x.skill).map(x=>x.skill)])];
-  $('#classLine').textContent = `Hit die d${cls.hd}. Saving throws: ${cls.saves.map(a=>ABIL_NAME[a]).join(', ')}. Skills: ${profs.join(', ')}. Class features: ${cls.feat}.`;
-  $('#boonCount').textContent = `${b.length} of 2`; $('#flawCount').textContent = `${w.length} of 2`; $('#createMsg').textContent = '';
-  ABIL.forEach(a=>{ const r = (RACES[f.race.value]||{})[a]||0; $('#m_'+a).textContent = sgn(mod(clamp(num(f['ab_'+a].value)||10,3,18)+r))+(r?` (+${r})`:''); }); }
-
+async function forgeStory(){
+  if(forging||needKey()) return; const d = draft, cls = classDef(d), race = raceDef(d); forging = true; renderCreate();
+  try{
+    const out = await chat([{role:'system',content:'You write the look and the past of a tabletop fantasy character. Reply with JSON only: {"appearance":"one vivid line","backstory":"60 to 100 words, ending on what they want"}'},
+      {role:'user',content:`${d.name||'Unnamed'}, a ${race.name} ${cls.name}${race.about?` (${race.about})`:''}${cls.about?` (${cls.about})`:''}. Background: ${d.background==='__custom'?d.cBg:d.background}. Alignment: ${d.alignment}. Boons: ${BOONS.filter(x=>d.boons.includes(x.id)).map(x=>x.name).join(', ')||'none'}. Flaws: ${FLAWS.filter(x=>d.flaws.includes(x.id)).map(x=>x.name).join(', ')||'none'}.${d.wish.trim()?` The player's wish: ${d.wish.trim()}`:''}`}],{stream:false,maxTokens:Math.max(700,Number(store.settings.maxTokens)),temperature:1});
+    const j = jsonIn(out); if(!j) throw new Error('The model did not send back a story. Try again, or write your own.');
+    if(typeof j.appearance==='string') d.appearance = j.appearance.trim().slice(0,200); if(typeof j.backstory==='string') d.backstory = j.backstory.trim().slice(0,1200);
+  }catch(e){ d.msg = e.message||'The model could not be reached.'; }
+  forging = false; if(draft===d&&$('#createForm')) renderCreate();
+}
 function renderGame(){
   if(!cur) return renderHome();
   chrome(true);
@@ -1236,6 +1365,7 @@ function renderSide(){
     h += all.length?all.map(n=>`<div class="card"><h4>${here.includes(n.name)?'In the scene':'Met or heard of'}</h4><div class="who st-${stanceOf(n)}" id="npc-${esc(n.name.replace(/\W+/g,'-'))}"><h3 style="font-size:21px;color:var(--nc)"><i class="dot"></i>${esc(n.name)}</h3><div class="sub">${esc(n.about||'Not much known yet.')}</div></div>
       ${(n.traits||[]).length?`<div class="tags" style="margin-top:10px">${n.traits.map(t=>`<span class="tag" style="background:var(--s2);border-color:var(--line2);color:var(--text)">${esc(t)}</span>`).join('')}</div>`:''}
       ${(n.skills||[]).length?`<div class="hint" style="margin-top:10px;color:var(--text)"><span style="color:var(--muted)">Skilled at:</span> ${n.skills.map(esc).join(', ')}</div>`:''}
+      ${(n.memory||[]).length?`<div class="hint" style="margin-top:10px"><span>Remembers:</span><ul style="margin:4px 0 0;padding-left:18px">${n.memory.map(m=>`<li style="${m.k?'color:var(--text)':''}">${esc(m.t)}</li>`).join('')}</ul></div>`:''}
       <div class="hint" style="margin-top:8px">${n.wants?`Wants: ${esc(n.wants)}<br>`:''}${stanceOf(n)[0].toUpperCase()+stanceOf(n).slice(1)} toward you${n.attitude&&n.attitude.toLowerCase()!==stanceOf(n)?` (${esc(n.attitude)})`:''}.</div></div>`).join('')
       +`<div class="card"><h4>Name colours</h4><div class="legend">${STANCES.map(k=>`<span class="st-${k}"><i class="dot"></i>${k[0].toUpperCase()+k.slice(1)}</span>`).join('')}</div></div>`
       :'<div class="card"><h4>People</h4><div class="hint">No one you have met yet. Each person who joins a scene gets their own sheet here, kept up to date by the model that plays them.</div></div>';
@@ -1338,7 +1468,7 @@ document.addEventListener('click',async ev=>{
   const el = ev.target.closest('[data-act]'); if(!el) return; const act = el.dataset.act, c = cur;
   switch(act){
     case 'home': location.hash = ''; if(!location.hash) go(); break;
-    case 'create': location.hash = 'new'; break;
+    case 'create': draft = null; location.hash = 'new'; break;
     case 'open': if(cur&&cur.id===el.dataset.id&&!wide()) closeDrawers(); location.hash = el.dataset.id; break;
     case 'settings': openSettings(); break;
     case 'closeModal': closeModal(); break;
@@ -1350,9 +1480,15 @@ document.addEventListener('click',async ev=>{
     case 'export': { const x = store.campaigns[el.dataset.id]; if(!x) break; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(x,null,2)],{type:'application/json'}));
       a.download = x.title.replace(/[^\w-]+/g,'_')+'.emberglade.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); break; }
     case 'import': $('#importFile').click(); break;
-    case 'randName': $('#createForm').name.value = NAMES[rnd(NAMES.length)-1]; break;
-    case 'rollStats': fillStats(Array.from({length:6},()=>{ const d = [rnd(6),rnd(6),rnd(6),rnd(6)].sort((a,b)=>a-b); return d[1]+d[2]+d[3]; })); break;
-    case 'stdArray': fillStats([15,14,13,12,10,8]); break;
+    case 'randName': draft.name = NAMES[rnd(NAMES.length)-1]; renderCreate(); break;
+    case 'forge': forge(); break;
+    case 'forgeStory': forgeStory(); break;
+    case 'step': draft.step = num(el.dataset.k); renderCreate(); main.scrollTop = 0; break;
+    case 'stepBack': draft.step = Math.max(0,draft.step-1); renderCreate(); main.scrollTop = 0; break;
+    case 'cancelCreate': draft = null; location.hash = ''; if(!location.hash) go(); break;
+    case 'presetStats': draft.abilities = presetFor(classDef(draft)); draft.abTouched = false; renderCreate(); break;
+    case 'rollStats': placeStats(rollArray()); draft.abTouched = true; renderCreate(); break;
+    case 'stdArray': placeStats([15,14,13,12,10,8]); draft.abTouched = true; renderCreate(); break;
     case 'tab': tab = el.dataset.tab; renderSide(); break;
     case 'sugg': if(!busy){ const ta = $('#say'); if(ta) ta.value = ''; playerAct(el.textContent,true); } break;
     case 'pend': resolvePending(el.dataset.adv); break;
@@ -1415,30 +1551,33 @@ document.addEventListener('submit',ev=>{
   else if(f.id==='setForm'){ readSettings(); store.prefsAt = Date.now(); save(); closeModal(); if(!cur) renderHome(); else if(!cur.log.length&&!busy) takeTurn(null); }
   else if(f.id==='addItem'){ const v = f.item.value.trim(); if(v){ cur.character.inventory.push({name:v,qty:1}); save(); renderSide(); } }
   else if(f.id==='createForm'){
-    const boons = picked(f,'boons'), flaws = picked(f,'flaws');
-    if(boons.length>flaws.length){ $('#createMsg').textContent = 'Every boon is paid for with a flaw. Pick another flaw, or give up a boon.'; return; }
-    const abilities = {}; ABIL.forEach(a=>abilities[a]=f['ab_'+a].value);
-    const character = newCharacter({name:f.name.value.trim(),race:f.race.value,cls:f.cls.value,background:f.background.value,alignment:f.alignment.value,
-      appearance:f.appearance.value.trim(),backstory:f.backstory.value.trim(),abilities,boons,flaws});
-    const id = 'c'+Date.now().toString(36)+rnd(1e6).toString(36);
+    const d = draft; if(!d||forging) return;
+    if(d.step===0){ if(!d.name.trim()){ d.msg = 'Give your character a name, or let the model build one.'; renderCreate(); return; }
+      if(d.race==='__custom'&&!d.cRace.name.trim()){ d.msg = 'Name your custom race.'; renderCreate(); return; }
+      if(d.cls==='__custom'&&!d.cCls.name.trim()){ d.msg = 'Name your custom class.'; renderCreate(); return; } }
+    if(d.step>=3&&d.boons.length>d.flaws.length){ d.step = 3; d.msg = 'Every boon is paid for with a flaw. Pick another flaw, or go back and give up a boon.'; renderCreate(); return; }
+    if(d.step<5){ d.step++; d.seen = Math.max(d.seen,d.step); renderCreate(); main.scrollTop = 0; return; }
+    const character = newCharacter(d), id = 'c'+Date.now().toString(36)+rnd(1e6).toString(36);
     store.campaigns[id] = {id,title:`${character.name}'s tale`,created:Date.now(),updated:Date.now(),tone:'classic',character,
-      premise:'Invent an original premise for this campaign, different from anything generic, and build it around this particular character: their background, backstory, boons, and flaws. Do not explain the premise up front; reveal it through the opening scene.',
+      premise:'Invent an original premise for this campaign, different from anything generic, and build it around this particular character: their race, class, background, backstory, boons, and flaws. Do not explain the premise up front; reveal it through the opening scene.',
       quests:[],location:'',summary:'',sumIdx:0,log:[],suggestions:[],pendingRoll:null};
-    save(); location.hash = id;
+    draft = null; save(); location.hash = id;
   }
 });
+function setDraft(path,v){ const k = path.split('.'); if(k.length===2) draft[k[0]][k[1]] = v; else draft[k[0]] = v; }
 document.addEventListener('change',ev=>{
   const t = ev.target;
-  if((t.name==='boons'||t.name==='flaws')&&t.form?.id==='createForm'){ if(picked(t.form,t.name).length>2) t.checked = false; showMods(); }
-  if((t.name==='background')&&t.form?.id==='createForm') showMods();
-  if(t.name==='cls'&&t.form?.id==='createForm') fillStats(ABIL.map(a=>num(t.form['ab_'+a].value)||10));
-  if(t.name==='race'&&t.form?.id==='createForm') showMods();
+  if(draft&&(t.name==='boons'||t.name==='flaws')&&t.form?.id==='createForm'){ const list = draft[t.name], k = list.indexOf(t.value);
+    if(t.checked&&k<0&&list.length<2) list.push(t.value); else if(!t.checked&&k>=0) list.splice(k,1); renderCreate(); }
+  if(draft&&t.dataset.d&&t.tagName==='SELECT'){ setDraft(t.dataset.d,t.value); if(t.dataset.re){ if(!draft.abTouched) draft.abilities = presetFor(classDef(draft)); renderCreate(); } }
   if(t.id==='importFile'&&t.files[0]){ t.files[0].text().then(txt=>{ const x = JSON.parse(txt); if(!x.character||!Array.isArray(x.log)) throw 0;
     x.id = 'c'+Date.now().toString(36)+rnd(1e6).toString(36); x.updated = Date.now(); x.quests ||= []; x.suggestions ||= []; store.campaigns[x.id] = x; saveLocal(); scheduleSync(); renderHome(); toast('✓','Tale imported.'); })
     .catch(()=>toast('!','That file is not an Emberglade save.')); }
 });
 document.addEventListener('input',ev=>{
-  if(ev.target.name?.startsWith('ab_')) showMods();
+  const t0 = ev.target;
+  if(draft&&t0.dataset.d&&t0.tagName!=='SELECT') setDraft(t0.dataset.d,t0.value);
+  if(draft&&t0.dataset.ab){ draft.abilities[t0.dataset.ab] = t0.value; draft.abTouched = true; const r = raceDef(draft).bonus[t0.dataset.ab]||0; $('#m_'+t0.dataset.ab).textContent = sgn(mod(clamp(num(t0.value)||10,3,18)+r))+(r?` (+${r})`:''); }
   if(ev.target.id==='say'){ const t = ev.target; t.style.height = 'auto'; t.style.height = Math.min(160,t.scrollHeight+2)+'px'; }
 });
 document.addEventListener('keydown',ev=>{
