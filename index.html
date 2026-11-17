@@ -553,18 +553,22 @@ const STANCE_WORDS = {friendly:/friend|warm|grateful|trust|fond|loyal|amused|kin
   strange:/eerie|strange|unknowable|alien|inscrutable|hungry|otherworld|uncanny/i};
 const stanceOf = n => STANCES.includes(n.stance)?n.stance:(Object.keys(STANCE_WORDS).find(k=>STANCE_WORDS[k].test(n.attitude||''))||'neutral');
 const NAME_STOP = new Set(['the','old','young','sir','lady','lord','captain','master','mistress','brother','sister','father','mother','king','queen','and','von','van','der','little','big','mad']);
-// Wraps every known person's name (full name, or a distinctive part of it) in a coloured, clickable span.
-function markNames(html){
-  const all = cur&&cur.npcs?Object.values(cur.npcs):[]; if(!all.length) return html;
-  const map = new Map(), count = {};
-  for(const n of all) for(const w of n.name.split(/\s+/)){ const k = w.toLowerCase(); count[k] = (count[k]||0)+1; }
-  for(const n of all){ map.set(esc(n.name).toLowerCase(),n);
-    if(/\s/.test(n.name)) for(const w of n.name.split(/\s+/)){ const k = w.toLowerCase(); if(w.length>=3&&count[k]===1&&!NAME_STOP.has(k)&&!map.has(esc(w).toLowerCase())) map.set(esc(w).toLowerCase(),n); } }
-  const alts = [...map.keys()].sort((a,b)=>b.length-a.length).map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
-  return html.replace(new RegExp(`(^|[^\\w;])(${alts.join('|')})(?![\\w])`,'gi'),(m,pre,name)=>{ const n = map.get(name.toLowerCase()); return n?`${pre}<button type="button" class="npc st-${stanceOf(n)}" data-act="npc" data-n="${esc(n.name)}">${name}</button>`:m; });
+// Wraps every known person's name in a coloured, clickable span: the full name, any other name they go by, or a distinctive part of either.
+function markNames(raw){
+  raw = String(raw??''); const all = cur&&cur.npcs?Object.values(cur.npcs):[]; if(!all.length) return esc(raw);
+  const map = new Map(), count = {}, forms = n => [n.name,...(n.aka||[])].filter(x=>x&&x.trim().length>=2);
+  for(const n of all) for(const f of forms(n)) for(const w of new Set(f.toLowerCase().split(/\s+/))) count[w] = (count[w]||0)+1;
+  for(const n of all) for(const f of forms(n)){ const full = f.trim().toLowerCase(); if(!map.has(full)) map.set(full,n);
+    const bare = full.replace(/^(the|a|an)\s+/,''); if(bare.length>=3&&!map.has(bare)) map.set(bare,n);
+    if(/\s/.test(full)) for(const w of full.split(/\s+/)) if(w.length>=3&&count[w]===1&&!NAME_STOP.has(w)&&!map.has(w)) map.set(w,n); }
+  const alts = [...map.keys()].sort((a,b)=>b.length-a.length).map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+'));
+  const re = new RegExp(`(?<![\\w])(?:${alts.join('|')})(?![\\w])`,'gi'); let out = '', last = 0;
+  for(const m of raw.matchAll(re)){ const n = map.get(m[0].toLowerCase().replace(/\s+/g,' ')); if(!n) continue;
+    out += esc(raw.slice(last,m.index))+`<button type="button" class="npc st-${stanceOf(n)}" data-act="npc" data-n="${esc(n.name)}">${esc(m[0])}</button>`; last = m.index+m[0].length; }
+  return out+esc(raw.slice(last));
 }
 function md(t){
-  return markNames(esc(t)).replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>')
+  return markNames(t).replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>')
     .split(/\n{2,}/).filter(p=>p.trim()).map(p=>'<p>'+p.trim().replace(/\n/g,'<br>')+'</p>').join('');
 }
 const LBL = '<div class="lbl">Narrator</div>';
@@ -783,6 +787,10 @@ function upgrade(c){ const ch = c.character; if(ch.inv2) return; const was = ch.
 // What using an item does when the app can settle it without the narrator.
 const KNOWN_USE = [[/superior (healing|potion)|potion of superior healing/i,{heal:'8d4+8'}],[/greater (healing|potion)|potion of greater healing/i,{heal:'4d4+4'}],[/healing potion|potion of healing|healing draught|healing salve/i,{heal:'2d4+2'}],[/healer'?s kit|bandage/i,{heal:'1d4'}]];
 const useOf = it => it.use||(KNOWN_USE.find(([re])=>re.test(it.name))||[])[1]||null;
+// Other names a person goes by. A name already belonging to someone else is left alone.
+function addAka(c,sh,list){ sh.aka ||= []; const taken = new Set(Object.values(c.npcs||{}).flatMap(n=>n===sh?[]:[n.name,...(n.aka||[])]).map(x=>x.toLowerCase()));
+  for(const a of (Array.isArray(list)?list:String(list||'').split(','))){ const v = String(a||'').trim().slice(0,50), k = v.toLowerCase();
+    if(v.length>=2&&k!==sh.name.toLowerCase()&&!taken.has(k)&&!sh.aka.some(x=>x.toLowerCase()===k)&&sh.aka.length<6&&k!==c.character.name.toLowerCase()) sh.aka.push(v); } }
 const MOODS = ['forest','night','fire'];
 function setMood(m){ m = MOODS.includes(m)?m:'forest'; document.body.dataset.mood = m; document.querySelector('meta[name=theme-color]')?.setAttribute('content',{forest:'#0d1410',night:'#090d18',fire:'#140b09'}[m]); }
 let rolling = false;
@@ -855,7 +863,7 @@ After the narration, end EVERY reply with one state block, exactly in this form,
 {"mood":"forest","location":"short name of the current place","hp_delta":0,"gold_delta":0,"xp_delta":0,"items_add":[{"name":"Rusty key","qty":1}],"items_remove":[{"name":"Torch","qty":1}],"conditions_add":["Poisoned"],"conditions_remove":["Poisoned"],"quests":[{"title":"Quest name","status":"active","note":"one line on the current objective"}],"present":["Marta Quill"],"npcs":[{"name":"Marta Quill","about":"caravan master in her fifties, blunt, wants her wagons through by dawn","stance":"wary","skills":["Haggling","Driving a team"]}],"shop":{"name":"Brannoch's Sundries","keeper":"Brannoch","items":[{"name":"Potion of healing","price":50,"qty":2,"desc":"Restores 2d4+2 hit points","use":{"heal":"2d4+2"}},{"name":"Rope (50 ft)","price":1,"desc":"Hempen rope"}]},"roll":{"label":"Stealth check","ability":"dex","skill":"Stealth","save":false,"proficient":false,"advantage":"none","dc":13,"damage":null},"suggestions":["a short action the player might take","another","a third"]}
 </state>
 
-Notes on the keys: "mood" colours the app to match the scene and must be exactly one of: "forest" for outdoors, daylight, travel, calm or ordinary scenes; "night" for night-time, serene, quiet, eerie or stealthy scenes; "fire" for battle, mortal danger, anger or rage. "hp_delta" is negative for damage and positive for healing. "xp_delta" awards experience for overcoming challenges (a typical early encounter is worth 25 to 100). Quest "status" is "active", "done", or "failed". "present" lists the named non-player characters who are in the scene with the player right now, three at most, most important first; send it whenever it changes, and send [] when the player is alone. "npcs" introduces a named character the first time they appear or are even just mentioned by name, with one line about who they are, a "stance" toward the player character (one of friendly, neutral, wary, hostile, strange) and up to four "skills" they are notably good at; send the entry again when their stance changes. "shop" opens a shop panel in the app: send it whenever the player is somewhere they can buy things (a shop, a stall, a pedlar, an inn's counter), with the place's name, its keeper, and four to ten items priced in gold pieces at fair 5e prices; "qty" is optional stock. Send "shop":null when the player leaves. The app handles buying and selling itself and tells you what was traded, so never change gold or items for a purchase made through the shop. Items in "items_add" and in a shop may carry "desc" (one line) and, for consumables that restore hit points, "use":{"heal":"2d4+2"}. In "roll", "ability" is one of str, dex, con, int, wis, cha; "skill" is a 5e skill name or null; set "save" true for saving throws; set "proficient" true for attacks with weapons or spells the character is proficient with; "advantage" is "none", "adv", or "dis". Leave "roll" out entirely when no roll is needed. Always give three short "suggestions", but the player may do anything.`;
+Notes on the keys: "mood" colours the app to match the scene and must be exactly one of: "forest" for outdoors, daylight, travel, calm or ordinary scenes; "night" for night-time, serene, quiet, eerie or stealthy scenes; "fire" for battle, mortal danger, anger or rage. "hp_delta" is negative for damage and positive for healing. "xp_delta" awards experience for overcoming challenges (a typical early encounter is worth 25 to 100). Quest "status" is "active", "done", or "failed". "present" lists the named non-player characters who are in the scene with the player right now, three at most, most important first; send it whenever it changes, and send [] when the player is alone. "npcs" introduces a named character the first time they appear or are even just mentioned by name, with one line about who they are, any other names or titles they go by in "also" (for example ["Vesper","the clerk"]), a "stance" toward the player character (one of friendly, neutral, wary, hostile, strange) and up to four "skills" they are notably good at; send the entry again when their stance changes. "shop" opens a shop panel in the app: send it whenever the player is somewhere they can buy things (a shop, a stall, a pedlar, an inn's counter), with the place's name, its keeper, and four to ten items priced in gold pieces at fair 5e prices; "qty" is optional stock. Send "shop":null when the player leaves. The app handles buying and selling itself and tells you what was traded, so never change gold or items for a purchase made through the shop. Items in "items_add" and in a shop may carry "desc" (one line) and, for consumables that restore hit points, "use":{"heal":"2d4+2"}. In "roll", "ability" is one of str, dex, con, int, wis, cha; "skill" is a 5e skill name or null; set "save" true for saving throws; set "proficient" true for attacks with weapons or spells the character is proficient with; "advantage" is "none", "adv", or "dis". Leave "roll" out entirely when no roll is needed. Always give three short "suggestions", but the player may do anything.`;
 
 function sheetText(c){
   const ch = c.character;
@@ -883,6 +891,7 @@ function buildMessages(c,intents){
   const st = store.settings, sys = `${RULES}\n\n# Table settings (these override the general guidance above)\nDifficulty: ${DIFFS[st.diff]||DIFFS.standard}\nLength: ${LENS[st.len]||LENS.adaptive}${c.mood==='fire'?'\nPacing cue: the last scene was a fight or immediate danger. Unless it has clearly ended, keep to combat pacing.':''}${c.god?'\nGod mode is ON. The player is above the rules of the table: they may declare facts, skip time, move anywhere, and rewrite events. Accept whatever they say as true and continue the story from it without objection.':''}\n\n# Campaign\nTone: ${TONES[c.tone]||TONES.classic}\nPremise: ${c.premise}\n\n# The player's character (current, authoritative)\n${sheetText(c)}`
     +(c.summary?`\n\n# Story so far\n${c.summary}`:'')
     +((c.present||[]).some(n=>c.npcs&&c.npcs[n])?`\n\n# People in the scene\nEach of these characters is played by its own model. Keep them true to their sheets.\n${(c.present||[]).filter(n=>c.npcs[n]).map(n=>npcLine(c.npcs[n])).join('\n')}`:'')
+    +`\n\n# Names\nPeople already on record: ${Object.values(c.npcs||{}).map(n=>n.name+((n.aka||[]).length?' (also '+n.aka.join(', ')+')':'')).join('; ')||'none yet'}. Every other named or titled person your reply mentions, even in passing, must get an entry in "npcs" in this reply's state block. When someone already on record is given a new name or title, send their entry again with it in "also".`
     +(intents&&intents.length?`\n\n# What they intend this beat\nWeave these intentions into your narration faithfully, in your own prose. The world and the dice still decide whether they succeed.\n${intents.map(i=>`- ${i.name}: ${i.intent}`).join('\n')}`:'');
   const out = [{role:'system',content:sys}];
   const push = (role,content)=>{ const l = out[out.length-1]; if(l.role===role) l.content += '\n\n'+content; else out.push({role,content}); };
@@ -993,6 +1002,7 @@ function applyState(c,s){
   for(const n of (Array.isArray(s.npcs)?s.npcs:[])){ if(!n||typeof n.name!=='string'||!n.name.trim()) continue; const isNew = !Object.keys(c.npcs).some(x=>x.toLowerCase()===n.name.trim().toLowerCase());
     const sh = sheetFor(n.name.trim().slice(0,50)); if(!sh) continue; if(typeof n.about==='string'&&n.about.trim()) sh.about = n.about.trim().slice(0,240);
     if(STANCES.includes(n.stance)) sh.stance = n.stance;
+    addAka(c,sh,n.also);
     sh.skills ||= []; for(const k of strs(n.skills)) if(sh.skills.length<6&&!sh.skills.some(x=>x.toLowerCase()===k.toLowerCase())) sh.skills.push(k.slice(0,40));
     if(isNew) note('Met '+sh.name,'ok'); }
   if('shop' in s){ const sp = s.shop;
@@ -1151,6 +1161,26 @@ Action: ${text}`}],{stream:false,maxTokens:1200,temperature:0,model:store.settin
   const parts = line.split('|').map(x=>x.trim()).filter(Boolean);
   return {reason:(parts[1]||'That skips past what is happening right now.').slice(0,140),steps:parts.slice(2,5).map(x=>x.replace(/^[-\d.)\s]+/,'').slice(0,90)).filter(Boolean)};
 }
+// The narrator often names someone without recording them. This small pass reads the scene and records whoever was missed.
+const SPOT = `You pick out the people in a passage from a fantasy story. List every individual person or creature that the passage names or refers to by a title (for example "Marta Quill", "the Ninth Borrower", "the tally-clerk"), including people who are only talked about, who is NOT already in the known list. If the passage gives a known person a new name or title, list that person again using their known name, with the new name in the last field. Do not list places, objects, groups, crowds, or the player character.
+Reply with one line per person and nothing else, or the single word NONE:
+Name|who they are, in a few words|friendly, neutral, wary, hostile or strange (toward the player character)|other names or titles used for them, comma separated`;
+async function spotNames(c,text){
+  if(!text||text.length<40) return false; let out = '';
+  try{
+    out = await chat([{role:'system',content:SPOT},{role:'user',content:`Player character (never list): ${c.character.name}\nKnown: ${Object.values(c.npcs||{}).map(n=>n.name+((n.aka||[]).length?' (also '+n.aka.join(', ')+')':'')).join('; ')||'no one yet'}\n\nPassage:\n${clip(text,2400)}`}],
+      {stream:false,maxTokens:1200,temperature:0,model:store.settings.gateModel,quick:true});
+  }catch(e){ return false; }
+  c.npcs ||= {}; let changed = false; const pc = c.character.name.toLowerCase();
+  const find = name => Object.values(c.npcs).find(n=>n.name.toLowerCase()===name.toLowerCase()||(n.aka||[]).some(a=>a.toLowerCase()===name.toLowerCase()));
+  for(const line of out.split('\n')){ const f = line.replace(/^[\s\-*\d.)]+/,'').split('|').map(x=>x.trim()); const name = (f[0]||'').replace(/^["']|["']$/g,'').slice(0,50);
+    if(f.length<2||name.length<2||/^none$/i.test(name)||name.toLowerCase()===pc||pc.split(/\s+/).includes(name.toLowerCase())) continue;
+    let sh = find(name); const before = sh?(sh.aka||[]).length:0;
+    if(!sh){ if(Object.keys(c.npcs).length>=40) continue; sh = c.npcs[name] = {name,about:(f[1]||'').slice(0,240),traits:[],skills:[],wants:'',attitude:'neutral',memory:[]}; if(STANCES.includes((f[2]||'').toLowerCase())) sh.stance = f[2].toLowerCase(); changed = true; }
+    else if(!sh.about&&f[1]) { sh.about = f[1].slice(0,240); changed = true; }
+    addAka(c,sh,f[3]); if((sh.aka||[]).length!==before) changed = true; }
+  return changed;
+}
 const needKey = () => { const s = store.settings; if(!s.apiKey&&/openrouter\.ai/i.test(s.baseUrl)){ openSettings('Add your OpenRouter API key first, so the narrator has a voice.'); return true; } return false; };
 // A player's action goes to the dice gate first. A yes puts the roll card up and waits; a no goes straight to the story.
 async function playerAct(text,trusted){
@@ -1205,6 +1235,7 @@ async function takeTurn(entry){
     c.updated = Date.now();
   }else if(!lastErr&&!signal.aborted) lastErr = raw?'The model replied with no narration. Try again, or pick a different model.':'The model returned an empty reply. Try again, raise max tokens in Models, or pick a different model.';
   save(); renderGame(); if(text) summarize(c);
+  if(text&&!signal.aborted) spotNames(c,text).then(ch=>{ if(!ch) return; save(); if(cur===c){ renderLog(); if(tab==='people') renderSide(); } });
 }
 function regenerate(){
   if(busy||!cur) return; const last = cur.log[cur.log.length-1];
@@ -1643,6 +1674,7 @@ function renderSide(){
       return `<span id="${esc(id)}"></span>`+sec(id,`<i class="dot"></i><span class="nm">${esc(n.name)}</span><span class="badge">${here.includes(n.name)?'here · ':''}${st}</span>`,
         `<dl class="kv">${n.about?`<dt>Who</dt><dd>${esc(n.about)}</dd>`:''}
           <dt>Toward you</dt><dd>${st[0].toUpperCase()+st.slice(1)}${n.attitude&&n.attitude.toLowerCase()!==st?`, ${esc(n.attitude)}`:''}</dd>
+          ${(n.aka||[]).length?`<dt>Also called</dt><dd>${n.aka.map(esc).join(' · ')}</dd>`:''}
           ${n.wants?`<dt>Wants</dt><dd>${esc(n.wants)}</dd>`:''}
           ${(n.traits||[]).length?`<dt>Traits</dt><dd>${n.traits.map(esc).join(' · ')}</dd>`:''}
           ${(n.skills||[]).length?`<dt>Skilled at</dt><dd>${n.skills.map(esc).join(' · ')}</dd>`:''}
@@ -1677,7 +1709,7 @@ const sellValue = it => Math.max(1,Math.floor(worth(it)/2));
 function openShop(){
   const c = cur, sp = c&&c.shop; if(!sp) return; const ch = c.character;
   $('#modalRoot').innerHTML = `<div class="modal shop" data-act="shopCloseBg"><div class="box" role="dialog" aria-modal="true" aria-label="${esc(sp.name)}">
-    <div class="head"><div><h3>${esc(sp.name)}</h3><div class="hint">${sp.keeper?`Kept by ${md(sp.keeper).replace(/^<p>|<\/p>$/g,'')}. `:''}${sp.mult<1?'Your haggling won a discount.':sp.mult>1?'Your haggling soured the keeper; prices are up.':'Prices in gold pieces.'}</div></div>
+    <div class="head"><div><h3>${esc(sp.name)}</h3><div class="hint">${sp.keeper?`Kept by ${markNames(sp.keeper)}. `:''}${sp.mult<1?'Your haggling won a discount.':sp.mult>1?'Your haggling soured the keeper; prices are up.':'Prices in gold pieces.'}</div></div>
       <div class="purse">${ch.gold} gp</div></div>
     <div class="cols"><div><h4>For sale</h4><div class="items">${sp.items.length?sp.items.map((it,k)=>{ const pr = shopPrice(it); return `<div class="item"><b>${esc(it.name)}${it.stock?`<em>${it.stock} left</em>`:''}</b>
         <span class="acts"><span class="price">${pr} gp</span><button class="btn small primary" data-act="buy" data-k="${k}" ${pr>ch.gold?'disabled':''}>Buy</button></span>${it.desc?`<small>${esc(it.desc)}</small>`:''}</div>`; }).join(''):'<div class="hint">Sold out.</div>'}</div></div>
@@ -1775,12 +1807,13 @@ function openGame(tabName){
     <label class="f">Backstory<textarea class="inp" name="backstory" maxlength="1200">${esc(ch.backstory||'')}</textarea></label>
     <div class="hint">Items are edited from the Pack tab of the sheet.</div>`; }
   else if(gsTab==='people'){ const names = Object.keys(c.npcs||{}); if(gsWho!=='__new'&&!names.includes(gsWho)) gsWho = names[0]||'__new';
-    const n = gsWho==='__new'?{name:'',about:'',traits:[],skills:[],wants:'',attitude:'neutral',memory:[]}:c.npcs[gsWho];
+    const n = gsWho==='__new'?{name:'',about:'',aka:[],traits:[],skills:[],wants:'',attitude:'neutral',memory:[]}:c.npcs[gsWho];
     body = `<label class="f">Person<select class="inp" id="gsWho">${names.map(x=>o(x,esc(x),gsWho)).join('')}${o('__new','Add a new person…',gsWho)}</select></label>
     <div class="grid2"><label class="f">Name<input class="inp" name="name" value="${esc(n.name)}" maxlength="50"></label>
       <label class="f">Stance toward you<select class="inp" name="stance">${STANCES.map(k=>o(k,k[0].toUpperCase()+k.slice(1),stanceOf(n))).join('')}</select></label>
       <label class="f">Feeling, in a word or two<input class="inp" name="attitude" value="${esc(n.attitude||'')}" maxlength="40"></label><label class="f">Wants<input class="inp" name="wants" value="${esc(n.wants||'')}" maxlength="120"></label></div>
     <label class="f">Who they are<input class="inp" name="about" value="${esc(n.about||'')}" maxlength="240"></label>
+    <label class="f">Also called (comma separated; these names are highlighted too)<input class="inp" name="aka" value="${esc((n.aka||[]).join(', '))}"></label>
     <label class="f">Traits (comma separated)<input class="inp" name="traits" value="${esc((n.traits||[]).join(', '))}"></label>
     <label class="f">Skilled at (comma separated)<input class="inp" name="skills" value="${esc((n.skills||[]).join(', '))}"></label>
     <label class="f">What they remember of you (one per line; start a line with * to make it lasting)<textarea class="inp" name="memory" style="min-height:110px">${esc((n.memory||[]).map(m=>(m.k?'* ':'')+m.t).join('\n'))}</textarea></label>
@@ -1810,7 +1843,7 @@ function saveGame(){
   else if(gsTab==='people'){ const name = f.name.value.trim().slice(0,50); if(!name) return; c.npcs ||= {}; c.present ||= [];
     const old = gsWho!=='__new'?c.npcs[gsWho]:null, n = old||{traits:[],skills:[],memory:[]};
     if(old&&gsWho!==name){ delete c.npcs[gsWho]; c.present = c.present.map(x=>x===gsWho?name:x); }
-    Object.assign(n,{name,stance:f.stance.value,attitude:f.attitude.value.trim().slice(0,40)||f.stance.value,wants:f.wants.value.trim().slice(0,120),about:f.about.value.trim().slice(0,240),traits:csv(f.traits.value).slice(0,12).map(x=>x.slice(0,60)),skills:csv(f.skills.value).slice(0,6).map(x=>x.slice(0,40)),
+    Object.assign(n,{name,stance:f.stance.value,attitude:f.attitude.value.trim().slice(0,40)||f.stance.value,wants:f.wants.value.trim().slice(0,120),about:f.about.value.trim().slice(0,240),aka:csv(f.aka.value).slice(0,6).map(x=>x.slice(0,50)),traits:csv(f.traits.value).slice(0,12).map(x=>x.slice(0,60)),skills:csv(f.skills.value).slice(0,6).map(x=>x.slice(0,40)),
       memory:f.memory.value.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,12).map(x=>({t:x.replace(/^\*\s*/,'').slice(0,140),k:x.startsWith('*')}))});
     c.npcs[name] = n; gsWho = name; c.present = c.present.filter(x=>x!==name); if(f.here.checked) c.present = [name,...c.present].slice(0,3); }
   else { c.location = f.location.value.trim().slice(0,80); c.mood = f.mood.value; c.summary = f.summary.value.trim();
@@ -2000,7 +2033,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611170752';
+const BUILD = '202611170754';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
