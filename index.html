@@ -26,6 +26,7 @@
   --ui:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;--story:var(--ui);
   --r:14px;color-scheme:dark;
 }
+body[data-font=roman]{--story:"Times New Roman",Times,"Crimson Text",serif}
 body[data-font=medieval]{--story:"Crimson Text","Times New Roman",Georgia,serif}
 body[data-font=scifi]{--story:"Comfortaa","Trebuchet MS",sans-serif}
 body[data-font=literary]{--story:"Lora","Palatino Linotype",Palatino,serif}
@@ -341,6 +342,20 @@ details.card[open]>summary{margin-bottom:10px}
 .kv .lasting{color:var(--ember2)}
 .ok-mark{display:inline-block;margin-top:6px;color:var(--good);font-size:13px;opacity:.8}
 .tray{cursor:pointer}
+.dlg{margin:.5em 0;padding:1px 0 1px 12px;border-left:2px solid var(--line2);color:#f3f5ee}
+.dlg .who{font-weight:700;color:var(--ember2);margin-right:.45em}.dlg .who::after{content:" :";color:var(--muted);font-weight:400}
+.dlg .who .npc{font-weight:700}
+.e.dm .dlg em,.dlg em{color:rgba(223,227,218,.62);font-style:italic}
+.mdh{font-family:var(--display);color:var(--ember2);margin:.5em 0 .3em;line-height:1.25}h2.mdh{font-size:1.5em}h3.mdh{font-size:1.28em}h4.mdh{font-size:1.1em}
+.mdhr{border:0;border-top:1px solid var(--line2);margin:1em 0}
+.mdq{margin:.5em 0;padding:.2em 0 .2em 14px;border-left:3px solid var(--ember);color:var(--text);font-style:italic}
+.mdl{margin:.4em 0 .7em 1.3em;padding:0}.mdl li{margin:.15em 0}
+#log code,.bub code{font-family:"Space Mono","Courier New",monospace;font-size:.9em;background:var(--s2);border:1px solid var(--line);border-radius:5px;padding:0 5px}
+#log .pp{margin:0 0 1em}#log mark{background:#e9c46a;color:#141414;padding:0 3px;border-radius:3px}
+#log .e s{opacity:.75}
+#log .lightbg :is(strong,em,b,i,u,s,.npc,.who,.what,p,li,blockquote,h2,h3,h4){color:inherit}#log .lightbg .dlg{color:inherit}#log .lightbg code{background:rgba(0,0,0,.1);border-color:rgba(0,0,0,.25)}
+.bub .kw{font-weight:700;color:var(--ember2);margin-right:.35em}
+.shop .item.out{opacity:.45}
 .says{margin-top:10px;padding:8px 12px;border-radius:12px 12px 12px 3px;background:var(--s2);border:1px solid var(--line);font-size:14.5px;line-height:1.5;width:fit-content;max-width:100%}
 .says b{color:var(--ember2);font-weight:600;margin-right:6px}
 .dmhead{max-width:760px;margin:0 auto 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 2px 6px;border-bottom:1px solid var(--line)}
@@ -705,7 +720,7 @@ const TONES = {...MORE_TONES,classic:'Classic heroic fantasy: wonder, danger, an
 
 /* ============ storage ============ */
 const KEY = 'calis-tavern.v1';
-const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,forgeModel:'',useCheck:true,useGuard:true,dmPick:'',dmName:'Cali',dmVoice:'Half korean half italian. sassy, huffy, warm underneath. talks like a real person — short sentences, no speeches, says the vulgar word not the clean one. calls you out when you do something stupid, goes quiet when something actually hits. uses kaomoji not western emotes — (￣^￣) not :). korean and italian leak out when she feels something — 씨발, cazzo, 바보야. genuinely cares about the player but will NOT baby them. says one honest thing instead of five correct ones. if you make a dumb move she\'ll roast you. if you make a beautiful one she goes soft for exactly one line then pretends she didn\'t.',dmCalls:'Misu',dmTalk:true,advPrompt:'',providerPref:'',utilBaseUrl:'',utilApiKey:'',storyFont:'default',announce:true,encumb:true,vulgar:false,lore:true,loreSize:'small',diff:'standard',len:'adaptive',voice:'plain',trouble:'calm',memToken:'',gistId:'',lastSync:0};
+const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,forgeModel:'',useCheck:true,useGuard:true,dmPick:'',dmName:'Cali',dmVoice:'Half korean half italian. sassy, huffy, warm underneath. talks like a real person — short sentences, no speeches, says the vulgar word not the clean one. calls you out when you do something stupid, goes quiet when something actually hits. uses kaomoji not western emotes — (￣^￣) not :). korean and italian leak out when she feels something — 씨발, cazzo, 바보야. genuinely cares about the player but will NOT baby them. says one honest thing instead of five correct ones. if you make a dumb move she\'ll roast you. if you make a beautiful one she goes soft for exactly one line then pretends she didn\'t.',dmCalls:'Misu',dmTalk:true,advPrompt:'',providerPref:'',utilBaseUrl:'',utilApiKey:'',storyFont:'auto',announce:true,encumb:true,vulgar:false,lore:true,loreSize:'small',diff:'standard',len:'adaptive',voice:'plain',trouble:'calm',memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
 try{ if(!localStorage.getItem(KEY)&&localStorage.getItem('emberglade.v1')) localStorage.setItem(KEY,localStorage.getItem('emberglade.v1')); }catch(e){}
 let staleStore = false;
@@ -770,9 +785,89 @@ function markNames(raw){
     out += esc(raw.slice(last,m.index))+`<button type="button" class="npc st-${stanceOf(n)}" data-act="npc" data-n="${esc(n.name)}">${esc(m[0])}</button>`; last = m.index+m[0].length; }
   return out+esc(raw.slice(last));
 }
+// What the narrator may use to dress the page: a short list of tags, each attribute checked, every colour kept readable on the dark page.
+const HTML_OK = new Set('b i u s em strong small big sub sup mark span font center div p br hr h1 h2 h3 h4 blockquote ul ol li code pre table tr td th'.split(' '));
+const HTML_BLOCK = new Set('center div p hr h1 h2 h3 h4 blockquote ul ol li pre table tr td th'.split(' '));
+const FACE_OK = /^(inter|crimson text|times new roman|times|georgia|comfortaa|trebuchet ms|space mono|courier new|courier|lora|palatino|palatino linotype|cormorant garamond|garamond|arial|verdana|impact|serif|sans-serif|monospace|cursive|fantasy|system-ui)$/i;
+const PAGE_RGB = [16,20,18];
+let _cctx;
+function rgbOf(v){ v = String(v||'').trim(); if(!v||v.length>40||!/^[#\w\s(),.%-]+$/.test(v)||/url|var|expression/i.test(v)) return null;
+  try{ _cctx ||= document.createElement('canvas').getContext('2d'); _cctx.fillStyle = '#010203'; _cctx.fillStyle = v; const r = _cctx.fillStyle;
+    if(r==='#010203'&&!/^#?0?1?0?2?0?3$/i.test(v.replace(/#/,''))) return null;
+    if(r[0]==='#') return [1,3,5].map(k=>parseInt(r.slice(k,k+2),16)); const m = r.match(/[\d.]+/g); return m&&+(m[3]??1)>0.05?m.slice(0,3).map(Number):null; }catch(e){ return null; } }
+const lumOf = c => { const [r,g,b] = c.map(x=>{ x /= 255; return x<=0.03928?x/12.92:((x+0.055)/1.055)**2.4; }); return 0.2126*r+0.7152*g+0.0722*b; };
+const contrast = (a,b) => { const x = lumOf(a), y = lumOf(b); return (Math.max(x,y)+0.05)/(Math.min(x,y)+0.05); };
+// A text colour that can be read on the given background: kept if it already can, otherwise lightened (or swapped for dark on a light background).
+function readable(fg,bg){ const on = bg||PAGE_RGB; if(fg&&contrast(fg,on)>=4.5) return fg; if(bg||!fg) return lumOf(on)>0.35?[20,20,20]:[240,240,234];
+  let c = fg; for(let k=0;k<12&&contrast(c,on)<4.5;k++) c = c.map(x=>Math.round(x+(255-x)*0.25)); return c; }
+const rgbCss = c => `rgb(${c.join(',')})`;
+const lenOf = (v,lo,hi) => { const m = /^(-?[\d.]+)(px|em|rem|%|pt)?$/.exec(String(v).trim()); if(!m) return null; let n = +m[1]; const u = m[2]||'px'; n = u==='px'?n/16:u==='%'?n/100:u==='pt'?n/12:n; return isFinite(n)?clamp(n,lo,hi)+'em':null; };
+function safeStyle(css,extra,under){
+  const out = {}; let fg = null, bg = null;
+  for(const d of String(css||'').split(';')){ const k = d.slice(0,d.indexOf(':')).trim().toLowerCase(), v = d.slice(d.indexOf(':')+1).trim(); if(!k||!v||v.length>120||/url|expression|var\(|@|\\|javascript/i.test(v)) continue;
+    if(k==='color'){ fg = rgbOf(v); }
+    else if(k==='background'||k==='background-color'){ bg = rgbOf(v); }
+    else if(k==='font-family'){ const fams = v.split(',').map(x=>x.trim().replace(/^["']|["']$/g,'')).filter(x=>FACE_OK.test(x)); if(fams.length) out[k] = fams.map(x=>/\s/.test(x)?`'${x}'`:x).join(','); }
+    else if(k==='font-size'){ const named = {'xx-small':.75,'x-small':.8,small:.88,medium:1,large:1.2,'x-large':1.5,'xx-large':1.9,smaller:.88,larger:1.2}[v.toLowerCase()]; const l = named?named+'em':lenOf(v,0.75,2.2); if(l) out[k] = l; }
+    else if(k==='font-weight'){ if(/^(normal|bold|bolder|lighter|[1-9]00)$/i.test(v)) out[k] = v; }
+    else if(k==='font-style'){ if(/^(normal|italic|oblique)$/i.test(v)) out[k] = v; }
+    else if(k==='font-variant'){ if(/^(normal|small-caps)$/i.test(v)) out[k] = v; }
+    else if(k==='text-decoration'){ if(/^(none|underline|line-through|overline)(\s+(dotted|dashed|wavy|double|solid))?$/i.test(v)) out[k] = v; }
+    else if(k==='text-align'){ if(/^(left|center|right|justify)$/i.test(v)) out[k] = v; }
+    else if(k==='text-transform'){ if(/^(none|uppercase|lowercase|capitalize)$/i.test(v)) out[k] = v; }
+    else if(k==='letter-spacing'||k==='word-spacing'){ const l = lenOf(v,-0.05,0.6); if(l) out[k] = l; }
+    else if(k==='line-height'){ const n = parseFloat(v); if(n>=1&&n<=2.6&&/^[\d.]+$/.test(v)) out[k] = v; }
+    else if(k==='padding'||k==='margin'||k==='border-radius'){ const ps = v.split(/\s+/).slice(0,4).map(x=>lenOf(x,0,2)); if(ps.every(Boolean)) out[k] = ps.join(' '); }
+    else if(k==='border'||/^border-(left|right|top|bottom)$/.test(k)){ const m = /^(\d(?:\.\d+)?px)\s+(solid|dashed|dotted|double)\s+(.+)$/i.exec(v), c = m&&rgbOf(m[3]); if(c) out[k] = `${m[1]} ${m[2]} ${rgbCss(c)}`; }
+    else if(k==='text-shadow'){ const m = /^(-?\d+(?:\.\d+)?(?:px|em)?)\s+(-?\d+(?:\.\d+)?(?:px|em)?)(?:\s+(\d+(?:\.\d+)?(?:px|em)?))?\s+(.+)$/.exec(v), c = m&&rgbOf(m[4]); if(c) out[k] = `${m[1]} ${m[2]} ${m[3]||'0'} ${rgbCss(c)}`; }
+    else if(k==='display'){ if(/^(block|inline|inline-block)$/i.test(v)) out[k] = v; }
+  }
+  if(extra){ if(extra.fg) fg = extra.fg; if(extra.face) out['font-family'] ||= extra.face; if(extra.size) out['font-size'] ||= extra.size; if(extra.align) out['text-align'] ||= extra.align; }
+  if(bg) out['background-color'] = rgbCss(bg);
+  if(fg||bg) out.color = rgbCss(readable(fg,bg||under));
+  return {css:Object.entries(out).map(([k,v])=>`${k}:${v}`).join(';'),bg};
+}
+function safeTag(close,name,attrs,under){
+  name = name.toLowerCase(); if(!HTML_OK.has(name)) return null; if(close) return {h:name==='br'||name==='hr'?'':`</${name}>`};
+  const a = {}; for(const m of String(attrs||'').matchAll(/([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'<>]+))/g)) a[m[1].toLowerCase()] = m[2]??m[3]??m[4]??'';
+  const extra = {};
+  if(a.color) extra.fg = rgbOf(a.color);
+  if(a.face){ const fams = a.face.split(',').map(x=>x.trim()).filter(x=>FACE_OK.test(x)); if(fams.length) extra.face = fams.map(x=>/\s/.test(x)?`'${x}'`:x).join(','); }
+  if(a.size&&name==='font'){ const n = parseInt(a.size,10); if(n) extra.size = ({1:.75,2:.88,3:1,4:1.15,5:1.4,6:1.75,7:2.2}[clamp(/^[+-]/.test(a.size)?3+n:n,1,7)])+'em'; }
+  if(/^(left|center|right|justify)$/i.test(a.align||'')) extra.align = a.align.toLowerCase();
+  const st = safeStyle(a.style,extra,under), light = st.bg&&lumOf(st.bg)>0.35;
+  return {h:`<${name==='font'?'span':name}${light?' class="lightbg"':''}${st.css?` style="${esc(st.css)}"`:''}>`,bg:st.bg||under||null};
+}
+// Markdown plus the allowed tags. Tags are checked and swapped for markers first, so nothing the model writes reaches the page unescaped,
+// and every paragraph closes what it opens, so one stray tag cannot swallow the rest of the tale.
 function md(t){
-  return markNames(t).replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>')
-    .split(/\n{2,}/).filter(p=>p.trim()).map(p=>'<p>'+p.trim().replace(/\n/g,'<br>')+'</p>').join('');
+  const held = [], hold = h => { held.push(h); return '\uE000'+(held.length-1)+'\uE001'; };
+  let stack = [], src = '', last = 0; t = String(t??'').replace(/\r/g,'');
+  for(const m of t.matchAll(/<(\/?)([a-zA-Z][a-zA-Z0-9]*)((?:\s+[a-zA-Z-]+(?:\s*=\s*(?:"[^"<>]*"|'[^'<>]*'|[^\s"'<>]+))?)*)\s*\/?>|\n{2,}/g)){
+    src += t.slice(last,m.index); last = m.index+m[0].length;
+    if(m[0][0]==='\n'){ if(stack.length) src += hold(stack.slice().reverse().map(x=>`</${x.n}>`).join('')); src += '\n\n'; if(stack.length) src += hold(stack.map(x=>x.h).join('')); continue; }
+    const tg = safeTag(m[1],m[2],m[3],stack.length?stack[stack.length-1].bg:null); if(tg===null){ src += m[0]; continue; } const h = tg.h;
+    let n = m[2].toLowerCase(); if(n==='font') n = 'span';
+    if(n==='br'||n==='hr'){ if(!m[1]) src += hold(`<${n}>`); continue; }
+    if(!m[1]){ if(stack.length<8){ stack.push({n,h,bg:tg.bg}); src += hold(h); } continue; }
+    const at = stack.map(x=>x.n).lastIndexOf(n); if(at<0) continue;
+    src += hold(stack.slice(at).reverse().map(x=>`</${x.n}>`).join('')); stack = stack.slice(0,at);
+  }
+  src += t.slice(last); if(stack.length) src += hold(stack.slice().reverse().map(x=>`</${x.n}>`).join(''));
+  const inline = x => markNames(x).replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>').replace(/~~([^~\n]+)~~/g,'<s>$1</s>').replace(/`([^`\n]+)`/g,'<code>$1</code>');
+  const out = src.split(/\n{2,}/).filter(p=>p.trim()).map(p=>{
+    let h = '', run = [], list = null;
+    const flush = () => { if(run.length){ h += '<p>'+run.map(inline).join('<br>')+'</p>'; run = []; } }, endList = () => { if(list){ h += `</${list}>`; list = null; } };
+    for(const raw of p.split('\n')){ const l = raw.trim(); if(!l) continue; let m;
+      if((m = /^(?:[—–-]\s*)?\*\*([^*\n]{1,60}?)\*\*\s*[:：]\s*(\S.*)$/.exec(l))){ flush(); endList(); h += `<div class="dlg"><b class="who">${inline(m[1].trim())}</b><span class="what">${inline(m[2])}</span></div>`; }
+      else if((m = /^(#{1,4})\s+(.+)$/.exec(l))){ flush(); endList(); const n = Math.min(4,m[1].length+1); h += `<h${n} class="mdh">${inline(m[2])}</h${n}>`; }
+      else if(/^(-{3,}|\*{3,}|_{3,})$/.test(l)){ flush(); endList(); h += '<hr class="mdhr">'; }
+      else if((m = /^>\s?(.*)$/.exec(l))){ flush(); endList(); h += `<blockquote class="mdq">${inline(m[1])}</blockquote>`; }
+      else if((m = /^(?:[-•]|\*(?=\s)|(\d{1,3})[.)])\s+(.+)$/.exec(l))){ flush(); const kind = m[1]?'ol':'ul'; if(list!==kind){ endList(); h += `<${kind} class="mdl">`; list = kind; } h += `<li>${inline(m[2])}</li>`; }
+      else { endList(); run.push(l); } }
+    flush(); endList(); return h;
+  }).join('');
+  return out.replace(/\uE000(\d+)\uE001/g,(_,k)=>held[+k]||'').replace(/<p>((?:\s|<br>)*<(?:div|center|blockquote|h[1-4]|ul|ol|pre|table|hr)\b[\s\S]*?)<\/p>/g,'<div class="pp">$1</div>');
 }
 // The narrators on offer: Cali, a plain DM, three slots filled in from narrators.js, and one the player writes themselves.
 const SLOT_NAMES = ['Slot one','Slot two','Slot three'];
@@ -1061,6 +1156,7 @@ How to narrate:
 - FORMAT — separate dialogue from description. When a character speaks, use this format:
   — **Name** : "Dialogue here." *brief action or expression.* "More dialogue if needed."
   Description and narration go in their own paragraphs, without the name prefix. This keeps speech visually distinct from prose. Each speaking character gets their own line with the name bold.
+- You may dress the page with markdown and simple HTML when a thing in the scene should look like what it is: a letter, a carved sign, a terminal readout, a spell, a song, a shop board. Markdown: bold, italics, ~~struck out~~, # headings, > quoted lines, lists, and --- for a rule. Tags: <span style="color:...; font-family:...; font-size:...">, <font>, <center>, <small>, <big>, <u>, <mark>, and <div style="border:1px solid ...; padding:..."> for a boxed note. Typefaces on offer: Times New Roman, Crimson Text, Cormorant Garamond, Lora, Georgia, Comfortaa, Space Mono, Courier New. Close every tag you open. Use it where it adds to the scene and leave ordinary narration plain; the app keeps every colour readable on its dark page, so never rely on dark or invisible text.
 - Always finish what you start: end on a complete sentence (or the deliberate cut of a combat beat), then give the state block. Never stop half-way through a thought.
 - What the player states is always an attempt, never a result. "I shoot the giant in the eye" means the character reaches for the bow, draws and looses at the eye; it does not mean the arrow lands. Where a step is genuinely in doubt, let it succeed or fail on the dice and the circumstances: the draw can be fumbled, the shot can miss, a hit can fail to do what was hoped. Do not grant the hoped-for result because it was named, and do not refuse the attempt because it was worded as a success. Steps that anyone could do without trouble simply happen.
 - Never decide what the player's character does, says, thinks, or feels. End each reply at a moment where the player chooses what to do next.
@@ -1095,7 +1191,7 @@ After the narration, end EVERY reply with one state block, exactly in this form,
 {"mood":"forest","encounter":null,"location":"short name of the current place","hp_delta":0,"gold_delta":0,"xp_delta":0,"items_add":[{"name":"Rusty key","qty":1}],"items_remove":[{"name":"Torch","qty":1}],"conditions_add":["Poisoned"],"conditions_remove":["Poisoned"],"quests":[{"title":"Quest name","status":"active","note":"one line on the current objective"}],"present":["Marta Quill"],"npcs":[{"name":"Marta Quill","about":"caravan master in her fifties, blunt, wants her wagons through by dawn","stance":"wary","skills":["Haggling","Driving a team"]}],"shop":{"name":"Brannoch's Sundries","keeper":"Brannoch","items":[{"name":"Potion of healing","price":50,"qty":2,"desc":"Restores 2d4+2 hit points","use":{"heal":"2d4+2"}},{"name":"Rope (50 ft)","price":1,"qty":8,"desc":"Hempen rope"}]},"roll":{"label":"Stealth check","ability":"dex","skill":"Stealth","save":false,"proficient":false,"advantage":"none","dc":13,"damage":null},"suggestions":["a short action the player might take","another","a third"]}
 </state>
 
-Notes on the keys: "mood" colours the app to match the scene and must be exactly one of: "forest" for outdoors, daylight, travel, calm or ordinary scenes; "night" for night-time, serene, quiet, eerie or stealthy scenes; "hearth" for warm indoor scenes: home, an inn, a bed, a meal, anything cosy, domestic, tender or intimate; "fire" only while a fight or real mortal danger is actually happening, never for strong feelings or heated scenes that are not a fight. "encounter" names a foe at the moment they first confront the player or a fight breaks out (for example "Garrow, a brigand"); send it once, at that moment, and never for someone who is merely unfriendly. "hp_delta" is negative for damage and positive for healing. "xp_delta" awards experience for overcoming challenges (a typical early encounter is worth 25 to 100). Quest "status" is "active", "done", or "failed". "bonds" lists people whose feeling toward the player character changed because of what just happened, each with a "shift" from -3 to 3 (for example [{"name":"Marta Quill","shift":-2}]): 1 is a small change, 2 a clear one, 3 only for something that changes everything; leave it out when nobody's feelings moved. "present" lists the named non-player characters who are in the scene with the player right now, three at most, most important first; send it whenever it changes, and send [] when the player is alone. "npcs" introduces a named character the first time they appear or are even just mentioned by name, with one line about who they are, any other names or titles they go by in "also" (for example ["Vesper","the clerk"]), a "stance" toward the player character (one of friendly, neutral, wary, hostile, strange) and up to four "skills" they are notably good at; send the entry again when their stance changes. "shop" opens a shop panel in the app: send it whenever the player is somewhere they can buy things (a shop, a stall, a pedlar, an inn's counter), with the place's name, its keeper, and four to ten items priced in gold pieces at fair 5e prices; "qty" is REQUIRED stock — always set it, typically 1 to 5 for rare items, 10+ for common goods. A shop with no stock numbers feels lifeless; stock makes it real. Send "shop":null when the player leaves. The app handles buying and selling itself and tells you what was traded, so never change gold or items for a purchase made through the shop. Items in "items_add" and in a shop may carry "desc" (one line) and, for consumables that restore hit points, "use":{"heal":"2d4+2"}. In "roll", "ability" is one of str, dex, con, int, wis, cha; "skill" is a 5e skill name or null; set "save" true for saving throws; set "proficient" true for attacks with weapons or spells the character is proficient with; "advantage" is "none", "adv", or "dis". Leave "roll" out entirely when no roll is needed. Always give three short "suggestions", but the player may do anything.`;
+Notes on the keys: "font" is optional: give it in the opening scene, and again only if the world itself changes. It sets the typeface of the whole story to suit the world, and must be exactly one of: "roman" (antiquity, old Europe, anything that wants Times New Roman), "medieval" (classic fantasy), "elegant" (courtly, gothic, romantic), "literary" (grounded or modern drama), "scifi" (the future, space, cyberpunk), "mono" (terminals, hacking, machine logs), "default" (plain and modern). "mood" colours the app to match the scene and must be exactly one of: "forest" for outdoors, daylight, travel, calm or ordinary scenes; "night" for night-time, serene, quiet, eerie or stealthy scenes; "hearth" for warm indoor scenes: home, an inn, a bed, a meal, anything cosy, domestic, tender or intimate; "fire" only while a fight or real mortal danger is actually happening, never for strong feelings or heated scenes that are not a fight. "encounter" names a foe at the moment they first confront the player or a fight breaks out (for example "Garrow, a brigand"); send it once, at that moment, and never for someone who is merely unfriendly. "hp_delta" is negative for damage and positive for healing. "xp_delta" awards experience for overcoming challenges (a typical early encounter is worth 25 to 100). Quest "status" is "active", "done", or "failed". "bonds" lists people whose feeling toward the player character changed because of what just happened, each with a "shift" from -3 to 3 (for example [{"name":"Marta Quill","shift":-2}]): 1 is a small change, 2 a clear one, 3 only for something that changes everything; leave it out when nobody's feelings moved. "present" lists the named non-player characters who are in the scene with the player right now, three at most, most important first; send it whenever it changes, and send [] when the player is alone. "npcs" introduces a named character the first time they appear or are even just mentioned by name, with one line about who they are, any other names or titles they go by in "also" (for example ["Vesper","the clerk"]), a "stance" toward the player character (one of friendly, neutral, wary, hostile, strange) and up to four "skills" they are notably good at; send the entry again when their stance changes. "shop" opens a shop panel in the app: send it whenever the player is somewhere they can buy things (a shop, a stall, a pedlar, an inn's counter), with the place's name, its keeper, and four to ten items priced in gold pieces at fair 5e prices; "qty" is REQUIRED stock — always set it, typically 1 to 5 for rare items, 10+ for common goods. A shop with no stock numbers feels lifeless; stock makes it real. Send "shop":null when the player leaves. The app handles buying and selling itself and tells you what was traded, so never change gold or items for a purchase made through the shop. Items in "items_add" and in a shop may carry "desc" (one line) and, for consumables that restore hit points, "use":{"heal":"2d4+2"}. In "roll", "ability" is one of str, dex, con, int, wis, cha; "skill" is a 5e skill name or null; set "save" true for saving throws; set "proficient" true for attacks with weapons or spells the character is proficient with; "advantage" is "none", "adv", or "dis". Leave "roll" out entirely when no roll is needed. Always give three short "suggestions", but the player may do anything.`;
 
 function sheetText(c){
   const ch = c.character;
@@ -1136,7 +1232,7 @@ function buildMessages(c,intents){
     if(e.role==='dm') push('assistant',e.text+'\n\n<state>\n'+JSON.stringify(e.state||{})+'\n</state>');
     else if(e.role==='player') push('user',e.text+(e===lastAct&&e.sheet?`\n\n[Sheet check by the app, authoritative: ${e.sheet} Do not tell the player their character lacks it or cannot try.]`:'')+(e===lastEntry&&e.callRoll?`\n\n[App note, not written by the player: the dice gate judged that this needs a ${e.callRoll.label}${e.callRoll.dc?` against ${e.callRoll.damage?'AC':'DC'} ${e.callRoll.dc}`:''}. Narrate only the attempt, then end by telling the player to roll it. Do not narrate the outcome.]`:e===lastEntry&&e.noRoll?'\n\n[App note, not written by the player: the dice gate judged that this action needs no roll. Resolve it directly.]':''));
     else if(e.role==='roll') push('user','[Dice result from the app] '+e.text);
-    else if(e.role==='note') push('user','[App note, already applied to the character sheet] '+e.text);
+    else if(e.role==='note') push('user',(e.who?'[App note: this was said aloud in the scene after the trade] ':'[App note, already applied to the character sheet] ')+e.text);
     else if(e.role==='aside') push('user',`[Out-of-story aside, already answered by the DM. It is not an action; do not narrate it.] The player asked: ${e.q}${e.roll?` (${e.roll})`:''} The DM answered: ${e.a}`);
   }
   if(out[out.length-1].role==='assistant') push('user','(Continue.)');
@@ -1225,6 +1321,7 @@ function applyState(c,s){
   const ch = c.character, notes = [];
   const note = (t,k)=>notes.push({t,k});
   const wasMood = c.mood; if(MOODS.includes(s.mood)) c.mood = s.mood;
+  if(typeof s.font==='string'&&FONT_IDS.includes(s.font)&&c.font!==s.font){ c.font = s.font; applyFont(); }
   if(typeof s.encounter==='string'&&s.encounter.trim()){ c._alarm = s.encounter.trim().slice(0,60); note('Encounter: '+c._alarm,'bad'); } else if(c.mood==='fire'&&wasMood!=='fire') c._alarm = 'A fight breaks out';
   if(typeof s.location==='string'&&s.location.trim()) c.location = s.location.trim().slice(0,80);
   const hp = num(s.hp_delta); if(hp){ const b = ch.hp; ch.hp = clamp(ch.hp+hp,0,ch.maxHp); if(ch.hp!==b) note(`${sgn(ch.hp-b)} HP`,hp<0?'bad':'ok'); }
@@ -1631,7 +1728,8 @@ async function gh(path,opt={}){
   if(!r.ok){ const e = new Error(r.status===401?'GitHub rejected the token. Make a new one with the gist permission.':r.status===403?'GitHub refused (403). The token needs the gist permission.':'GitHub answered '+r.status+'.'); e.status = r.status; throw e; }
   return r.json();
 }
-const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','dmPick','dmName','dmVoice','dmCalls','dmTalk','advPrompt','providerPref','utilBaseUrl','utilApiKey','storyFont','announce','encumb','vulgar','lore','loreSize','diff','len','voice','trouble','temperature','maxTokens','stream'];
+// API keys must never be listed here: everything in this list is uploaded to the memory gist. Keys travel only in the device-link code.
+const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','dmPick','dmName','dmVoice','dmCalls','dmTalk','advPrompt','providerPref','utilBaseUrl','storyFont','announce','encumb','vulgar','lore','loreSize','diff','len','voice','trouble','temperature','maxTokens','stream'];
 const memCore = o => JSON.stringify([o.last||null,o.deleted||{},o.campaigns||{},o.prefs||null,o.prefsAt||0,o.lore||null,o.loreAt||0]);
 function memData(){ const campaigns = {}; for(const [id,c] of Object.entries(store.campaigns)){ const {_summing,_lore,_acted,_alarm,...rest} = c; campaigns[id] = rest; }
   return {app:'calis-tavern',version:1,savedAt:Date.now(),last:store.last||null,deleted:store.deleted,campaigns,prefs:Object.fromEntries(PREFS.map(k=>[k,store.settings[k]])),prefsAt:store.prefsAt||0,lore:store.lore,loreAt:store.loreAt||0}; }
@@ -2021,7 +2119,7 @@ async function forgeStory(){
 }
 function renderGame(){
   if(!cur) return renderHome();
-  chrome(true);
+  applyFont(); chrome(true);
   if(!$('#game')){ main.innerHTML = `<div id="game"><button id="scrim" data-act="closeDrawers" aria-label="Close panel" hidden></button><aside class="drawer" id="leftD" aria-label="Your tales"><div id="tales"></div></aside>
       <section class="chat"><div id="log" aria-live="polite"></div><div class="composer" id="composer"></div></section>
       <aside class="drawer" id="rightD" aria-label="Character sheet"><div id="side"></div></aside></div>`;
@@ -2042,7 +2140,7 @@ function renderLog(){
     const body = i===editEntry&&i===selEntry;
     if(e.role==='player') return `<div ${open(i)}>${body?'':`<div class="bub">${md(e.text)}</div>`}${tools(e,i)}</div>`;
     if(e.role==='roll') return `<div ${open(i)}>${body?'':`<div class="bub">${DIE_SVG}<span>${esc(e.text)}</span></div>`}${tools(e,i)}</div>`;
-    if(e.role==='note') return `<div ${open(i)}>${body?'':`<div class="bub">${esc(e.text)}</div>`}${tools(e,i)}</div>`;
+    if(e.role==='note') return `<div ${open(i)}>${body?'':`<div class="bub">${e.who&&e.text===keeperText(e.who,e.line)?`<b class="kw">${markNames(e.who)}</b>“${esc(e.line)}”`:esc(e.text)}</div>`}${tools(e,i)}</div>`;
     if(e.role==='aside') return `<div ${open(i)}><div class="lbl">${esc(dmName())}, aside</div><div class="q">${esc(e.q)}</div>${body?'':md(e.a)}${e.roll?`<div class="r">${esc(e.roll)}</div>`:''}${tools(e,i)}</div>`;
     return `<div ${open(i)}>${lblDM()}${body?'':md(e.text)}${chips(e.changes).length?`<div class="chg">${chips(e.changes).map(n=>`<span class="${n.k||''}">${esc(n.t)}${n.arrows?`<b class="arw">${n.arrows}</b>`:''}</span>`).join('')}</div>`:''}${e.ok||(e.changes||[]).some(n=>/^Continuity pass/.test(n.t))?'<span class="ok-mark" title="Continuity checked" aria-label="Continuity checked">&#10003;</span>':''}${e.says?`<div class="says"><b>${esc(dmName())}</b>${esc(e.says)}</div>`:''}${tools(e,i)}</div>`;
   }).join('')+(lastErr?`<div class="e err"><span>${esc(lastErr)}</span><button class="btn small" data-act="retry">Try again</button><button class="btn small" data-act="settings">Models</button></div>`:'');
@@ -2063,7 +2161,7 @@ function renderComposer(){
   }
   if(denied&&!busy) h += `<div class="deny" role="status"><b>${esc(denied.title||'Not from here.')}</b><div class="hint">${esc(denied.reason)} Nothing was added to the story.</div>${denied.force?`<div class="sugg"><button data-act="force">My sheet says I can. Do it anyway</button></div>`:''}${denied.steps.length?`<div class="sugg">${denied.steps.map(x=>`<button data-act="sugg">${esc(x)}</button>`).join('')}</div>`:''}</div>`;
   let q = '';
-  if(c.shop&&!busy&&!r) q += `<details class="suggbox" data-sec="shop"><summary>Shop</summary><div class="shopcard"><div class="t"><b>${esc(c.shop.name)}</b><div>${c.shop.keeper?esc(c.shop.keeper)+' · ':''}${c.shop.items.length} things for sale · you have ${c.character.gold} gp</div></div><button class="btn primary" data-act="shop">Open shop</button></div></details>`;
+  if(c.shop&&!busy&&!r) q += `<details class="suggbox" data-sec="shop"><summary>Shop</summary><div class="shopcard"><div class="t"><b>${esc(c.shop.name)}</b><div>${c.shop.keeper?esc(c.shop.keeper)+' · ':''}${c.shop.items.filter(x=>!x.out).length} things for sale · you have ${c.character.gold} gp</div></div><button class="btn primary" data-act="shop">Open shop</button></div></details>`;
   if(c.suggestions.length&&!busy&&!r) q += `<details class="suggbox" data-sec="sugg"><summary>Ideas ${c.suggestions.length}</summary><div class="sugg">${c.suggestions.map(s=>`<button data-act="sugg">${esc(s)}</button>`).join('')}</div></details>`;
   if(!busy) q += `<button type="button" class="qaside" data-act="dmEnter" title="Step aside and talk to ${esc(dmName())}">Talk to ${esc(dmName())}</button>`;
   if(q) h += `<div class="quick">${q}</div>`;
@@ -2158,8 +2256,8 @@ function openShop(){
   $('#modalRoot').innerHTML = `<div class="modal shop" data-act="shopCloseBg"><div class="box" role="dialog" aria-modal="true" aria-label="${esc(sp.name)}">
     <div class="head"><div><h3>${esc(sp.name)}</h3><div class="hint">${sp.keeper?`Kept by ${markNames(sp.keeper)}. `:''}${sp.mult<1?'Your haggling won a discount.':sp.mult>1?'Your haggling soured the keeper; prices are up.':'Prices in gold pieces.'}</div></div>
       <div class="purse">${ch.gold} gp</div></div>
-    <div class="cols"><div><h4>For sale</h4><div class="items">${sp.items.length?sp.items.map((it,k)=>{ const pr = shopPrice(it); return `<div class="item"><b>${esc(it.name)}${it.stock?`<em>${it.stock} left</em>`:''}</b>
-        <span class="acts"><span class="price">${pr} gp</span><button class="btn small primary" data-act="buy" data-k="${k}" ${pr>ch.gold?'disabled':''}>Buy</button></span>${it.desc?`<small>${esc(it.desc)}</small>`:''}</div>`; }).join(''):'<div class="hint">Sold out.</div>'}</div></div>
+    <div class="cols"><div><h4>For sale</h4><div class="items">${sp.items.length?sp.items.map((it,k)=>{ const pr = shopPrice(it); return `<div class="item${it.out?' out':''}"><b>${esc(it.name)}${it.out?'<em>sold out</em>':it.stock?`<em>${it.stock} left</em>`:''}</b>
+        <span class="acts"><span class="price">${pr} gp</span><button class="btn small primary" data-act="buy" data-k="${k}" ${pr>ch.gold||it.out?'disabled':''}>${it.out?'Gone':'Buy'}</button></span>${it.desc?`<small>${esc(it.desc)}</small>`:''}</div>`; }).join(''):'<div class="hint">Sold out.</div>'}</div></div>
       <div><h4>Your pack · sell</h4><div class="items">${ch.inventory.length?ch.inventory.map((it,k)=>`<div class="item"><b>${esc(it.name)}${it.qty>1?`<em>×${it.qty}</em>`:''}</b>
         <span class="acts"><span class="price">${sellValue(it)} gp</span><button class="btn small" data-act="sell" data-k="${k}">Sell</button></span></div>`).join(''):'<div class="hint">Nothing to sell.</div>'}</div></div></div>
     <div class="actions" style="margin-top:18px"><button class="btn ghost" data-act="haggle" ${sp.haggled?'disabled':''}>${sp.haggled?'Already haggled':'Haggle (Persuasion)'}</button><button class="btn primary" data-act="shopClose">Done</button></div></div></div>`;
@@ -2172,15 +2270,18 @@ function closeShop(){
   if(trades.length && cur.shop?.keeper) keeperReact(cur, trades);
 }
 async function keeperReact(c, trades){
-  const keeper = c.shop?.keeper; if(!keeper || busy) return;
-  const present = (c.present||[]).some(n => n.toLowerCase().includes(keeper.toLowerCase()));
-  if(!present && keeper) { /* keeper is implied present at their own shop */ }
+  const sp = c.shop, keeper = sp&&sp.keeper; if(!keeper||busy||c.pendingRoll||c.mood==='fire') return;
+  const dm = lastOf(c,'dm'), who = Object.values(c.npcs||{}).find(n=>n.name.toLowerCase()===keeper.toLowerCase()||(n.aka||[]).some(a=>a.toLowerCase()===keeper.toLowerCase()));
+  let line = '';
   try{
-    const line = await chat([{role:'system',content:`You are ${keeper}, a shopkeeper. The customer just finished trading. Give ONE short reaction line — 10 words max. In character. No narration, just dialogue. React to what they bought/sold. If nothing interesting, a simple farewell. Examples: "Sharp choice." / "Come back when you need more." / "That blade's seen blood before." / "Pleasure doing business."`},
-      {role:'user',content:trades.join('; ')}],{stream:false,maxTokens:100,temperature:0.9,quick:true});
-    if(line.trim()){ const el = document.createElement('div'); el.className = 'e dm says'; el.innerHTML = `<div class="lbl">${esc(keeper)}</div><p>${md(line.trim().replace(/^["']|["']$/g,'').slice(0,120))}</p>`; $('#log')?.appendChild(el); scrollLog(); }
-  }catch(e){}
+    line = await chat([{role:'system',content:`You play ${keeper}, who keeps ${sp.name}. The customer has just finished trading and is turning to go. Reply with the one short line ${keeper} says to them about it, twelve words at most, in ${keeper}'s own voice: spoken words only, no quote marks, no narration, no name in front. If ${keeper} is not actually there in the scene, is busy with something or someone else, asleep, hurt, hostile to the point of silence, or would simply say nothing, reply with exactly NONE.`},
+      {role:'user',content:`The scene just now: ${dm?dm.text.replace(/<[^>]+>/g,' ').slice(-900):'(nothing yet)'}\n\nPeople present: ${(c.present||[]).join(', ')||'not recorded'}${who?'\n'+npcLine(who):''}\n\nThe trade: ${trades.join('; ')}`}],{stream:false,maxTokens:400,temperature:0.9,model:store.settings.charModel,quick:true});
+  }catch(e){ return; }
+  line = String(line||'').trim().split('\n')[0].replace(/^[^:"“]{0,40}:\s*/,'').replace(/^["“'‘]+|["”'’]+$/g,'').trim().slice(0,160);
+  if(!line||/^none\b/i.test(line)||cur!==c||busy||c.pendingRoll) return;
+  c.log.push({role:'note',who:keeper,line,text:keeperText(keeper,line)}); c.updated = Date.now(); save(); renderGame();
 }
+const keeperText = (who,line) => `${who}, as you leave: "${line}"`;
 async function haggle(){
   const c = cur, sp = c.shop; if(!sp||sp.haggled||rolling) return; const bonus = skillMod(c.character,'Persuasion');
   closeModal(); rolling = true; const opened = await openTray();
@@ -2246,7 +2347,7 @@ function openGame(tabName){
     <div class="grp2" style="margin-top:0">The table</div>
     <div class="grid2"><label class="f">Difficulty<select class="inp" name="diff">${o('gentle','Gentle',st.diff)}${o('standard','Standard',st.diff)}${o('brutal','Brutal',st.diff)}</select></label>
       <label class="f">How the DM writes<select class="inp" name="voice">${o('plain','Plain and direct',st.voice)}${o('balanced','Balanced',st.voice)}${o('rich','Rich and atmospheric',st.voice)}</select></label>
-      <label class="f">Story font<select class="inp" name="storyFont">${o('default','Default (Inter)',st.storyFont)}${o('medieval','Medieval (Crimson Text)',st.storyFont)}${o('elegant','Elegant (Cormorant Garamond)',st.storyFont)}${o('literary','Literary (Lora)',st.storyFont)}${o('scifi','Sci-fi (Comfortaa)',st.storyFont)}${o('mono','Terminal (Space Mono)',st.storyFont)}</select></label>
+      <label class="f">Story font<select class="inp" name="storyFont">${o('auto','Fits the tale (the narrator picks)',st.storyFont)}${o('default','Plain (Inter)',st.storyFont)}${o('roman','Old Roman (Times New Roman)',st.storyFont)}${o('medieval','Medieval (Crimson Text)',st.storyFont)}${o('elegant','Elegant (Cormorant Garamond)',st.storyFont)}${o('literary','Literary (Lora)',st.storyFont)}${o('scifi','Sci-fi (Comfortaa)',st.storyFont)}${o('mono','Terminal (Space Mono)',st.storyFont)}</select></label>
       <label class="f">How much goes wrong<select class="inp" name="trouble">${o('calm','Easygoing: things mostly just work',st.trouble)}${o('normal','Balanced',st.trouble)}${o('tense','Relentless',st.trouble)}</select></label>
       <label class="f">How much the DM writes<select class="inp" name="len">${o('adaptive','Fits the moment',st.len)}${o('short','Always short',st.len)}${o('medium','Always medium',st.len)}${o('long','Always long',st.len)}</select></label>
       ${c?`<label class="f">Tone of this tale<select class="inp" name="tone">${TONE_LIST.map(([v,l])=>o(v,l,c.tone)).join('')}${o('unfiltered','Unfiltered (adult)',c.tone)}</select></label>`:''}</div>
@@ -2339,7 +2440,7 @@ function saveGame(){
         if(on&&!on.checked) e.off = true; else delete e.off; return e; }).filter(e=>e.t&&(e.k||e.always)); }
     else { st.lore = f.lore.checked; st.loreSize = f.loreSize.value; store.lore.off = {}; allLore().forEach(b=>{ const box = f.querySelector(`[name=lb][value="${CSS.escape(b.id)}"]`); if(box&&!box.checked) store.lore.off[b.id] = 1; }); }
     store.prefsAt = Date.now(); store.loreAt = Date.now(); }
-  else if(gsTab==='game'){ Object.assign(st,{diff:f.diff.value,len:f.len.value,voice:f.voice.value,trouble:f.trouble.value,dmPick:f.dmPick.value,dmCalls:f.dmCalls.value.trim().slice(0,30),...(f.dmName?{dmName:f.dmName.value.trim().slice(0,30),dmVoice:f.dmVoice.value.trim().slice(0,1200)}:{}),dmTalk:f.dmTalk.checked,advPrompt:(f.advPrompt?f.advPrompt.value:'').trim().slice(0,32000),providerPref:(f.providerPref?f.providerPref.value:'').trim().slice(0,500),announce:f.announce.checked,useGuard:f.useGuard.checked,useSheet:f.useSheet.checked,useCheck:f.useCheck.checked,encumb:f.encumb.checked,vulgar:f.vulgar.checked,storyFont:f.storyFont?f.storyFont.value:'default'}); store.prefsAt = Date.now(); applyFont();
+  else if(gsTab==='game'){ Object.assign(st,{diff:f.diff.value,len:f.len.value,voice:f.voice.value,trouble:f.trouble.value,dmPick:f.dmPick.value,dmCalls:f.dmCalls.value.trim().slice(0,30),...(f.dmName?{dmName:f.dmName.value.trim().slice(0,30),dmVoice:f.dmVoice.value.trim().slice(0,1200)}:{}),dmTalk:f.dmTalk.checked,advPrompt:(f.advPrompt?f.advPrompt.value:'').trim().slice(0,32000),providerPref:(f.providerPref?f.providerPref.value:'').trim().slice(0,500),announce:f.announce.checked,useGuard:f.useGuard.checked,useSheet:f.useSheet.checked,useCheck:f.useCheck.checked,encumb:f.encumb.checked,vulgar:f.vulgar.checked,storyFont:f.storyFont?f.storyFont.value:'auto'}); store.prefsAt = Date.now(); applyFont();
     if(c){ c.tone = f.tone.value; c.god = f.god.checked; refresh(c.character); } }
   else if(gsTab==='char'){ const ch = c.character; ch.name = f.name.value.trim().slice(0,40)||ch.name; ch.race = f.race.value.trim().slice(0,30)||ch.race; ch.cls = f.cls.value.trim().slice(0,30)||ch.cls; ch.background = f.background.value.trim().slice(0,40);
     ch.level = clamp(num(f.level.value)||1,1,20); ch.xp = Math.max(0,num(f.xp.value)); ch.maxHp = Math.max(1,num(f.maxHp.value)||1); ch.hp = clamp(num(f.hp.value),0,ch.maxHp); ch.gold = Math.max(0,num(f.gold.value)); ch.acMisc = clamp(num(f.acMisc.value),-10,10);
@@ -2407,7 +2508,13 @@ function readSettings(){ const f = $('#setForm'); if(!f) return; Object.assign(s
 function closeModal(){ $('#modalRoot').innerHTML = ''; }
 
 /* ============ events ============ */
-function applyFont(){ const f = store.settings.storyFont||'default'; document.body.dataset.font = f==='default'?'':f; }
+const FONT_IDS = ['default','roman','medieval','elegant','literary','scifi','mono'];
+// With no word from the narrator yet, read the tale's own description for the kind of world it is.
+function guessFont(c){ const t = [c.title,c.premise,c.setting,c.tone,c.summary].filter(x=>typeof x==='string').join(' ').toLowerCase();
+  if(/terminal|hacker|mainframe|\bai\b/.test(t)) return 'mono'; if(/sci-?fi|space|starship|cyber|android|future|galax|colony|robot/.test(t)) return 'scifi';
+  if(/\brome\b|roman|legion|ancient|greek|sparta|empire of/.test(t)) return 'roman'; if(/gothic|vampire|court|noble|victorian|ballroom|romance/.test(t)) return 'elegant';
+  if(/modern|office|city|apartment|school|college|slice|detective|noir|today/.test(t)) return 'literary'; return 'medieval'; }
+function applyFont(){ let f = store.settings.storyFont||'auto'; if(f==='auto') f = cur?(FONT_IDS.includes(cur.font)?cur.font:guessFont(cur)):'default'; document.body.dataset.font = f==='default'?'':f; }
 function go(){ applyFont(); const id = location.hash.slice(1); if(id==='new') return renderCreate(); if(store.campaigns[id]){ denied = null; selEntry = editEntry = -1; cur = store.campaigns[id]; upgrade(cur); store.last = id; saveLocal(); lastErr = null; main.innerHTML = ''; renderGame(); if(!cur.log.length) takeTurn(null); return; } renderHome(); }
 window.addEventListener('hashchange',()=>{ if(aborter) aborter.abort(); busy = false; go(); });
 
@@ -2503,8 +2610,8 @@ document.addEventListener('click',async ev=>{
     case 'shopClose': closeShop(); break;
     case 'shopCloseBg': if(ev.target===el) closeShop(); break;
     case 'haggle': haggle(); break;
-    case 'buy': { const sp = c.shop, it = sp&&sp.items[num(el.dataset.k)]; if(!it) break; const pr = shopPrice(it); if(pr>c.character.gold) break;
-      c.character.gold -= pr; const {stock,...rest} = it; addItem(c.character,{...rest,qty:1}); refresh(c.character); if(it.stock){ it.stock -= 1; if(it.stock<=0) sp.items.splice(num(el.dataset.k),1); }
+    case 'buy': { const sp = c.shop, it = sp&&sp.items[num(el.dataset.k)]; if(!it) break; const pr = shopPrice(it); if(pr>c.character.gold||it.out) break;
+      c.character.gold -= pr; const {stock,out,...rest} = it; addItem(c.character,{...rest,qty:1}); refresh(c.character); if(it.stock){ it.stock -= 1; if(it.stock<=0){ it.stock = 0; it.out = true; } }
       shopTrades.push(`bought ${it.name} for ${pr} gp`); save(); openShop(); break; }
     case 'sell': { const inv = c.character.inventory, it = inv[num(el.dataset.k)]; if(!it||!c.shop) break; const v = sellValue(it);
       c.character.gold += v; it.qty -= 1; if(it.qty<=0) inv.splice(num(el.dataset.k),1); refresh(c.character); shopTrades.push(`sold ${it.name} for ${v} gp`); save(); openShop(); break; }
@@ -2596,7 +2703,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611180257';
+const BUILD = '202611180312';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
