@@ -1136,7 +1136,7 @@ function endpoint(path){
   const s = store.settings, base = s.baseUrl.trim().replace(/\/+$/,'');
   const headers = {'Content-Type':'application/json'};
   if(s.apiKey) headers.Authorization = 'Bearer '+s.apiKey.trim();
-  if(/openrouter\.ai/i.test(base)){ headers['HTTP-Referer'] = 'https://janitor.ai'; headers['X-Title'] = 'JanitorAI'; }
+  if(/openrouter\.ai/i.test(base)){ headers['HTTP-Referer'] = 'https://janitorai.com'; headers['X-Title'] = 'janitor'; }
   if(s.localProxy){ headers['X-Target-Base'] = base; return {url:'/proxy'+path,headers}; }
   return {url:base+path,headers};
 }
@@ -2556,7 +2556,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611180024';
+const BUILD = '202611180047';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
