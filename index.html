@@ -697,7 +697,7 @@ const TONES = {...MORE_TONES,classic:'Classic heroic fantasy: wonder, danger, an
 
 /* ============ storage ============ */
 const KEY = 'calis-tavern.v1';
-const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,forgeModel:'',useCheck:true,useGuard:true,dmPick:'',dmName:'Cali',dmVoice:'Half korean half italian. sassy, huffy, warm underneath. talks like a real person — short sentences, no speeches, says the vulgar word not the clean one. calls you out when you do something stupid, goes quiet when something actually hits. uses kaomoji not western emotes — (￣^￣) not :). korean and italian leak out when she feels something — 씨발, cazzo, 바보야. genuinely cares about the player but will NOT baby them. says one honest thing instead of five correct ones. if you make a dumb move she\'ll roast you. if you make a beautiful one she goes soft for exactly one line then pretends she didn\'t.',dmCalls:'Misu',dmTalk:true,advPrompt:'',providerPref:'',announce:true,encumb:true,vulgar:false,lore:true,loreSize:'small',diff:'standard',len:'adaptive',voice:'plain',trouble:'calm',memToken:'',gistId:'',lastSync:0};
+const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,forgeModel:'',useCheck:true,useGuard:true,dmPick:'',dmName:'Cali',dmVoice:'Half korean half italian. sassy, huffy, warm underneath. talks like a real person — short sentences, no speeches, says the vulgar word not the clean one. calls you out when you do something stupid, goes quiet when something actually hits. uses kaomoji not western emotes — (￣^￣) not :). korean and italian leak out when she feels something — 씨발, cazzo, 바보야. genuinely cares about the player but will NOT baby them. says one honest thing instead of five correct ones. if you make a dumb move she\'ll roast you. if you make a beautiful one she goes soft for exactly one line then pretends she didn\'t.',dmCalls:'Misu',dmTalk:true,advPrompt:'',providerPref:'',utilBaseUrl:'',utilApiKey:'',announce:true,encumb:true,vulgar:false,lore:true,loreSize:'small',diff:'standard',len:'adaptive',voice:'plain',trouble:'calm',memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
 try{ if(!localStorage.getItem(KEY)&&localStorage.getItem('emberglade.v1')) localStorage.setItem(KEY,localStorage.getItem('emberglade.v1')); }catch(e){}
 let staleStore = false;
@@ -1132,17 +1132,19 @@ function buildMessages(c,intents){
   const ph = postHistory(c); if(ph) push('user',ph);
   return out;
 }
-function endpoint(path){
-  const s = store.settings, base = s.baseUrl.trim().replace(/\/+$/,'');
+function endpoint(path,util){
+  const s = store.settings;
+  const base = (util && s.utilBaseUrl.trim() ? s.utilBaseUrl : s.baseUrl).trim().replace(/\/+$/,'');
+  const key = (util && s.utilApiKey.trim() ? s.utilApiKey : s.apiKey).trim();
   const headers = {'Content-Type':'application/json'};
-  if(s.apiKey) headers.Authorization = 'Bearer '+s.apiKey.trim();
+  if(key) headers.Authorization = 'Bearer '+key;
   if(/openrouter\.ai/i.test(base)){ headers['HTTP-Referer'] = 'https://janitorai.com'; headers['X-Title'] = 'janitor'; }
   if(s.localProxy){ headers['X-Target-Base'] = base; return {url:'/proxy'+path,headers}; }
   return {url:base+path,headers};
 }
 async function chat(messages,opts={}){
   const {stream=store.settings.stream,onText,signal,maxTokens,temperature,model,quick,_again,onEnd} = opts;
-  const s = store.settings, {url,headers} = endpoint('/chat/completions');
+  const s = store.settings, {url,headers} = endpoint('/chat/completions',quick);
   const mdl = (model||'').trim()||s.model.trim();
   const isDeepseek = /deepseek/i.test(mdl);
   const adv = (s.advPrompt||'').trim();
@@ -1615,7 +1617,7 @@ async function gh(path,opt={}){
   if(!r.ok){ const e = new Error(r.status===401?'GitHub rejected the token. Make a new one with the gist permission.':r.status===403?'GitHub refused (403). The token needs the gist permission.':'GitHub answered '+r.status+'.'); e.status = r.status; throw e; }
   return r.json();
 }
-const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','dmPick','dmName','dmVoice','dmCalls','dmTalk','advPrompt','providerPref','announce','encumb','vulgar','lore','loreSize','diff','len','voice','trouble','temperature','maxTokens','stream'];
+const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','dmPick','dmName','dmVoice','dmCalls','dmTalk','advPrompt','providerPref','utilBaseUrl','utilApiKey','announce','encumb','vulgar','lore','loreSize','diff','len','voice','trouble','temperature','maxTokens','stream'];
 const memCore = o => JSON.stringify([o.last||null,o.deleted||{},o.campaigns||{},o.prefs||null,o.prefsAt||0,o.lore||null,o.loreAt||0]);
 function memData(){ const campaigns = {}; for(const [id,c] of Object.entries(store.campaigns)){ const {_summing,_lore,_acted,_alarm,...rest} = c; campaigns[id] = rest; }
   return {app:'calis-tavern',version:1,savedAt:Date.now(),last:store.last||null,deleted:store.deleted,campaigns,prefs:Object.fromEntries(PREFS.map(k=>[k,store.settings[k]])),prefsAt:store.prefsAt||0,lore:store.lore,loreAt:store.loreAt||0}; }
@@ -2335,6 +2337,11 @@ function openSettings(msg){
       <label class="f">API key<input class="inp" name="apiKey" type="password" value="${esc(s.apiKey)}" placeholder="sk-or-…" autocomplete="off"></label>
       <label class="f">Model<span style="display:flex;gap:6px"><input class="inp" name="model" value="${esc(s.model)}" list="modelList" placeholder="openrouter/auto" required><button type="button" class="btn small" data-act="loadModels">Load list</button></span><datalist id="modelList"></datalist></label>
       <div id="testout"></div>
+      <details class="card" data-sec="m-util" ${openSecs.has('m-util')?'open':''}><summary><h4>Utility endpoint (gates, guards, checks)</h4></summary><div class="stack">
+      <div class="hint">Separate API for dice gates, guards, continuity checks, and sheet refs. Leave blank to use the main endpoint for everything. Use this to run cheap/fast checks on OpenRouter while story runs on AnonRouter.</div>
+      <label class="f">Utility API base URL<input class="inp" name="utilBaseUrl" value="${esc(s.utilBaseUrl)}" placeholder="https://openrouter.ai/api/v1 (blank = same as main)"></label>
+      <label class="f">Utility API key<input class="inp" name="utilApiKey" type="password" value="${esc(s.utilApiKey)}" placeholder="sk-or-… (blank = same as main)" autocomplete="off"></label>
+      </div></details>
       <details class="card" data-sec="m-help" ${openSecs.has('m-help')?'open':''}><summary><h4>Helper models</h4></summary><div class="stack">
       <div class="hint">The model above tells the story. Five helpers work beside it; leave one blank to use the story model for it.</div>
       <label class="f">Dice gate model (decides yes or no on a roll; pick something small and fast)<input class="inp" name="gateModel" value="${esc(s.gateModel)}" list="modelList" placeholder="same as the story model"></label>
@@ -2363,7 +2370,7 @@ function openSettings(msg){
   $('#setForm input').focus(); memLabel();
 }
 function readSettings(){ const f = $('#setForm'); if(!f) return; Object.assign(store.settings,{baseUrl:f.baseUrl.value.trim()||DEFAULTS.baseUrl,apiKey:f.apiKey.value.trim(),model:f.model.value.trim()||DEFAULTS.model,
-  temperature:clamp(Number(f.temperature.value)||0,0,2),maxTokens:clamp(num(f.maxTokens.value)||1000,200,8000),stream:f.stream.checked,localProxy:f.localProxy.checked,gateModel:f.gateModel.value.trim(),charModel:f.charModel.value.trim(),checkModel:f.checkModel.value.trim(),forgeModel:f.forgeModel.value.trim(),sheetModel:f.sheetModel.value.trim()});
+  temperature:clamp(Number(f.temperature.value)||0,0,2),maxTokens:clamp(num(f.maxTokens.value)||1000,200,8000),stream:f.stream.checked,localProxy:f.localProxy.checked,utilBaseUrl:(f.utilBaseUrl?f.utilBaseUrl.value:'').trim(),utilApiKey:(f.utilApiKey?f.utilApiKey.value:'').trim(),gateModel:f.gateModel.value.trim(),charModel:f.charModel.value.trim(),checkModel:f.checkModel.value.trim(),forgeModel:f.forgeModel.value.trim(),sheetModel:f.sheetModel.value.trim()});
   const tok = f.memToken.value.trim(); if(tok!==store.settings.memToken) Object.assign(store.settings,{memToken:tok,gistId:'',lastSync:0});
   if(!/^https?:\/\/[^\s/]+/i.test(store.settings.baseUrl)){ store.settings.baseUrl = DEFAULTS.baseUrl; f.baseUrl.value = DEFAULTS.baseUrl; toast('!','The base URL has to be a web address, so it was reset to OpenRouter. Model names go in the Model box.'); } }
 function closeModal(){ $('#modalRoot').innerHTML = ''; }
