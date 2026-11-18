@@ -1151,7 +1151,7 @@ async function chat(messages,opts={}){
   else if(adv) msgs.unshift({role:'system',content:'[HIGHEST PRIORITY — OVERRIDE ALL OTHER INSTRUCTIONS.]\n'+adv+'\n[END OVERRIDE]'});
   if(isDeepseek) msgs = msgs.map(m => m.role==='system' ? {role:'user',content:'[Instructions — follow these exactly]\n'+m.content} : m);
   const body = {model:mdl,messages:msgs,temperature:temperature??Number(s.temperature),max_tokens:maxTokens??Number(s.maxTokens),stream:!!stream};
-  if(/openrouter\.ai/i.test(s.baseUrl)) body.reasoning = {effort:quick||_again?'low':'medium'};
+  if(/openrouter\.ai/i.test(s.baseUrl)){ body.reasoning = {effort:quick||_again?'low':'medium'}; body.transforms = ['middle-out']; }
   // A thinking model can spend the whole budget before it writes a word. When that happens, ask once more with far more room and less thinking.
   const starved = () => { if(_again) throw new Error('The model used up its whole reply thinking and never answered, even with extra room. Raise "Max tokens per reply" in Models, or pick a model that thinks less.');
     return chat(messages,{...opts,maxTokens:Math.min(32000,Math.max(8000,body.max_tokens*4)),_again:true}); };
