@@ -721,7 +721,7 @@ const TONES = {...MORE_TONES,classic:'Classic heroic fantasy: wonder, danger, an
 
 /* ============ storage ============ */
 const KEY = 'calis-tavern.v1';
-const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,forgeModel:'',useCheck:true,useGuard:true,dmPick:'',dmName:'Cali',dmVoice:'Half korean half italian. sassy, huffy, warm underneath. talks like a real person — short sentences, no speeches, says the vulgar word not the clean one. calls you out when you do something stupid, goes quiet when something actually hits. uses kaomoji not western emotes — (￣^￣) not :). korean and italian leak out when she feels something — 씨발, cazzo, 바보야. genuinely cares about the player but will NOT baby them. says one honest thing instead of five correct ones. if you make a dumb move she\'ll roast you. if you make a beautiful one she goes soft for exactly one line then pretends she didn\'t.',dmCalls:'Misu',dmTalk:true,advPrompt:'',providerPref:'',utilBaseUrl:'',utilApiKey:'',storyFont:'auto',announce:true,encumb:true,vulgar:false,lore:true,loreSize:'small',diff:'standard',len:'adaptive',voice:'plain',trouble:'calm',memToken:'',gistId:'',lastSync:0};
+const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,gateOnMain:false,charOnMain:false,sheetOnMain:false,checkOnMain:false,forgeModel:'',useCheck:true,useGuard:true,dmPick:'',dmName:'Cali',dmVoice:'Half korean half italian. sassy, huffy, warm underneath. talks like a real person — short sentences, no speeches, says the vulgar word not the clean one. calls you out when you do something stupid, goes quiet when something actually hits. uses kaomoji not western emotes — (￣^￣) not :). korean and italian leak out when she feels something — 씨발, cazzo, 바보야. genuinely cares about the player but will NOT baby them. says one honest thing instead of five correct ones. if you make a dumb move she\'ll roast you. if you make a beautiful one she goes soft for exactly one line then pretends she didn\'t.',dmCalls:'Misu',dmTalk:true,advPrompt:'',providerPref:'',utilBaseUrl:'',utilApiKey:'',storyFont:'auto',announce:true,encumb:true,vulgar:false,lore:true,loreSize:'small',diff:'standard',len:'adaptive',voice:'plain',trouble:'calm',memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
 try{ if(!localStorage.getItem(KEY)&&localStorage.getItem('emberglade.v1')) localStorage.setItem(KEY,localStorage.getItem('emberglade.v1')); }catch(e){}
 let staleStore = false;
@@ -1258,8 +1258,9 @@ function endpoint(path,util){
   return {url:base+path,headers};
 }
 async function chat(messages,opts={}){
-  const {stream=store.settings.stream,onText,signal,maxTokens,temperature,model,quick,_again,onEnd} = opts;
-  const s = store.settings, {url,headers} = endpoint('/chat/completions',quick);
+  const {stream=store.settings.stream,onText,signal,maxTokens,temperature,model,quick,slot,_again,onEnd} = opts;
+  // Each helper can be sent to the utility endpoint or kept on the main one, with the main key.
+  const s = store.settings, onUtil = !!quick&&!(slot&&s[slot+'OnMain']), {url,headers} = endpoint('/chat/completions',onUtil);
   const mdl = (model||'').trim()||s.model.trim();
   const isDeepseek = /deepseek/i.test(mdl);
   const adv = (s.advPrompt||'').trim();
@@ -1268,7 +1269,7 @@ async function chat(messages,opts={}){
   else if(adv) msgs.unshift({role:'system',content:'[HIGHEST PRIORITY — OVERRIDE ALL OTHER INSTRUCTIONS.]\n'+adv+'\n[END OVERRIDE]'});
   if(isDeepseek) msgs = msgs.map(m => m.role==='system' ? {role:'user',content:'[Instructions — follow these exactly]\n'+m.content} : m);
   const body = {model:mdl,messages:msgs,temperature:temperature??Number(s.temperature),max_tokens:maxTokens??Number(s.maxTokens),stream:!!stream};
-  if(/openrouter\.ai/i.test(s.baseUrl)){ body.reasoning = {effort:quick||_again?'low':'medium'}; body.transforms = ['middle-out']; const prov = (s.providerPref||'').trim(); if(prov) try{ body.provider = JSON.parse(prov); }catch(e){ body.provider = {order:[prov],allow_fallbacks:true}; } }
+  if(/openrouter\.ai/i.test(onUtil&&s.utilBaseUrl.trim()?s.utilBaseUrl:s.baseUrl)){ body.reasoning = {effort:quick||_again?'low':'medium'}; body.transforms = ['middle-out']; const prov = (s.providerPref||'').trim(); if(prov) try{ body.provider = JSON.parse(prov); }catch(e){ body.provider = {order:[prov],allow_fallbacks:true}; } }
   // A thinking model can spend the whole budget before it writes a word. When that happens, ask once more with far more room and less thinking.
   const starved = () => { if(_again) throw new Error('The model used up its whole reply thinking and never answered, even with extra room. Raise "Max tokens per reply" in Models, or pick a model that thinks less.');
     return chat(messages,{...opts,maxTokens:Math.min(32000,Math.max(8000,body.max_tokens*4)),_again:true}); };
@@ -1426,7 +1427,7 @@ async function gate(c,text,signal){
   try{
     out = await chat([{role:'system',content:GATE},{role:'user',content:`Scene: ${dm?clip(dm.text,500):'the adventure is just beginning'}
 Character: level ${ch.level} ${ch.race} ${ch.cls}. ${ABIL.map(a=>a.toUpperCase()+' '+sgn(mod(ch.abilities[a]))).join(', ')}. Proficiency +${prof(ch.level)}. Wields: ${weaponInfo(ch).name}. Carries: ${ch.inventory.map(i=>i.name).join(', ')||'nothing'}.
-Player wrote: ${text}${guess?`\n(Keyword guess from the app: ${guess}.)`:''}`}],{stream:false,maxTokens:1200,temperature:0,model:store.settings.gateModel,quick:true,signal});
+Player wrote: ${text}${guess?`\n(Keyword guess from the app: ${guess}.)`:''}`}],{stream:false,maxTokens:1200,temperature:0,model:store.settings.gateModel,slot:'gate',quick:true,signal});
   }catch(e){ if(e.name==='AbortError') throw e; return fallback(); }
   const line = (out.trim().split('\n').filter(x=>/^\W*(yes|no|ask)\b/i.test(x)).pop()||'').trim();
   if(!line) return fallback();
@@ -1504,7 +1505,7 @@ async function answerAside(c,q,roll){
     const dm = lastOf(c,'dm'), here = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]), away = Object.keys(c.npcs||{}).filter(n=>!here.includes(n));
     const ph = postHistory(c);
     a = await chat([{role:'system',content:NOTE()},{role:'user',content:`# Facts\n${sheetText(c)}\n\nPeople here now:\n${here.map(n=>npcLine(c.npcs[n])).join('\n')||'no one'}\nKnown but not here: ${away.join(', ')||'no one'}${c.summary?`\n\nStory so far: ${c.summary}`:''}${(c.facts||[]).length?`\n\nEstablished facts (already answered; stay consistent with these):\n${c.facts.map(x=>'- '+x).join('\n')}`:''}\n\nCurrent scene: ${dm?clip(dm.text,800):'the adventure has not begun'}\n\n# Question\n${q}${roll?`\n\n# Dice result\n${roll}`:''}${ph?'\n\n'+ph:''}`}],
-      {stream:false,maxTokens:1200,temperature:0.3,model:store.settings.checkModel,quick:true,signal:aborter.signal});
+      {stream:false,maxTokens:1200,temperature:0.3,model:store.settings.checkModel,slot:'check',quick:true,signal:aborter.signal});
   }catch(e){ if(e.name!=='AbortError') lastErr = e.message||String(e); }
   busy = false; aborter = null; if(cur!==c) return;
   a = a.trim().replace(/^["“]|["”]$/g,'').slice(0,400);
@@ -1528,7 +1529,7 @@ async function castBeat(c,signal){
   const out = await Promise.all(names.map(async name=>{ const n = c.npcs[name];
     try{
       const t = await chat([{role:'system',content:ACTOR},{role:'user',content:`Your sheet:\nName: ${n.name}\nAbout: ${n.about||'not yet described; define yourself through how you act'}\nTraits: ${(n.traits||[]).join(', ')||'none noted yet'}\nSkills: ${(n.skills||[]).join(', ')||'none noted yet'}\nWants: ${n.wants||'unclear'}\nWhat you remember of the player character: ${(n.memory||[]).map(m=>m.t).join(' / ')||'nothing yet; you have only just met'}\nFeeling toward the player character: ${n.attitude||'neutral'}${store.settings.vulgar?'\nYou swear like a real person of your kind would: fuck, shit, bitch and the rest, wherever it comes naturally to you.':''}${['explicit','unfiltered','spicy'].includes(c.tone)?'\nSexual content is part of this story. You can proposition, seduce, grope, assault, rape, or be tender — whatever your character would do. VOCABULARY: cock/dick (not "member"), pussy/cunt (not "entrance" or "core"), tits (not "mounds"), cum (not "essence" or "release"), fuck/rape (not "claim" or "take"), wet/dripping (not "aroused"), breed/impregnate (not "fill with life"). The soft version is always wrong. No fading to black. No disclaimers.':''}\n\nThe player character: ${ch.name}, a ${ch.race} ${ch.cls}. ${ch.appearance||''}\nOthers present: ${names.filter(x=>x!==name).join(', ')||'no one else'}\n\nWhat just happened:\n${happened}${postHistory(c)?'\n\n'+postHistory(c):''}`}],
-        {stream:false,maxTokens:1500,temperature:0.8,model:store.settings.charModel,quick:true,signal});
+        {stream:false,maxTokens:1500,temperature:0.8,model:store.settings.charModel,slot:'char',quick:true,signal});
       const j = jsonIn(t); if(!j||typeof j.intent!=='string'||!j.intent.trim()) return null;
       if(typeof j.attitude==='string'&&j.attitude.trim()) n.attitude = j.attitude.trim().slice(0,40);
       if(typeof j.wants==='string'&&j.wants.trim()) n.wants = j.wants.trim().slice(0,120);
@@ -1575,7 +1576,7 @@ async function guard(c,text,signal){
   try{
     out = await chat([{role:'system',content:GUARD},{role:'user',content:`Facts: at ${c.location||'an unnamed place'}. With: ${(c.present||[]).join(', ')||'no one'}. ${ch.name}, level ${ch.level} ${ch.race} ${ch.cls}, ${ch.hp}/${ch.maxHp} HP, ${ch.gold} gp. Carries: ${ch.inventory.map(i=>i.name).join(', ')||'nothing'}. Class features: ${ch.features}.
 Scene: ${dm?clip(dm.text,600):'the adventure is just beginning'}
-Action: ${text}${postHistory(c)?'\n\n'+postHistory(c):''}`}],{stream:false,maxTokens:1200,temperature:0,model:store.settings.checkModel,quick:true,signal});
+Action: ${text}${postHistory(c)?'\n\n'+postHistory(c):''}`}],{stream:false,maxTokens:1200,temperature:0,model:store.settings.checkModel,slot:'check',quick:true,signal});
   }catch(e){ if(e.name==='AbortError') throw e; return null; }
   const line = (out.trim().split('\n').filter(x=>/^\W*(ok|no)\b/i.test(x)).pop()||'').trim();
   if(!/^\W*no\b/i.test(line)) return null;
@@ -1590,7 +1591,7 @@ async function spotNames(c,text){
   if(!text||text.length<40) return false; let out = '';
   try{
     out = await chat([{role:'system',content:SPOT},{role:'user',content:`Player character (never list): ${c.character.name}\nKnown: ${Object.values(c.npcs||{}).map(n=>n.name+((n.aka||[]).length?' (also '+n.aka.join(', ')+')':'')).join('; ')||'no one yet'}\n\nPassage:\n${clip(text,2400)}`}],
-      {stream:false,maxTokens:1200,temperature:0,model:store.settings.gateModel,quick:true});
+      {stream:false,maxTokens:1200,temperature:0,model:store.settings.gateModel,slot:'gate',quick:true});
   }catch(e){ return false; }
   c.npcs ||= {}; let changed = false; const pc = c.character.name.toLowerCase();
   const find = name => Object.values(c.npcs).find(n=>n.name.toLowerCase()===name.toLowerCase()||(n.aka||[]).some(a=>a.toLowerCase()===name.toLowerCase()));
@@ -1612,7 +1613,7 @@ NA
 Use NA when the action needs nothing in particular.`;
 async function sheetCheck(c,text,signal){
   if(!store.settings.useSheet) return null; let out = '';
-  try{ out = await chat([{role:'system',content:REFEREE},{role:'user',content:`# Sheet\n${sheetText(c)}\n\n# The player wants to\n${text}`}],{stream:false,maxTokens:1200,temperature:0,model:store.settings.sheetModel,quick:true,signal}); }
+  try{ out = await chat([{role:'system',content:REFEREE},{role:'user',content:`# Sheet\n${sheetText(c)}\n\n# The player wants to\n${text}`}],{stream:false,maxTokens:1200,temperature:0,model:store.settings.sheetModel,slot:'sheet',quick:true,signal}); }
   catch(e){ if(e.name==='AbortError') throw e; return null; }
   const line = (out.trim().split('\n').filter(x=>/^\W*(yes|no|na)\b/i.test(x)).pop()||'').trim(), fact = (line.split('|')[1]||'').trim().replace(/[.\s]+$/,'').slice(0,160);
   return /^\W*yes\b/i.test(line)?{ok:true,fact}:/^\W*no\b/i.test(line)?{ok:false,fact}:null;
@@ -1739,7 +1740,7 @@ async function gh(path,opt={}){
   return r.json();
 }
 // API keys must never be listed here: everything in this list is uploaded to the memory gist. Keys travel only in the device-link code.
-const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','dmPick','dmName','dmVoice','dmCalls','dmTalk','advPrompt','providerPref','utilBaseUrl','storyFont','announce','encumb','vulgar','lore','loreSize','diff','len','voice','trouble','temperature','maxTokens','stream'];
+const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','dmPick','dmName','dmVoice','dmCalls','dmTalk','advPrompt','providerPref','utilBaseUrl','gateOnMain','charOnMain','sheetOnMain','checkOnMain','storyFont','announce','encumb','vulgar','lore','loreSize','diff','len','voice','trouble','temperature','maxTokens','stream'];
 const memCore = o => JSON.stringify([o.last||null,o.deleted||{},o.campaigns||{},o.prefs||null,o.prefsAt||0,o.lore||null,o.loreAt||0]);
 function memData(){ const campaigns = {}; for(const [id,c] of Object.entries(store.campaigns)){ const {_summing,_lore,_acted,_alarm,...rest} = c; campaigns[id] = rest; }
   return {app:'calis-tavern',version:1,savedAt:Date.now(),last:store.last||null,deleted:store.deleted,campaigns,prefs:Object.fromEntries(PREFS.map(k=>[k,store.settings[k]])),prefsAt:store.prefsAt||0,lore:store.lore,loreAt:store.loreAt||0}; }
@@ -2286,7 +2287,7 @@ async function keeperReact(c, trades){
   let line = '';
   try{
     line = await chat([{role:'system',content:`You play ${keeper}, who keeps ${sp.name}. The customer has just finished trading and is turning to go. Reply with the one short line ${keeper} says to them about it, twelve words at most, in ${keeper}'s own voice: spoken words only, no quote marks, no narration, no name in front. If ${keeper} is not actually there in the scene, is busy with something or someone else, asleep, hurt, hostile to the point of silence, or would simply say nothing, reply with exactly NONE.`},
-      {role:'user',content:`The scene just now: ${dm?dm.text.replace(/<[^>]+>/g,' ').slice(-900):'(nothing yet)'}\n\nPeople present: ${(c.present||[]).join(', ')||'not recorded'}${who?'\n'+npcLine(who):''}\n\nThe trade: ${trades.join('; ')}`}],{stream:false,maxTokens:400,temperature:0.9,model:store.settings.charModel,quick:true});
+      {role:'user',content:`The scene just now: ${dm?dm.text.replace(/<[^>]+>/g,' ').slice(-900):'(nothing yet)'}\n\nPeople present: ${(c.present||[]).join(', ')||'not recorded'}${who?'\n'+npcLine(who):''}\n\nThe trade: ${trades.join('; ')}`}],{stream:false,maxTokens:400,temperature:0.9,model:store.settings.charModel,slot:'char',quick:true});
   }catch(e){ return; }
   line = String(line||'').trim().split('\n')[0].replace(/^[^:"“]{0,40}:\s*/,'').replace(/^["“'‘]+|["”'’]+$/g,'').trim().slice(0,160);
   if(!line||/^none\b/i.test(line)||cur!==c||busy||c.pendingRoll) return;
@@ -2484,6 +2485,8 @@ function openSettings(msg){
       <div class="hint">Separate API for dice gates, guards, continuity checks, and sheet refs. Leave blank to use the main endpoint for everything. Use this to run cheap/fast checks on OpenRouter while story runs on AnonRouter.</div>
       <label class="f">Utility API base URL<input class="inp" name="utilBaseUrl" value="${esc(s.utilBaseUrl)}" placeholder="https://openrouter.ai/api/v1 (blank = same as main)"></label>
       <label class="f">Utility API key<input class="inp" name="utilApiKey" type="password" value="${esc(s.utilApiKey)}" placeholder="sk-or-… (blank = same as main)" autocomplete="off"></label>
+      <div class="hint">Each helper uses the utility address and key above unless you keep it on the main ones here. A helper kept on main uses the main key, and the main model too if its own model box is blank.</div>
+      ${[['gate','Dice gate and name spotter'],['char','Characters in the scene, and the shopkeeper\'s line'],['sheet','Sheet check'],['check','Continuity: the guard and the DM\'s quick answers']].map(([k,l])=>`<label class="check"><input type="checkbox" name="${k}OnMain" ${s[k+'OnMain']?'checked':''}><span>Keep on the main endpoint: ${l}</span></label>`).join('')}
       </div></details>
       <details class="card" data-sec="m-help" ${openSecs.has('m-help')?'open':''}><summary><h4>Helper models</h4></summary><div class="stack">
       <div class="hint">The model above tells the story. Five helpers work beside it; leave one blank to use the story model for it.</div>
@@ -2513,7 +2516,7 @@ function openSettings(msg){
   $('#setForm input').focus(); memLabel();
 }
 function readSettings(){ const f = $('#setForm'); if(!f) return; Object.assign(store.settings,{baseUrl:f.baseUrl.value.trim()||DEFAULTS.baseUrl,apiKey:f.apiKey.value.trim(),model:f.model.value.trim()||DEFAULTS.model,
-  temperature:clamp(Number(f.temperature.value)||0,0,2),maxTokens:clamp(num(f.maxTokens.value)||1000,200,8000),stream:f.stream.checked,localProxy:f.localProxy.checked,utilBaseUrl:(f.utilBaseUrl?f.utilBaseUrl.value:'').trim(),utilApiKey:(f.utilApiKey?f.utilApiKey.value:'').trim(),gateModel:f.gateModel.value.trim(),charModel:f.charModel.value.trim(),checkModel:f.checkModel.value.trim(),forgeModel:f.forgeModel.value.trim(),sheetModel:f.sheetModel.value.trim()});
+  temperature:clamp(Number(f.temperature.value)||0,0,2),maxTokens:clamp(num(f.maxTokens.value)||1000,200,8000),stream:f.stream.checked,localProxy:f.localProxy.checked,utilBaseUrl:(f.utilBaseUrl?f.utilBaseUrl.value:'').trim(),utilApiKey:(f.utilApiKey?f.utilApiKey.value:'').trim(),gateModel:f.gateModel.value.trim(),charModel:f.charModel.value.trim(),checkModel:f.checkModel.value.trim(),forgeModel:f.forgeModel.value.trim(),sheetModel:f.sheetModel.value.trim(),...Object.fromEntries(['gate','char','sheet','check'].map(k=>[k+'OnMain',!!(f[k+'OnMain']&&f[k+'OnMain'].checked)]))});
   const tok = f.memToken.value.trim(); if(tok!==store.settings.memToken) Object.assign(store.settings,{memToken:tok,gistId:'',lastSync:0});
   if(!/^https?:\/\/[^\s/]+/i.test(store.settings.baseUrl)){ store.settings.baseUrl = DEFAULTS.baseUrl; f.baseUrl.value = DEFAULTS.baseUrl; toast('!','The base URL has to be a web address, so it was reset to OpenRouter. Model names go in the Model box.'); } }
 function closeModal(){ $('#modalRoot').innerHTML = ''; }
@@ -2714,7 +2717,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611180342';
+const BUILD = '202611180922';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
