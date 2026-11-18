@@ -1095,7 +1095,14 @@ function autoEquip(ch){
   refresh(ch);
 }
 // Older saves have no slots or weights: sort them out once, keeping the armour class they already had.
-function upgrade(c){ const ch = c.character;
+// A price as the narrator may write it: a number, or words like "2 sp". Anything under a gold piece rounds up to one.
+function priceOf(v){ if(typeof v==='number') return Math.max(0,Math.round(v)); const m = /(\d+(?:\.\d+)?)\s*(pp|gp|sp|cp|gold|silver|copper|platinum)?/i.exec(String(v??'')); if(!m) return 0;
+  const u = (m[2]||'gp').toLowerCase(), n = +m[1]*(u[0]==='p'?10:u[0]==='s'?0.1:u[0]==='c'?0.01:1); return n>0?Math.max(1,Math.round(n)):0; }
+// Nothing on a shelf is free or endless: a missing price is filled in from what the thing is, a missing count from its name.
+function shelf(o){ if(!(o.price>0)) o.price = Math.max(1,worth({name:o.name}));
+  if(!o.out&&!(o.stock>0)){ let h = 0; for(const ch of o.name) h = (h*31+ch.charCodeAt(0))>>>0; o.stock = /sword|axe|bow|mace|rapier|staff|mail|armou?r|shield|ring|amulet|wand|book/i.test(o.name)?1:2+h%4; }
+  return o; }
+function upgrade(c){ const ch = c.character; if(c.shop&&Array.isArray(c.shop.items)) c.shop.items.forEach(shelf);
   for(const k of Object.keys(c.npcs||{})){ const n = c.npcs[k]; if(!okName(n.name)){ delete c.npcs[k]; c.present = (c.present||[]).filter(x=>x!==k); } else if(n.aka) n.aka = n.aka.filter(okName); } if(ch.inv2) return; const was = ch.ac; ch.acMisc = 0; autoEquip(ch); ch.acMisc = was-ch.ac; ch.inv2 = true; refresh(ch); }
 // What using an item does when the app can settle it without the narrator.
 const KNOWN_USE = [[/superior (healing|potion)|potion of superior healing/i,{heal:'8d4+8'}],[/greater (healing|potion)|potion of greater healing/i,{heal:'4d4+4'}],[/healing potion|potion of healing|healing draught|healing salve/i,{heal:'2d4+2'}],[/healer'?s kit|bandage/i,{heal:'1d4'}]];
@@ -1353,7 +1360,7 @@ function applyState(c,s){
     sh.skills ||= []; for(const k of strs(n.skills)) if(sh.skills.length<6&&!sh.skills.some(x=>x.toLowerCase()===k.toLowerCase())) sh.skills.push(k.slice(0,40));
     if(isNew) note('Met '+sh.name,'ok'); }
   if('shop' in s){ const sp = s.shop;
-    if(sp&&typeof sp==='object'&&Array.isArray(sp.items)){ const its = sp.items.filter(i=>i&&typeof i.name==='string'&&i.name.trim()&&num(i.price)>=0).slice(0,14).map(i=>{ const o = cleanItem(i); o.price = Math.max(0,num(i.price)); o.stock = num(i.qty)>0?num(i.qty):null; delete o.qty; return o; });
+    if(sp&&typeof sp==='object'&&Array.isArray(sp.items)){ const its = sp.items.filter(i=>i&&typeof i.name==='string'&&i.name.trim()).slice(0,14).map(i=>{ const o = cleanItem(i); o.price = priceOf(i.price); o.stock = num(i.stock)>0?num(i.stock):num(i.qty)>0?num(i.qty):null; delete o.qty; return shelf(o); });
       const name = String(sp.name||'Shop').slice(0,60), same = c.shop&&c.shop.name===name;
       if(its.length){ c.shop = {name,keeper:String(sp.keeper||'').slice(0,50),items:its,mult:same?c.shop.mult:1,haggled:same?c.shop.haggled:false}; if(!same) note('Shop open: '+name,'ok'); } }
     else c.shop = null; }
@@ -2264,7 +2271,8 @@ function openShop(){
 }
 function closeShop(){
   closeModal(); if(!cur) return;
-  const trades = [...shopTrades]; shopTrades = [];
+  const tally = new Map(); for(const t of shopTrades) tally.set(t,(tally.get(t)||0)+1);
+  const trades = [...tally].map(([t,n])=>n>1?t.replace(/^(bought|sold) (.+) for (\d+) gp$/,(_,v,name,p)=>`${v} ${n} × ${name} for ${p*n} gp (${p} each)`):t); shopTrades = [];
   if(trades.length){ cur.log.push({role:'note',text:`Trade at ${cur.shop?cur.shop.name:'the shop'}: ${trades.join('; ')}. Purse now ${cur.character.gold} gp.`}); save(); }
   renderGame();
   if(trades.length && cur.shop?.keeper) keeperReact(cur, trades);
@@ -2703,7 +2711,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611180312';
+const BUILD = '202611180323';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
