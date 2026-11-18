@@ -1159,7 +1159,10 @@ async function chat(messages,opts={}){
     return chat(messages,{...opts,maxTokens:Math.min(32000,Math.max(8000,body.max_tokens*4)),_again:true}); };
   let res;
   try{ res = await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal}); }
-  catch(e){ if(e.name==='AbortError') throw e; throw new Error('Could not reach the model endpoint. Check the proxy URL in Settings'+(s.localProxy?'':' (if your proxy blocks browser requests, try the local server option)')+'.'); }
+  catch(e){ if(e.name==='AbortError') throw e;
+    // AnonRouter answers a key that is not an "ar_" inference key in a way a browser cannot read, so it looks like a dead connection.
+    if(/anonrouter\.ai/i.test(url)&&!/^Bearer ar_/.test(headers.Authorization||'')) throw new Error('AnonRouter did not accept this key. It needs an inference key that starts with "ar_" and has OpenAI-compatible access switched on (create one in the AnonRouter dashboard). A key from another service, or one starting with "arm_", will not work here.');
+    throw new Error('Could not reach the model endpoint. Check the proxy URL in Settings'+(s.localProxy?'':' (if your proxy blocks browser requests, try the local server option)')+'.'); }
   if(!res.ok){
     let msg = res.status+' '+res.statusText;
     try{ const j = await res.json(); msg = (j.error&&(j.error.message||j.error))||j.message||msg; if(typeof msg!=='string') msg = JSON.stringify(msg); }catch(e){}
@@ -2564,7 +2567,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611180055';
+const BUILD = '202611180131';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
