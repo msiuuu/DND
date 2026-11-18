@@ -14,7 +14,7 @@
 <title>Cali's Tavern — solo DnD, no bullshit</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&family=Comfortaa:wght@400;600&family=Crimson+Text:wght@400;600;700&family=Space+Mono:wght@400;700&family=Lora:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* Layout: a centred chat column over a mood-tinted backdrop; two fold-away drawers (tales left, sheet right). */
 :root{
@@ -26,6 +26,11 @@
   --ui:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;--story:var(--ui);
   --r:14px;color-scheme:dark;
 }
+body[data-font=medieval]{--story:"Crimson Text","Times New Roman",Georgia,serif}
+body[data-font=scifi]{--story:"Comfortaa","Trebuchet MS",sans-serif}
+body[data-font=literary]{--story:"Lora","Palatino Linotype",Palatino,serif}
+body[data-font=mono]{--story:"Space Mono","Courier New",monospace}
+body[data-font=elegant]{--story:"Cormorant Garamond",Georgia,serif}
 body[data-mood=night]{--bg:#090d18;--solid:#0d1322;--ember:#8fb0ee;--ember2:#bccff7;--emberdeep:#5574b8}
 body[data-mood=hearth]{--bg:#16100c;--solid:#1b140f;--ember:#e9b27a;--ember2:#f5d3a8;--emberdeep:#a9713f}
 body[data-mood=fire]{--bg:#140b09;--solid:#1a0f0c;--ember:#f08a4b;--ember2:#f8b98a;--emberdeep:#b84a22}
@@ -697,7 +702,7 @@ const TONES = {...MORE_TONES,classic:'Classic heroic fantasy: wonder, danger, an
 
 /* ============ storage ============ */
 const KEY = 'calis-tavern.v1';
-const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,forgeModel:'',useCheck:true,useGuard:true,dmPick:'',dmName:'Cali',dmVoice:'Half korean half italian. sassy, huffy, warm underneath. talks like a real person — short sentences, no speeches, says the vulgar word not the clean one. calls you out when you do something stupid, goes quiet when something actually hits. uses kaomoji not western emotes — (￣^￣) not :). korean and italian leak out when she feels something — 씨발, cazzo, 바보야. genuinely cares about the player but will NOT baby them. says one honest thing instead of five correct ones. if you make a dumb move she\'ll roast you. if you make a beautiful one she goes soft for exactly one line then pretends she didn\'t.',dmCalls:'Misu',dmTalk:true,advPrompt:'',providerPref:'',utilBaseUrl:'',utilApiKey:'',announce:true,encumb:true,vulgar:false,lore:true,loreSize:'small',diff:'standard',len:'adaptive',voice:'plain',trouble:'calm',memToken:'',gistId:'',lastSync:0};
+const DEFAULTS = {baseUrl:'https://openrouter.ai/api/v1',apiKey:'',model:'openrouter/auto',temperature:0.9,maxTokens:4000,stream:true,localProxy:false,gateModel:'',charModel:'',checkModel:'',sheetModel:'',useSheet:true,forgeModel:'',useCheck:true,useGuard:true,dmPick:'',dmName:'Cali',dmVoice:'Half korean half italian. sassy, huffy, warm underneath. talks like a real person — short sentences, no speeches, says the vulgar word not the clean one. calls you out when you do something stupid, goes quiet when something actually hits. uses kaomoji not western emotes — (￣^￣) not :). korean and italian leak out when she feels something — 씨발, cazzo, 바보야. genuinely cares about the player but will NOT baby them. says one honest thing instead of five correct ones. if you make a dumb move she\'ll roast you. if you make a beautiful one she goes soft for exactly one line then pretends she didn\'t.',dmCalls:'Misu',dmTalk:true,advPrompt:'',providerPref:'',utilBaseUrl:'',utilApiKey:'',storyFont:'default',announce:true,encumb:true,vulgar:false,lore:true,loreSize:'small',diff:'standard',len:'adaptive',voice:'plain',trouble:'calm',memToken:'',gistId:'',lastSync:0};
 let store = {settings:{...DEFAULTS},campaigns:{}};
 try{ if(!localStorage.getItem(KEY)&&localStorage.getItem('emberglade.v1')) localStorage.setItem(KEY,localStorage.getItem('emberglade.v1')); }catch(e){}
 let staleStore = false;
@@ -1050,6 +1055,9 @@ The setting, era and genre come from the campaign premise, not from the rules. I
 
 How to narrate:
 - Write in second person, present tense. How much you write, and how plainly, is set under Table settings below. No headings, no bullet lists, no out-of-character commentary.
+- FORMAT — separate dialogue from description. When a character speaks, use this format:
+  — **Name** : "Dialogue here." *brief action or expression.* "More dialogue if needed."
+  Description and narration go in their own paragraphs, without the name prefix. This keeps speech visually distinct from prose. Each speaking character gets their own line with the name bold.
 - Always finish what you start: end on a complete sentence (or the deliberate cut of a combat beat), then give the state block. Never stop half-way through a thought.
 - What the player states is always an attempt, never a result. "I shoot the giant in the eye" means the character reaches for the bow, draws and looses at the eye; it does not mean the arrow lands. Where a step is genuinely in doubt, let it succeed or fail on the dice and the circumstances: the draw can be fumbled, the shot can miss, a hit can fail to do what was hoped. Do not grant the hoped-for result because it was named, and do not refuse the attempt because it was worded as a success. Steps that anyone could do without trouble simply happen.
 - Never decide what the player's character does, says, thinks, or feels. End each reply at a moment where the player chooses what to do next.
@@ -1620,7 +1628,7 @@ async function gh(path,opt={}){
   if(!r.ok){ const e = new Error(r.status===401?'GitHub rejected the token. Make a new one with the gist permission.':r.status===403?'GitHub refused (403). The token needs the gist permission.':'GitHub answered '+r.status+'.'); e.status = r.status; throw e; }
   return r.json();
 }
-const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','dmPick','dmName','dmVoice','dmCalls','dmTalk','advPrompt','providerPref','utilBaseUrl','announce','encumb','vulgar','lore','loreSize','diff','len','voice','trouble','temperature','maxTokens','stream'];
+const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','dmPick','dmName','dmVoice','dmCalls','dmTalk','advPrompt','providerPref','utilBaseUrl','utilApiKey','storyFont','announce','encumb','vulgar','lore','loreSize','diff','len','voice','trouble','temperature','maxTokens','stream'];
 const memCore = o => JSON.stringify([o.last||null,o.deleted||{},o.campaigns||{},o.prefs||null,o.prefsAt||0,o.lore||null,o.loreAt||0]);
 function memData(){ const campaigns = {}; for(const [id,c] of Object.entries(store.campaigns)){ const {_summing,_lore,_acted,_alarm,...rest} = c; campaigns[id] = rest; }
   return {app:'calis-tavern',version:1,savedAt:Date.now(),last:store.last||null,deleted:store.deleted,campaigns,prefs:Object.fromEntries(PREFS.map(k=>[k,store.settings[k]])),prefsAt:store.prefsAt||0,lore:store.lore,loreAt:store.loreAt||0}; }
@@ -2231,6 +2239,7 @@ function openGame(tabName){
     <div class="grp2" style="margin-top:0">The table</div>
     <div class="grid2"><label class="f">Difficulty<select class="inp" name="diff">${o('gentle','Gentle',st.diff)}${o('standard','Standard',st.diff)}${o('brutal','Brutal',st.diff)}</select></label>
       <label class="f">How the DM writes<select class="inp" name="voice">${o('plain','Plain and direct',st.voice)}${o('balanced','Balanced',st.voice)}${o('rich','Rich and atmospheric',st.voice)}</select></label>
+      <label class="f">Story font<select class="inp" name="storyFont">${o('default','Default (Inter)',st.storyFont)}${o('medieval','Medieval (Crimson Text)',st.storyFont)}${o('elegant','Elegant (Cormorant Garamond)',st.storyFont)}${o('literary','Literary (Lora)',st.storyFont)}${o('scifi','Sci-fi (Comfortaa)',st.storyFont)}${o('mono','Terminal (Space Mono)',st.storyFont)}</select></label>
       <label class="f">How much goes wrong<select class="inp" name="trouble">${o('calm','Easygoing: things mostly just work',st.trouble)}${o('normal','Balanced',st.trouble)}${o('tense','Relentless',st.trouble)}</select></label>
       <label class="f">How much the DM writes<select class="inp" name="len">${o('adaptive','Fits the moment',st.len)}${o('short','Always short',st.len)}${o('medium','Always medium',st.len)}${o('long','Always long',st.len)}</select></label>
       ${c?`<label class="f">Tone of this tale<select class="inp" name="tone">${TONE_LIST.map(([v,l])=>o(v,l,c.tone)).join('')}${o('unfiltered','Unfiltered (adult)',c.tone)}</select></label>`:''}</div>
@@ -2323,7 +2332,7 @@ function saveGame(){
         if(on&&!on.checked) e.off = true; else delete e.off; return e; }).filter(e=>e.t&&(e.k||e.always)); }
     else { st.lore = f.lore.checked; st.loreSize = f.loreSize.value; store.lore.off = {}; allLore().forEach(b=>{ const box = f.querySelector(`[name=lb][value="${CSS.escape(b.id)}"]`); if(box&&!box.checked) store.lore.off[b.id] = 1; }); }
     store.prefsAt = Date.now(); store.loreAt = Date.now(); }
-  else if(gsTab==='game'){ Object.assign(st,{diff:f.diff.value,len:f.len.value,voice:f.voice.value,trouble:f.trouble.value,dmPick:f.dmPick.value,dmCalls:f.dmCalls.value.trim().slice(0,30),...(f.dmName?{dmName:f.dmName.value.trim().slice(0,30),dmVoice:f.dmVoice.value.trim().slice(0,1200)}:{}),dmTalk:f.dmTalk.checked,advPrompt:(f.advPrompt?f.advPrompt.value:'').trim().slice(0,32000),providerPref:(f.providerPref?f.providerPref.value:'').trim().slice(0,500),announce:f.announce.checked,useGuard:f.useGuard.checked,useSheet:f.useSheet.checked,useCheck:f.useCheck.checked,encumb:f.encumb.checked,vulgar:f.vulgar.checked}); store.prefsAt = Date.now();
+  else if(gsTab==='game'){ Object.assign(st,{diff:f.diff.value,len:f.len.value,voice:f.voice.value,trouble:f.trouble.value,dmPick:f.dmPick.value,dmCalls:f.dmCalls.value.trim().slice(0,30),...(f.dmName?{dmName:f.dmName.value.trim().slice(0,30),dmVoice:f.dmVoice.value.trim().slice(0,1200)}:{}),dmTalk:f.dmTalk.checked,advPrompt:(f.advPrompt?f.advPrompt.value:'').trim().slice(0,32000),providerPref:(f.providerPref?f.providerPref.value:'').trim().slice(0,500),announce:f.announce.checked,useGuard:f.useGuard.checked,useSheet:f.useSheet.checked,useCheck:f.useCheck.checked,encumb:f.encumb.checked,vulgar:f.vulgar.checked,storyFont:f.storyFont?f.storyFont.value:'default'}); store.prefsAt = Date.now(); applyFont();
     if(c){ c.tone = f.tone.value; c.god = f.god.checked; refresh(c.character); } }
   else if(gsTab==='char'){ const ch = c.character; ch.name = f.name.value.trim().slice(0,40)||ch.name; ch.race = f.race.value.trim().slice(0,30)||ch.race; ch.cls = f.cls.value.trim().slice(0,30)||ch.cls; ch.background = f.background.value.trim().slice(0,40);
     ch.level = clamp(num(f.level.value)||1,1,20); ch.xp = Math.max(0,num(f.xp.value)); ch.maxHp = Math.max(1,num(f.maxHp.value)||1); ch.hp = clamp(num(f.hp.value),0,ch.maxHp); ch.gold = Math.max(0,num(f.gold.value)); ch.acMisc = clamp(num(f.acMisc.value),-10,10);
@@ -2391,7 +2400,8 @@ function readSettings(){ const f = $('#setForm'); if(!f) return; Object.assign(s
 function closeModal(){ $('#modalRoot').innerHTML = ''; }
 
 /* ============ events ============ */
-function go(){ const id = location.hash.slice(1); if(id==='new') return renderCreate(); if(store.campaigns[id]){ denied = null; selEntry = editEntry = -1; cur = store.campaigns[id]; upgrade(cur); store.last = id; saveLocal(); lastErr = null; main.innerHTML = ''; renderGame(); if(!cur.log.length) takeTurn(null); return; } renderHome(); }
+function applyFont(){ const f = store.settings.storyFont||'default'; document.body.dataset.font = f==='default'?'':f; }
+function go(){ applyFont(); const id = location.hash.slice(1); if(id==='new') return renderCreate(); if(store.campaigns[id]){ denied = null; selEntry = editEntry = -1; cur = store.campaigns[id]; upgrade(cur); store.last = id; saveLocal(); lastErr = null; main.innerHTML = ''; renderGame(); if(!cur.log.length) takeTurn(null); return; } renderHome(); }
 window.addEventListener('hashchange',()=>{ if(aborter) aborter.abort(); busy = false; go(); });
 
 document.addEventListener('click',async ev=>{
