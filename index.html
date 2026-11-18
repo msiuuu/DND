@@ -1620,7 +1620,7 @@ async function gh(path,opt={}){
   if(!r.ok){ const e = new Error(r.status===401?'GitHub rejected the token. Make a new one with the gist permission.':r.status===403?'GitHub refused (403). The token needs the gist permission.':'GitHub answered '+r.status+'.'); e.status = r.status; throw e; }
   return r.json();
 }
-const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','dmPick','dmName','dmVoice','dmCalls','dmTalk','advPrompt','providerPref','utilBaseUrl','utilApiKey','announce','encumb','vulgar','lore','loreSize','diff','len','voice','trouble','temperature','maxTokens','stream'];
+const PREFS = ['baseUrl','model','gateModel','charModel','checkModel','forgeModel','sheetModel','useSheet','useCheck','useGuard','dmPick','dmName','dmVoice','dmCalls','dmTalk','advPrompt','providerPref','utilBaseUrl','announce','encumb','vulgar','lore','loreSize','diff','len','voice','trouble','temperature','maxTokens','stream'];
 const memCore = o => JSON.stringify([o.last||null,o.deleted||{},o.campaigns||{},o.prefs||null,o.prefsAt||0,o.lore||null,o.loreAt||0]);
 function memData(){ const campaigns = {}; for(const [id,c] of Object.entries(store.campaigns)){ const {_summing,_lore,_acted,_alarm,...rest} = c; campaigns[id] = rest; }
   return {app:'calis-tavern',version:1,savedAt:Date.now(),last:store.last||null,deleted:store.deleted,campaigns,prefs:Object.fromEntries(PREFS.map(k=>[k,store.settings[k]])),prefsAt:store.prefsAt||0,lore:store.lore,loreAt:store.loreAt||0}; }
@@ -1673,7 +1673,7 @@ setInterval(()=>{ if(store.settings.memToken&&!document.hidden&&!busy&&!rolling&
 const b64u = {enc:o=>btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
   dec:t=>JSON.parse(decodeURIComponent(escape(atob(t.replace(/-/g,'+').replace(/_/g,'/')))))};
 const loadScript = src => new Promise((ok,no)=>{ if(document.querySelector(`script[src="${src}"]`)) return ok(); const e = document.createElement('script'); e.src = src; e.onload = ok; e.onerror = no; document.head.appendChild(e); });
-function linkUrl(){ const s = store.settings; return location.href.split('#')[0]+'#link='+b64u.enc({t:s.memToken,k:s.apiKey,u:s.baseUrl}); }
+function linkUrl(){ const s = store.settings; return location.href.split('#')[0]+'#link='+b64u.enc({t:s.memToken,k:s.apiKey,u:s.baseUrl,...(s.utilApiKey?{uk:s.utilApiKey}:{})}); }
 let pendingLink = null;
 (function(){ const m = /^#link=([\w-]+)$/.exec(location.hash); if(!m) return;
   try{ const j = b64u.dec(m[1]); if(typeof j.t==='string'&&/^[\w-]{20,255}$/.test(j.t)) pendingLink = j; }catch(e){}
@@ -2494,13 +2494,13 @@ document.addEventListener('click',async ev=>{
       try{ await loadScript('lib/qrcode.js'); const q = qrcode(0,'M'); q.addData(url); q.make(); qr = `<div class="qr">${q.createSvgTag(4,2)}</div>`; }catch(e){}
       out.innerHTML = `${qr?'Scan this with the other device\'s camera, or open the link below on it.':'Open this link on the other device.'}${qr}
         <input class="inp" id="linkField" readonly value="${esc(url)}" aria-label="Link for another device"><div class="actions" style="justify-content:flex-start;margin-top:8px"><button type="button" class="btn small" data-act="copyLink">Copy link</button><button type="button" class="btn small ghost" data-act="hideLink">Hide</button></div>
-        <div style="margin-top:8px">This code carries your memory token${store.settings.apiKey?' and your API key':''}. Treat it like a password: only show it to your own devices.</div>`;
+        <div style="margin-top:8px">This code carries your memory token${store.settings.apiKey||store.settings.utilApiKey?' and your API key'+(store.settings.apiKey&&store.settings.utilApiKey?'s':''):''}. Treat it like a password: only show it to your own devices.</div>`;
       clearTimeout(out._t); out._t = setTimeout(()=>{ out.innerHTML = ''; },180000); out.scrollIntoView({block:'nearest'}); break; }
     case 'hideLink': $('#linkout').innerHTML = ''; break;
     case 'copyLink': { const f = $('#linkField'); try{ await navigator.clipboard.writeText(f.value); el.textContent = 'Copied'; }catch(e){ f.select(); el.textContent = 'Select and copy'; } break; }
     case 'linkNo': pendingLink = null; closeModal(); break;
     case 'linkYes': { const j = pendingLink; pendingLink = null; closeModal(); if(!j) break;
-      Object.assign(store.settings,{memToken:j.t,gistId:'',lastSync:0}); if(typeof j.k==='string'&&j.k) store.settings.apiKey = j.k;
+      Object.assign(store.settings,{memToken:j.t,gistId:'',lastSync:0}); if(typeof j.k==='string'&&j.k) store.settings.apiKey = j.k; if(typeof j.uk==='string'&&j.uk) store.settings.utilApiKey = j.uk;
       try{ if(/^https?:$/.test(new URL(j.u).protocol)) store.settings.baseUrl = j.u; }catch(e){}
       store.prefsAt = 0; saveLocal(); memLabel(); toast('…','Linking and fetching your tales…'); await sync();
       toast(memState==='err'?'!':'✓',memState==='err'?memErr:`Linked. ${Object.keys(store.campaigns).length} tale(s) on this device now.`); if(!cur) renderHome(); break; }
@@ -2567,7 +2567,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611180131';
+const BUILD = '202611180135';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
