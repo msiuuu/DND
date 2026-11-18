@@ -1249,8 +1249,10 @@ function buildMessages(c,intents){
 }
 function endpoint(path,util){
   const s = store.settings;
-  const base = (util && s.utilBaseUrl.trim() ? s.utilBaseUrl : s.baseUrl).trim().replace(/\/+$/,'');
-  const key = (util && s.utilApiKey.trim() ? s.utilApiKey : s.apiKey).trim();
+  // A key always goes with its own address: the utility key is used only when the utility address is.
+  const useU = !!(util && s.utilBaseUrl.trim());
+  const base = (useU ? s.utilBaseUrl : s.baseUrl).trim().replace(/\/+$/,'');
+  const key = (useU && s.utilApiKey.trim() ? s.utilApiKey : s.apiKey).trim();
   const headers = {'Content-Type':'application/json'};
   if(key) headers.Authorization = 'Bearer '+key;
   if(/openrouter\.ai/i.test(base)){ headers['HTTP-Referer'] = 'https://janitorai.com'; headers['X-Title'] = 'janitor'; }
@@ -1261,6 +1263,9 @@ async function chat(messages,opts={}){
   const {stream=store.settings.stream,onText,signal,maxTokens,temperature,model,quick,slot,_again,onEnd} = opts;
   // Each helper can be sent to the utility endpoint or kept on the main one, with the main key.
   const s = store.settings, onUtil = !!quick&&!(slot&&s[slot+'OnMain']), {url,headers} = endpoint('/chat/completions',onUtil);
+  const hostOf = u => { try{ return new URL(u.trim()).host; }catch(e){ return u.trim(); } }, usingUtil = onUtil&&!!s.utilBaseUrl.trim(), where = usingUtil?`utility endpoint (${hostOf(s.utilBaseUrl)})`:`main endpoint (${hostOf(s.baseUrl)})`;
+  // Keys are never synced, so a second device can know the utility address without having its key. Sending the main key there only gets it refused.
+  if(usingUtil&&!s.utilApiKey.trim()&&hostOf(s.utilBaseUrl)!==hostOf(s.baseUrl)) throw new Error(`The ${where} has no API key on this device. Keys are not synced between devices: open Models, Utility endpoint, and paste that service's key there, or clear the utility address to run everything on the main endpoint.`);
   const mdl = (model||'').trim()||s.model.trim();
   const isDeepseek = /deepseek/i.test(mdl);
   const adv = (s.advPrompt||'').trim();
@@ -1282,7 +1287,7 @@ async function chat(messages,opts={}){
   if(!res.ok){
     let msg = res.status+' '+res.statusText;
     try{ const j = await res.json(); msg = (j.error&&(j.error.message||j.error))||j.message||msg; if(typeof msg!=='string') msg = JSON.stringify(msg); }catch(e){}
-    if(res.status===401) msg = 'The endpoint rejected the API key (401). '+msg;
+    if(res.status===401) msg = `The ${where} rejected its API key (401). ${msg}${usingUtil?' Check the key in Models, Utility endpoint.':''}`;
     throw new Error(msg);
   }
   const ctype = res.headers.get('content-type')||'';
@@ -2717,7 +2722,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611180922';
+const BUILD = '202611181537';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
