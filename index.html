@@ -343,26 +343,26 @@ details.card[open]>summary{margin-bottom:10px}
 .tray{cursor:pointer}
 .says{margin-top:10px;padding:8px 12px;border-radius:12px 12px 12px 3px;background:var(--s2);border:1px solid var(--line);font-size:14.5px;line-height:1.5;width:fit-content;max-width:100%}
 .says b{color:var(--ember2);font-weight:600;margin-right:6px}
-.dmhead{max-width:760px;margin:0 auto 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--line2);border-radius:10px;background:var(--s1)}
-.dmhead div{flex:1;min-width:140px}.dmhead b{display:block;font-family:var(--display);font-size:17px;color:var(--ember2)}.dmhead span{font-size:11.5px;color:var(--muted)}
+.dmhead{max-width:760px;margin:0 auto 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 2px 6px;border-bottom:1px solid var(--line)}
+.dmhead b{font:600 11px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ember)}
+.dmhead button{background:none;border:0;color:var(--muted);font-size:12.5px;padding:6px 4px;min-height:28px}.dmhead button:hover{color:var(--text)}.dmhead i{width:40px}
 .dmmsg{max-width:760px;margin:0 auto 14px;display:flex}
 .dmmsg .bub{max-width:84%;padding:10px 15px;border-radius:18px;font-size:16px;line-height:1.6}
 .dmmsg.them .bub{background:var(--s2);border:1px solid var(--line);border-bottom-left-radius:5px}
 .dmmsg.them .bub b{display:block;font:600 11px var(--ui);letter-spacing:.12em;text-transform:uppercase;color:var(--ember);margin-bottom:3px}
 .dmmsg.me{justify-content:flex-end}.dmmsg.me .bub{background:var(--s3);border-bottom-right-radius:5px}
 .dmmsg .bub p{margin:0 0 .6em}.dmmsg .bub p:last-child{margin:0}
-.aside-link{display:flex;justify-content:flex-end;margin:0 2px 6px}
-.aside-link button{background:none;border:0;color:var(--muted);font-size:12.5px;padding:4px 2px;text-decoration:underline;text-underline-offset:3px}
-.aside-link button:hover{color:var(--ember2)}
-.suggbox{margin-bottom:4px;opacity:.6;transition:opacity .2s}
-.suggbox:hover,.suggbox[open]{opacity:1}
-.suggbox>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);padding:3px 2px;min-height:22px;user-select:none}
-.suggbox>summary::-webkit-details-marker{display:none}
-.suggbox>summary::before{content:"";width:6px;height:6px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s}
-.suggbox[open]>summary::before{transform:rotate(45deg)}
-.suggbox>summary:hover{color:var(--text)}
-.suggbox .sugg{margin:4px 0 0}
-.suggbox .shopcard{margin:4px 0 0}
+.composer{position:relative}
+.quick{display:flex;align-items:center;gap:14px;margin:0 4px 4px;min-height:24px}
+.quick .suggbox>summary,.qaside{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);opacity:.7;padding:4px 2px;min-height:24px;user-select:none;background:none;border:0}
+.quick .suggbox>summary::-webkit-details-marker{display:none}
+.quick .suggbox>summary::before{content:"";width:5px;height:5px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-135deg);transition:transform .15s}
+.quick .suggbox[open]>summary::before{transform:rotate(45deg)}
+.quick .suggbox>summary:hover,.quick .suggbox[open]>summary,.qaside:hover{opacity:1;color:var(--text)}
+.qaside{margin-left:auto}
+.quick .suggbox>.sugg,.quick .suggbox>.shopcard{position:absolute;left:12px;right:12px;bottom:calc(100% - 4px);z-index:30;margin:0;max-height:46vh;overflow:auto;background:var(--s1);border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:0 -10px 30px rgba(0,0,0,.45)}
+.quick .suggbox>.sugg{flex-direction:column;flex-wrap:nowrap;gap:6px}
+.quick .suggbox>.sugg button{width:100%;border-radius:10px}
 .shopcard{background:var(--s1);border:1px solid var(--line);border-radius:10px;padding:7px 11px;margin-bottom:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .shopcard .t{flex:1;min-width:140px}.shopcard .t b{font-family:var(--display);font-size:15px;color:var(--ember2)}.shopcard .t div{font-size:11.5px;color:var(--muted)}
 .item{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:9px 10px;border-radius:10px;background:rgba(0,0,0,.22)}
@@ -1381,7 +1381,7 @@ async function dmSay(text,pulled){
 }
 function renderDm(){
   const c = cur, n = esc(dmName());
-  $('#log').innerHTML = `<div class="dmhead"><div><b>Aside with ${n}</b><span>Out of the story. Nothing said here happens in the tale, but what ${n} settles is remembered.</span></div>${(c.dmChat||[]).length?'<button class="btn ghost" data-act="dmClear">Clear chat</button>':''}<button class="btn primary" data-act="dmExit">Back to the story</button></div>`
+  $('#log').innerHTML = `<div class="dmhead" title="Out of the story. Nothing said here happens in the tale, but what ${n} settles is remembered."><button data-act="dmExit" aria-label="Back to the story">&#8592; Story</button><b>Aside with ${n}</b>${(c.dmChat||[]).length?'<button data-act="dmClear">Clear</button>':'<i></i>'}</div>`
     +(c.dmChat||[]).map(m=>m.who==='you'?`<div class="dmmsg me"><div class="bub">${md(m.text)}</div></div>`:`<div class="dmmsg them"><div class="bub"><b>${n}</b>${md(m.text)}</div></div>`).join('')
     +(busy?`<div class="dmmsg them"><div class="bub thinking"><b>${n}</b>…</div></div>`:'')
     +(lastErr?`<div class="e err"><span>${esc(lastErr)}</span><button class="btn small" data-act="settings">Models</button></div>`:'')
@@ -2062,16 +2062,20 @@ function renderComposer(){
       ${r.advantage==='none'?`<button class="btn small" data-act="pend" data-adv="adv">Advantage</button><button class="btn small" data-act="pend" data-adv="dis">Disadvantage</button>`:''}<div id="chatTray"></div></div>`;
   }
   if(denied&&!busy) h += `<div class="deny" role="status"><b>${esc(denied.title||'Not from here.')}</b><div class="hint">${esc(denied.reason)} Nothing was added to the story.</div>${denied.force?`<div class="sugg"><button data-act="force">My sheet says I can. Do it anyway</button></div>`:''}${denied.steps.length?`<div class="sugg">${denied.steps.map(x=>`<button data-act="sugg">${esc(x)}</button>`).join('')}</div>`:''}</div>`;
-  if(c.shop&&!busy&&!r) h += `<details class="suggbox" data-sec="shop" ${store.ui.shop===false?'':'open'}><summary>Shop: ${esc(c.shop.name)}</summary><div class="shopcard"><div class="t"><b>${esc(c.shop.name)}</b><div>${c.shop.keeper?esc(c.shop.keeper)+' · ':''}${c.shop.items.length} things for sale · you have ${c.character.gold} gp</div></div><button class="btn primary" data-act="shop">Open shop</button></div></details>`;
-  if(c.suggestions.length&&!busy&&!r) h += `<details class="suggbox" data-sec="sugg" ${store.ui.sugg===false?'':'open'}><summary>Suggestions (${c.suggestions.length})</summary><div class="sugg">${c.suggestions.map(s=>`<button data-act="sugg">${esc(s)}</button>`).join('')}</div></details>`;
-  if(!busy) h += `<div class="aside-link"><button type="button" data-act="dmEnter">Step aside and talk to ${esc(dmName())}</button></div>`;
+  let q = '';
+  if(c.shop&&!busy&&!r) q += `<details class="suggbox" data-sec="shop"><summary>Shop</summary><div class="shopcard"><div class="t"><b>${esc(c.shop.name)}</b><div>${c.shop.keeper?esc(c.shop.keeper)+' · ':''}${c.shop.items.length} things for sale · you have ${c.character.gold} gp</div></div><button class="btn primary" data-act="shop">Open shop</button></div></details>`;
+  if(c.suggestions.length&&!busy&&!r) q += `<details class="suggbox" data-sec="sugg"><summary>Ideas ${c.suggestions.length}</summary><div class="sugg">${c.suggestions.map(s=>`<button data-act="sugg">${esc(s)}</button>`).join('')}</div></details>`;
+  if(!busy) q += `<button type="button" class="qaside" data-act="dmEnter" title="Step aside and talk to ${esc(dmName())}">Talk to ${esc(dmName())}</button>`;
+  if(q) h += `<div class="quick">${q}</div>`;
   h += `<form class="send" id="sendForm"><textarea id="say" rows="1" maxlength="2000" placeholder="${busy?esc(dmName())+' is talking…':r?'Roll, or do something else instead…':'What do you do?'}" ${busy?'disabled':''}></textarea>
     ${busy?'':`<button type="button" class="btn" data-act="sayRoll" aria-label="Send this and roll a d20 for it" title="Send and roll a d20 for it">${DIE_SVG}</button>`}${busy?`<button type="button" class="btn" data-act="stop" aria-label="Stop the narrator" title="Stop">&#9632;</button>`:`<button class="btn primary" aria-label="Send" title="Send">&#8593;</button>`}</form>`;
   $('#composer').innerHTML = h; placeTray(); const ta = $('#say'); ta.value = keep; if(!busy&&wide()) ta.focus();
 }
+const closeQuick = () => document.querySelectorAll('.quick .suggbox[open]').forEach(x=>{ x.open = false; });
+document.addEventListener('pointerdown',ev=>{ if(!ev.target.closest('.quick')) closeQuick(); },true);
 const openSecs = new Set(['abilities']);
 const sec = (id,head,body,cls='') => `<details class="card ${cls}" data-sec="${esc(id)}" ${openSecs.has(id)?'open':''}><summary>${head}</summary>${body}</details>`;
-document.addEventListener('toggle',ev=>{ const d = ev.target; if(d.dataset&&(d.dataset.sec==='sugg'||d.dataset.sec==='shop')){ const k = d.dataset.sec; if(store.ui[k]!==d.open){ store.ui[k] = d.open; saveLocal(); } return; } if(d.dataset&&d.dataset.sec){ if(d.open) openSecs.add(d.dataset.sec); else openSecs.delete(d.dataset.sec); } },true);
+document.addEventListener('toggle',ev=>{ const d = ev.target; if(d.dataset&&(d.dataset.sec==='sugg'||d.dataset.sec==='shop')){ if(d.open) document.querySelectorAll('.quick .suggbox[open]').forEach(x=>{ if(x!==d) x.open = false; }); return; } if(d.dataset&&d.dataset.sec){ if(d.open) openSecs.add(d.dataset.sec); else openSecs.delete(d.dataset.sec); } },true);
 function renderSide(){
   const c = cur, ch = c.character, side = $('#side');
   const tabs = [['sheet','Sheet'],['pack','Pack'],['quests','Quests'],['people','People'],['notes','Notes'],['dice','Dice']];
@@ -2592,7 +2596,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611180135';
+const BUILD = '202611180257';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
