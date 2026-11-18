@@ -2225,7 +2225,7 @@ function openGame(tabName){
       :`<div class="hint" style="margin-top:-4px">${narrator().empty?'This slot has not been filled in yet. Until it is, it runs as a plain DM under the slot\'s name.':esc(narrator().voice)}</div>`}
     ${ck('dmTalk',st.dmTalk,'Table talk: the DM chips in with a short remark of their own now and then.')}
     <div class="grp2">Advanced</div>
-    <label class="f">Advanced prompt <small>(injected before everything — like janitor's system prompt)</small><textarea class="inp" name="advPrompt" maxlength="8000" style="min-height:120px" placeholder="Paste a jailbreak, character instructions, or any custom system prompt here. It goes at the very top of the context, before the DM rules.">${esc(st.advPrompt)}</textarea></label>
+    <label class="f">Advanced prompt <small>(injected before everything — like janitor's system prompt)</small><textarea class="inp" name="advPrompt" maxlength="32000" style="min-height:180px" placeholder="Paste a jailbreak, character instructions, or any custom system prompt here. It goes at the very top of the context, before the DM rules.">${esc(st.advPrompt)}</textarea></label>
     <div class="grp2">How the DM runs it</div>
     ${ck('announce',st.announce,'The DM sets the scene and tells me what to roll at the end. Off: the roll comes up straight away with no lead-in.')}
     ${ck('vulgar',st.vulgar,'Vulgar language: the DM and the people you meet swear freely and naturally (fuck, shit, bitch and so on), where it fits.')}
@@ -2305,7 +2305,7 @@ function saveGame(){
         if(on&&!on.checked) e.off = true; else delete e.off; return e; }).filter(e=>e.t&&(e.k||e.always)); }
     else { st.lore = f.lore.checked; st.loreSize = f.loreSize.value; store.lore.off = {}; allLore().forEach(b=>{ const box = f.querySelector(`[name=lb][value="${CSS.escape(b.id)}"]`); if(box&&!box.checked) store.lore.off[b.id] = 1; }); }
     store.prefsAt = Date.now(); store.loreAt = Date.now(); }
-  else if(gsTab==='game'){ Object.assign(st,{diff:f.diff.value,len:f.len.value,voice:f.voice.value,trouble:f.trouble.value,dmPick:f.dmPick.value,dmCalls:f.dmCalls.value.trim().slice(0,30),...(f.dmName?{dmName:f.dmName.value.trim().slice(0,30),dmVoice:f.dmVoice.value.trim().slice(0,1200)}:{}),dmTalk:f.dmTalk.checked,advPrompt:(f.advPrompt?f.advPrompt.value:'').trim().slice(0,8000),announce:f.announce.checked,useGuard:f.useGuard.checked,useSheet:f.useSheet.checked,useCheck:f.useCheck.checked,encumb:f.encumb.checked,vulgar:f.vulgar.checked}); store.prefsAt = Date.now();
+  else if(gsTab==='game'){ Object.assign(st,{diff:f.diff.value,len:f.len.value,voice:f.voice.value,trouble:f.trouble.value,dmPick:f.dmPick.value,dmCalls:f.dmCalls.value.trim().slice(0,30),...(f.dmName?{dmName:f.dmName.value.trim().slice(0,30),dmVoice:f.dmVoice.value.trim().slice(0,1200)}:{}),dmTalk:f.dmTalk.checked,advPrompt:(f.advPrompt?f.advPrompt.value:'').trim().slice(0,32000),announce:f.announce.checked,useGuard:f.useGuard.checked,useSheet:f.useSheet.checked,useCheck:f.useCheck.checked,encumb:f.encumb.checked,vulgar:f.vulgar.checked}); store.prefsAt = Date.now();
     if(c){ c.tone = f.tone.value; c.god = f.god.checked; refresh(c.character); } }
   else if(gsTab==='char'){ const ch = c.character; ch.name = f.name.value.trim().slice(0,40)||ch.name; ch.race = f.race.value.trim().slice(0,30)||ch.race; ch.cls = f.cls.value.trim().slice(0,30)||ch.cls; ch.background = f.background.value.trim().slice(0,40);
     ch.level = clamp(num(f.level.value)||1,1,20); ch.xp = Math.max(0,num(f.xp.value)); ch.maxHp = Math.max(1,num(f.maxHp.value)||1); ch.hp = clamp(num(f.hp.value),0,ch.maxHp); ch.gold = Math.max(0,num(f.gold.value)); ch.acMisc = clamp(num(f.acMisc.value),-10,10);
@@ -2556,7 +2556,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611180047';
+const BUILD = '202611180055';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
