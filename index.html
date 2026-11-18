@@ -375,9 +375,10 @@ details.card[open]>summary{margin-bottom:10px}
 .quick .suggbox[open]>summary::before{transform:rotate(45deg)}
 .quick .suggbox>summary:hover,.quick .suggbox[open]>summary,.qaside:hover{opacity:1;color:var(--text)}
 .qaside{margin-left:auto}
-.quick .suggbox>.sugg,.quick .suggbox>.shopcard{position:absolute;left:12px;right:12px;bottom:calc(100% - 4px);z-index:30;margin:0;max-height:46vh;overflow:auto;background:var(--s1);border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:0 -10px 30px rgba(0,0,0,.45)}
+.quick .suggbox>.sugg,.quick .suggbox>.shopcard{position:absolute;left:12px;right:12px;bottom:calc(100% - 4px);z-index:30;margin:0;max-height:46vh;overflow:auto;background:var(--solid);border:1px solid var(--line2);border-radius:14px;padding:10px;box-shadow:0 -12px 34px rgba(0,0,0,.7)}
 .quick .suggbox>.sugg{flex-direction:column;flex-wrap:nowrap;gap:6px}
-.quick .suggbox>.sugg button{width:100%;border-radius:10px}
+.quick .suggbox>.sugg button{width:100%;border-radius:10px;color:var(--text);background:var(--s2);border-color:var(--line2)}
+.quick .suggbox>.shopcard{background:var(--solid)}
 .shopcard{background:var(--s1);border:1px solid var(--line);border-radius:10px;padding:7px 11px;margin-bottom:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .shopcard .t{flex:1;min-width:140px}.shopcard .t b{font-family:var(--display);font-size:15px;color:var(--ember2)}.shopcard .t div{font-size:11.5px;color:var(--muted)}
 .item{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:9px 10px;border-radius:10px;background:rgba(0,0,0,.22)}
@@ -1362,6 +1363,8 @@ function applyState(c,s){
   if('shop' in s){ const sp = s.shop;
     if(sp&&typeof sp==='object'&&Array.isArray(sp.items)){ const its = sp.items.filter(i=>i&&typeof i.name==='string'&&i.name.trim()).slice(0,14).map(i=>{ const o = cleanItem(i); o.price = priceOf(i.price); o.stock = num(i.stock)>0?num(i.stock):num(i.qty)>0?num(i.qty):null; delete o.qty; return shelf(o); });
       const name = String(sp.name||'Shop').slice(0,60), same = c.shop&&c.shop.name===name;
+      // The narrator repeats the shop each turn it stays open; what has been sold stays sold.
+      if(same) for(const o of its){ const was = c.shop.items.find(x=>x.name.toLowerCase()===o.name.toLowerCase()); if(was&&(was.out||was.stock>0)){ o.stock = was.stock; if(was.out) o.out = true; } }
       if(its.length){ c.shop = {name,keeper:String(sp.keeper||'').slice(0,50),items:its,mult:same?c.shop.mult:1,haggled:same?c.shop.haggled:false}; if(!same) note('Shop open: '+name,'ok'); } }
     else c.shop = null; }
   if(Array.isArray(s.present)) c.present = strs(s.present).map(n=>sheetFor(n.slice(0,50))).filter(Boolean).map(x=>x.name).filter((n,i,a)=>a.indexOf(n)===i).slice(0,3);
@@ -2259,7 +2262,7 @@ const shopPrice = it => Math.max(it.price?1:0,Math.round(it.price*(cur.shop.mult
 const worth = it => it.price||(/potion/i.test(it.name)?50:/mail|armor|armour/i.test(it.name)?40:/sword|axe|bow|mace|rapier|scimitar|staff|crossbow/i.test(it.name)?12:/shield|spellbook|focus|symbol|tools|lute/i.test(it.name)?10:2);
 const sellValue = it => Math.max(1,Math.floor(worth(it)/2));
 function openShop(){
-  const c = cur, sp = c&&c.shop; if(!sp) return; const ch = c.character;
+  const c = cur, sp = c&&c.shop; if(!sp) return; const ch = c.character; sp.items.forEach(shelf);
   $('#modalRoot').innerHTML = `<div class="modal shop" data-act="shopCloseBg"><div class="box" role="dialog" aria-modal="true" aria-label="${esc(sp.name)}">
     <div class="head"><div><h3>${esc(sp.name)}</h3><div class="hint">${sp.keeper?`Kept by ${markNames(sp.keeper)}. `:''}${sp.mult<1?'Your haggling won a discount.':sp.mult>1?'Your haggling soured the keeper; prices are up.':'Prices in gold pieces.'}</div></div>
       <div class="purse">${ch.gold} gp</div></div>
@@ -2711,7 +2714,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611180323';
+const BUILD = '202611180342';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
