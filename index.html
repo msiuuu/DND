@@ -356,6 +356,8 @@ details.card[open]>summary{margin-bottom:10px}
 #log .lightbg :is(strong,em,b,i,u,s,.npc,.who,.what,p,li,blockquote,h2,h3,h4){color:inherit}#log .lightbg .dlg{color:inherit}#log .lightbg code{background:rgba(0,0,0,.1);border-color:rgba(0,0,0,.25)}
 .bub .kw{font-weight:700;color:var(--ember2);margin-right:.35em}
 .shop .item.out{opacity:.45}
+.pairbar{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:12.5px;color:var(--muted)}.pairbar b{color:var(--ember2)}
+.stat.picked,.skill.picked{border-color:var(--ember);background:color-mix(in srgb,var(--ember) 18%,transparent)}
 .says{margin-top:10px;padding:8px 12px;border-radius:12px 12px 12px 3px;background:var(--s2);border:1px solid var(--line);font-size:14.5px;line-height:1.5;width:fit-content;max-width:100%}
 .says b{color:var(--ember2);font-weight:600;margin-right:6px}
 .dmhead{max-width:760px;margin:0 auto 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 2px 6px;border-bottom:1px solid var(--line)}
@@ -1960,6 +1962,25 @@ async function freeRoll(label,bonus,adv){
   pushTray(total,text); rolling = false; closeTray(opened);
   if(!wide()||cur.pendingRoll) toast(String(total),text,{label:'Tell the narrator',text});
 }
+// Two checks thrown together: pick any two abilities, saves or skills on the sheet and both d20s roll at once, each with its own bonus.
+let pair = null;
+const pk = key => pair&&pair.first&&pair.first.key===key?' picked':'';
+function pickRoll(key,label,bonus){
+  if(!pair) return freeRoll(label,bonus);
+  if(rolling) return;
+  if(!pair.first){ pair.first = {key,label,bonus}; renderSide(); return; }
+  if(pair.first.key===key){ pair.first = null; renderSide(); return; }
+  const a = pair.first; pair = null; renderSide(); pairRoll(a,{key,label,bonus});
+}
+async function pairRoll(a,b){
+  if(rolling||!cur) return; rolling = true; const opened = await openTray();
+  let rolls; try{ rolls = (await throwDice([{n:2,sides:20}],false,true))[0]; }catch(e){ rolling = false; closeTray(opened); return; }
+  const line = (x,pick) => { const total = pick+x.bonus; return {total,text:`${x.label}: d20 rolled ${pick} ${sgn(x.bonus)} = ${total}${pick===20?' (natural 20!)':pick===1?' (natural 1)':''}. ${degree(pick,total,null)}`}; };
+  const one = line(a,rolls[0]), two = line(b,rolls[1]); flare([rolls[0],rolls[1]].find(v=>v===20||v===1)||Math.max(rolls[0],rolls[1]));
+  const text = `Two checks rolled together. ${one.text} ${two.text}`, total = `${one.total} / ${two.total}`;
+  pushTray(total,text); rolling = false; closeTray(opened);
+  if(!wide()||cur.pendingRoll||tab!=='dice') toast(total,text,{label:'Tell the narrator',text});
+}
 function pushTray(total,text){ lastTray = {total,text}; trayHist.unshift(text); trayHist = trayHist.slice(0,12);
   const r = $('#side .result'); if(!cur||tab!=='dice'||!r) return;
   r.innerHTML = `<b>${total}</b><span>${esc(text)}</span><div style="margin-top:8px"><button class="btn small" data-act="tellTray" ${busy?'disabled':''}>Tell the narrator</button></div>`;
@@ -2228,9 +2249,10 @@ function renderSide(){
       <div class="hprow"><span><b style="color:var(--text);font-size:15px">${ch.hp}</b> / ${ch.maxHp} hit points</span><span><button class="btn small" data-act="hp" data-d="-1" aria-label="Lose 1 hit point">−</button> <button class="btn small" data-act="hp" data-d="1" aria-label="Gain 1 hit point">+</button></span></div>
       <div class="xp">${ch.xp} XP${next?` · next level at ${next}`:''}</div></div>
     ${ch.conditions.length?`<div class="card"><h4>Conditions</h4><div class="tags">${ch.conditions.map(x=>`<span class="tag">${esc(x)}</span>`).join('')}</div></div>`:''}
-    ${sec('abilities','<h4>Abilities · tap to roll</h4>',`<div class="stats">${ABIL.map(a=>`<button class="stat" data-act="abil" data-a="${a}" title="Roll ${ABIL_NAME[a]}"><span>${a.toUpperCase()}</span><b>${ch.abilities[a]}</b><small>${sgn(mod(ch.abilities[a]))}</small></button>`).join('')}</div>`)}
-    ${sec('saves','<h4>Saving throws</h4>',`<div class="skills">${ABIL.map(a=>`<button class="skill ${ch.saves.includes(a)?'prof':''}" data-act="save" data-a="${a}"><span>${ABIL_NAME[a]}</span><em>${sgn(saveMod(ch,a))}</em></button>`).join('')}</div>`)}
-    ${sec('skills','<h4>Skills</h4>',`<div class="skills">${Object.keys(SKILLS).map(s=>`<button class="skill ${ch.profs.includes(s)?'prof':''}" data-act="skill" data-s="${s}"><span>${s}</span><em>${sgn(skillMod(ch,s))}</em></button>`).join('')}</div>`)}
+    <div class="pairbar"><button class="btn small${pair?' primary':''}" data-act="pairMode">${pair?'Cancel':'Roll two at once'}</button>${pair?`<span>${pair.first?`<b>${esc(pair.first.label)}</b> picked. Now tap the second.`:'Tap any two abilities, saves or skills.'}</span>`:''}</div>
+    ${sec('abilities','<h4>Abilities · tap to roll</h4>',`<div class="stats">${ABIL.map(a=>`<button class="stat${pk('abil:'+a)}" data-act="abil" data-a="${a}" title="Roll ${ABIL_NAME[a]}"><span>${a.toUpperCase()}</span><b>${ch.abilities[a]}</b><small>${sgn(mod(ch.abilities[a]))}</small></button>`).join('')}</div>`)}
+    ${sec('saves','<h4>Saving throws</h4>',`<div class="skills">${ABIL.map(a=>`<button class="skill ${ch.saves.includes(a)?'prof':''}${pk('save:'+a)}" data-act="save" data-a="${a}"><span>${ABIL_NAME[a]}</span><em>${sgn(saveMod(ch,a))}</em></button>`).join('')}</div>`)}
+    ${sec('skills','<h4>Skills</h4>',`<div class="skills">${Object.keys(SKILLS).map(s=>`<button class="skill ${ch.profs.includes(s)?'prof':''}${pk('skill:'+s)}" data-act="skill" data-s="${s}"><span>${s}</span><em>${sgn(skillMod(ch,s))}</em></button>`).join('')}</div>`)}
     ${sec('traits','<h4>Features, boons and flaws</h4>',`<dl class="kv"><dt>Features</dt><dd>${esc(ch.features||'None')}</dd>
       ${(ch.boons||[]).length?`<dt>Boons</dt><dd><ul>${ch.boons.map(x=>`<li><b>${esc(x.name)}.</b> ${esc(x.text)}</li>`).join('')}</ul></dd>`:''}
       ${(ch.flaws||[]).length?`<dt>Flaws</dt><dd><ul>${ch.flaws.map(x=>`<li><b>${esc(x.name)}.</b> ${esc(x.text)}</li>`).join('')}</ul></dd>`:''}</dl>`)}
@@ -2688,9 +2710,10 @@ document.addEventListener('click',async ev=>{
       shopTrades.push(`bought ${it.name} for ${pr} gp`); save(); openShop(); break; }
     case 'sell': { const inv = c.character.inventory, it = inv[num(el.dataset.k)]; if(!it||!c.shop) break; const v = sellValue(it);
       c.character.gold += v; it.qty -= 1; if(it.qty<=0) inv.splice(num(el.dataset.k),1); refresh(c.character); shopTrades.push(`sold ${it.name} for ${v} gp`); save(); openShop(); break; }
-    case 'abil': freeRoll(ABIL_NAME[el.dataset.a]+' check',mod(c.character.abilities[el.dataset.a])); break;
-    case 'save': freeRoll(ABIL_NAME[el.dataset.a]+' save',saveMod(c.character,el.dataset.a)); break;
-    case 'skill': freeRoll(el.dataset.s+' check',skillMod(c.character,el.dataset.s)); break;
+    case 'abil': pickRoll('abil:'+el.dataset.a,ABIL_NAME[el.dataset.a]+' check',mod(c.character.abilities[el.dataset.a])); break;
+    case 'save': pickRoll('save:'+el.dataset.a,ABIL_NAME[el.dataset.a]+' save',saveMod(c.character,el.dataset.a)); break;
+    case 'skill': pickRoll('skill:'+el.dataset.s,el.dataset.s+' check',skillMod(c.character,el.dataset.s)); break;
+    case 'pairMode': pair = pair?null:{first:null}; renderSide(); break;
     case 'die': trayRoll(num(el.dataset.d)); break;
     case 'tellTray': if(lastTray&&!busy) tellRoll(lastTray.text); break;
     case 'toastAct': { const t = $('#toast'); t.classList.remove('on'); if(t._action&&t._action.reload){ location.replace(location.pathname+'?v='+t._action.reload+location.hash); break; } if(t._action&&cur&&!busy) tellRoll(t._action.text); break; }
@@ -2777,7 +2800,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611190546';
+const BUILD = '202611190616';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
