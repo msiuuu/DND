@@ -1127,7 +1127,10 @@ function sellFromMyShop(c,list,note){ const sp = c.myShop, ch = c.character; if(
 function isOwnShop(c,name,keeper){ const k = String(keeper||'').trim().toLowerCase(), n = String(name||'').trim().toLowerCase(), ch = c.character||{}, me = [ch.name,(store.settings.dmCalls||''),'you','the player','player','yourself','me'].map(x=>String(x||'').trim().toLowerCase()).filter(Boolean);
   return (!!k&&me.some(m=>k===m||(m.length>=3&&k.split(/[\s,]+/).includes(m))||(k.length>=3&&m.split(/\s+/).includes(k))))||(!!c.myShop&&!!n&&n===String(c.myShop.name||'').trim().toLowerCase()); }
 function adoptOwnShop(c,name,items){ if(c.myShop) return false; c.myShop = {name:String(name||'').slice(0,60)||`${c.character.name}'s shop`,about:'',open:true,items:items.slice(0,20).map(i=>({name:i.name,price:i.price,stock:null,desc:String(i.desc||'').slice(0,160)})),sales:[],earned:0}; return true; }
-function upgrade(c){ const ch = c.character; mergeNpcs(c); if(c.shop&&ch&&isOwnShop(c,c.shop.name,c.shop.keeper)){ if(Array.isArray(c.shop.items)) adoptOwnShop(c,c.shop.name,c.shop.items); c.shop = null; } if(c.shop&&Array.isArray(c.shop.items)) c.shop.items.forEach(shelf);
+function upgrade(c){ const ch = c.character;
+  // Clear out what an earlier version let through: "kid" as someone's nickname, or as an empty sheet of its own.
+  for(const [k,n] of Object.entries(c.npcs||{})){ if(n.aka) n.aka = n.aka.filter(a=>!isAddress(a)); if(isAddress(n.name)&&!n.about&&!num(n.bond)&&!(n.memory||[]).length&&!(n.traits||[]).length){ delete c.npcs[k]; c.present = (c.present||[]).filter(x=>x!==k); } }
+  mergeNpcs(c); if(c.shop&&ch&&isOwnShop(c,c.shop.name,c.shop.keeper)){ if(Array.isArray(c.shop.items)) adoptOwnShop(c,c.shop.name,c.shop.items); c.shop = null; } if(c.shop&&Array.isArray(c.shop.items)) c.shop.items.forEach(shelf);
   for(const k of Object.keys(c.npcs||{})){ const n = c.npcs[k]; if(!okName(n.name)){ delete c.npcs[k]; c.present = (c.present||[]).filter(x=>x!==k); } else if(n.aka) n.aka = n.aka.filter(okName); } if(ch.inv2) return; const was = ch.ac; ch.acMisc = 0; autoEquip(ch); ch.acMisc = was-ch.ac; ch.inv2 = true; refresh(ch); }
 // What using an item does when the app can settle it without the narrator.
 const KNOWN_USE = [[/superior (healing|potion)|potion of superior healing/i,{heal:'8d4+8'}],[/greater (healing|potion)|potion of greater healing/i,{heal:'4d4+4'}],[/healing potion|potion of healing|healing draught|healing salve/i,{heal:'2d4+2'}],[/healer'?s kit|bandage/i,{heal:'1d4'}]];
@@ -1135,9 +1138,14 @@ const useOf = it => it.use||(KNOWN_USE.find(([re])=>re.test(it.name))||[])[1]||n
 // Other names a person goes by. A name already belonging to someone else is left alone.
 // One person, one sheet. A name is matched to a sheet by its full name, by an "also called", or, when exactly one known person fits,
 // by a shared proper word: "Tam" is "Old Tam", and "Marta Quill" is the "Marta" already met.
+// Things anyone might be called in passing. On their own they never become a person, and never become somebody's nickname:
+// "hey kid" is just talk, whoever it is said to.
+const ADDRESS = new Set('kid kiddo child boy girl lad lass man woman son daughter boss chief sir madam maam miss missus mister lady lord master mistress friend stranger buddy pal mate dude bro sis brother sister love lover dear darling honey sweetheart sweetie babe baby beautiful handsome gorgeous cutie pet doll angel princess prince hero traveler traveller adventurer you one someone somebody anyone nobody everyone mom mum mama mother dad papa father daddy mommy grandma grandpa uncle aunt cousin wife husband girlfriend boyfriend slut whore bitch bastard idiot fool brat runt'.split(' '));
+const isAddress = n => { const w = String(n||'').trim().toLowerCase().replace(/[^a-z\s'-]/g,'').split(/\s+/).filter(x=>x&&!/^(the|a|an|my|our|your|little|old|young|big|hey|oi|dear|poor|good|sweet|pretty|dirty|stupid)$/.test(x)); return !w.length||w.every(x=>ADDRESS.has(x)); };
 const nameWords = n => String(n||'').toLowerCase().split(/\s+/).filter(w=>w.length>=3&&!NAME_STOP.has(w)&&!COMMON.has(w));
 function whoIs(c,name){ const all = Object.values(c.npcs||{}), k = String(name||'').trim().toLowerCase().replace(/\s+/g,' '); if(!k) return null;
   const exact = all.find(n=>n.name.toLowerCase()===k)||all.find(n=>(n.aka||[]).some(a=>a.toLowerCase()===k)); if(exact) return exact;
+  if(isAddress(k)) return null;
   const mine = nameWords(k); if(!mine.length) return null;
   const hits = all.filter(n=>{ const theirs = [n.name,...(n.aka||[])].flatMap(nameWords); return mine.length===1?theirs.includes(mine[0]):nameWords(n.name).length===1&&mine.includes(nameWords(n.name)[0]); });
   return hits.length===1?hits[0]:null; }
@@ -1153,7 +1161,7 @@ function mergeNpcs(c){ const npcs = c.npcs||{}; let did = false;
   return did; }
 function addAka(c,sh,list){ sh.aka ||= []; const taken = new Set(Object.values(c.npcs||{}).flatMap(n=>n===sh?[]:[n.name,...(n.aka||[])]).map(x=>x.toLowerCase()));
   for(const a of (Array.isArray(list)?list:String(list||'').split(','))){ const v = String(a||'').trim().slice(0,50), k = v.toLowerCase();
-    if(v.length>=2&&okName(v)&&k!==sh.name.toLowerCase()&&!taken.has(k)&&!sh.aka.some(x=>x.toLowerCase()===k)&&sh.aka.length<6&&k!==c.character.name.toLowerCase()) sh.aka.push(v); } }
+    if(v.length>=2&&okName(v)&&!isAddress(v)&&k!==sh.name.toLowerCase()&&!taken.has(k)&&!sh.aka.some(x=>x.toLowerCase()===k)&&sh.aka.length<6&&k!==c.character.name.toLowerCase()) sh.aka.push(v); } }
 const MOODS = ['forest','night','fire','hearth'];
 // A red flash and a banner when a foe turns up or a fight breaks out.
 function alarm(text){ const a = $('#alarm'); if(!a) return; a.innerHTML = `<b>${esc(text)}</b>`; a.classList.remove('on'); void a.offsetWidth; a.classList.add('on'); }
@@ -1403,7 +1411,7 @@ function applyState(c,s){
   refresh(ch);
   c.npcs ||= {}; c.present ||= [];
   const sheetFor = name => { const known = whoIs(c,name); if(known) return known;
-    if(Object.keys(c.npcs).length>=40||!okName(name)) return null; return c.npcs[name] = {name,about:'',traits:[],wants:'',attitude:'neutral'}; };
+    if(Object.keys(c.npcs).length>=40||!okName(name)||isAddress(name)) return null; return c.npcs[name] = {name,about:'',traits:[],wants:'',attitude:'neutral'}; };
   for(const n of (Array.isArray(s.npcs)?s.npcs:[])){ if(!n||typeof n.name!=='string'||!n.name.trim()) continue; const isNew = !whoIs(c,n.name);
     const sh = sheetFor(n.name.trim().slice(0,50)); if(!sh) continue; if(typeof n.about==='string'&&n.about.trim()) sh.about = n.about.trim().slice(0,240);
     if(STANCES.includes(n.stance)) sh.stance = n.stance;
@@ -1646,7 +1654,7 @@ async function spotNames(c,text){
   c.npcs ||= {}; let changed = false; const pc = c.character.name.toLowerCase();
   const find = name => whoIs(c,name);
   for(const line of out.split('\n')){ const f = line.replace(/^[\s\-*\d.)]+/,'').split('|').map(x=>x.trim()); const name = (f[0]||'').replace(/^["']|["']$/g,'').slice(0,50);
-    if(f.length<2||name.length<2||!okName(name)||/^none$/i.test(name)||name.toLowerCase()===pc||pc.split(/\s+/).includes(name.toLowerCase())) continue;
+    if(f.length<2||name.length<2||!okName(name)||isAddress(name)||/^none$/i.test(name)||name.toLowerCase()===pc||pc.split(/\s+/).includes(name.toLowerCase())) continue;
     let sh = find(name); const before = sh?(sh.aka||[]).length:0;
     if(!sh){ if(Object.keys(c.npcs).length>=40) continue; sh = c.npcs[name] = {name,about:(f[1]||'').slice(0,240),traits:[],skills:[],wants:'',attitude:'neutral',memory:[]}; if(STANCES.includes((f[2]||'').toLowerCase())) sh.stance = f[2].toLowerCase(); changed = true; }
     else if(!sh.about&&f[1]) { sh.about = f[1].slice(0,240); changed = true; }
@@ -2818,7 +2826,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611190942';
+const BUILD = '202611190945';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
