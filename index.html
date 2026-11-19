@@ -369,12 +369,15 @@ details.card[open]>summary{margin-bottom:10px}
 .dmmsg .bub p{margin:0 0 .6em}.dmmsg .bub p:last-child{margin:0}
 .composer{position:relative}
 .quick{display:flex;align-items:center;gap:14px;margin:0 4px 4px;min-height:24px}
-.quick .suggbox>summary,.qaside{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);opacity:.7;padding:4px 2px;min-height:24px;user-select:none;background:none;border:0}
+.quick .suggbox>summary,.qaside,.qbtn{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);opacity:.7;padding:4px 2px;min-height:24px;user-select:none;background:none;border:0}
 .quick .suggbox>summary::-webkit-details-marker{display:none}
 .quick .suggbox>summary::before{content:"";width:5px;height:5px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-135deg);transition:transform .15s}
 .quick .suggbox[open]>summary::before{transform:rotate(45deg)}
 .quick .suggbox>summary:hover,.quick .suggbox[open]>summary,.qaside:hover{opacity:1;color:var(--text)}
-.qaside{margin-left:auto}
+.qaside{margin-left:auto}.qbtn:hover{opacity:1;color:var(--text)}
+.msrow{display:grid;grid-template-columns:1fr 70px 62px 38px;gap:6px;margin-bottom:10px}.msrow .wide{grid-column:1/-1}.msrow .btn{padding:0;min-width:0}
+.mshead{display:grid;grid-template-columns:1fr 70px 62px 38px;gap:6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.msled{font-size:13px;color:var(--muted);line-height:1.6}.msled b{color:var(--ember2)}
 .quick .suggbox>.sugg,.quick .suggbox>.shopcard{position:absolute;left:12px;right:12px;bottom:calc(100% - 4px);z-index:30;margin:0;max-height:46vh;overflow:auto;background:var(--solid);border:1px solid var(--line2);border-radius:14px;padding:10px;box-shadow:0 -12px 34px rgba(0,0,0,.7)}
 .quick .suggbox>.sugg{flex-direction:column;flex-wrap:nowrap;gap:6px}
 .quick .suggbox>.sugg button{width:100%;border-radius:10px;color:var(--text);background:var(--s2);border-color:var(--line2)}
@@ -1103,6 +1106,20 @@ function priceOf(v){ if(typeof v==='number') return Math.max(0,Math.round(v)); c
 function shelf(o){ if(!(o.price>0)) o.price = Math.max(1,worth({name:o.name}));
   if(!o.out&&!(o.stock>0)){ let h = 0; for(const ch of o.name) h = (h*31+ch.charCodeAt(0))>>>0; o.stock = /sword|axe|bow|mace|rapier|staff|mail|armou?r|shield|ring|amulet|wand|book/i.test(o.name)?1:2+h%4; }
   return o; }
+// The player's own business. The narrator sees the price list and reports each completed sale; the app takes the money.
+const myShopList = sp => sp.items.map(i=>`- ${i.name}: ${i.price} gp${i.stock!=null?` (${i.stock} left)`:''}${i.desc?' — '+i.desc:''}`).join('\n');
+function myShopText(c){ const sp = c.myShop; if(!sp||!sp.items.length) return '';
+  return `\n\n# The player's own business: ${sp.name||'their shop'}\n${sp.about?sp.about+'\n':''}${sp.open===false?'It is closed at the moment; nobody can buy until the player opens it.':'It is open.'} Price list, set by the player:\n${myShopList(sp)}\nPeople in the world can buy from it like from any shop. Each decides for themselves, by their own character, need and purse: they may pay the listed price, haggle, ask for something not on the list, or walk away. Nobody pays for what they did not get, and nobody buys just to please the player. When a sale is actually completed in the scene, add it to the state block as "sales":[{"item":"the exact name from the list","buyer":"who paid","qty":1}] and do NOT put that money in gold_delta: the app adds it to the player's purse. If a different price was agreed, add "price" with the gold paid for each. Something sold that is not on the list needs "price" too.`; }
+function sellFromMyShop(c,list,note){ const sp = c.myShop, ch = c.character; if(!sp||!Array.isArray(list)||sp.open===false) return;
+  for(const x of list.slice(0,6)){ if(!x||typeof x.item!=='string'||!x.item.trim()) continue;
+    const nm = x.item.trim().toLowerCase(), it = sp.items.find(i=>i.name.toLowerCase()===nm)||sp.items.find(i=>nm.includes(i.name.toLowerCase())||i.name.toLowerCase().includes(nm));
+    let qty = clamp(num(x.qty)||1,1,20); if(it&&it.stock!=null){ qty = Math.min(qty,it.stock); if(qty<=0) continue; }
+    const asked = x.price!=null&&x.price!==''?priceOf(x.price):null; let each = asked!=null?asked:(it?it.price:0);
+    each = it?Math.min(each,Math.max(it.price*3,it.price+50)):Math.min(each,500); if(!it&&!(each>0)) continue;
+    const total = each*qty, buyer = String(x.buyer||'Someone').trim().slice(0,50)||'Someone', name = it?it.name:x.item.trim().slice(0,60);
+    ch.gold += total; if(it&&it.stock!=null) it.stock -= qty;
+    sp.earned = (sp.earned||0)+total; sp.sales = [{buyer,item:name,qty,total},...(sp.sales||[])].slice(0,30);
+    note(`+${total} gp: ${buyer} bought ${qty>1?qty+' × ':''}${name}`,'ok'); } }
 function upgrade(c){ const ch = c.character; if(c.shop&&Array.isArray(c.shop.items)) c.shop.items.forEach(shelf);
   for(const k of Object.keys(c.npcs||{})){ const n = c.npcs[k]; if(!okName(n.name)){ delete c.npcs[k]; c.present = (c.present||[]).filter(x=>x!==k); } else if(n.aka) n.aka = n.aka.filter(okName); } if(ch.inv2) return; const was = ch.ac; ch.acMisc = 0; autoEquip(ch); ch.acMisc = was-ch.ac; ch.inv2 = true; refresh(ch); }
 // What using an item does when the app can settle it without the narrator.
@@ -1153,7 +1170,7 @@ function newCharacter(d){
 }
 function skillMod(ch,skill){ return mod(ch.abilities[SKILLS[skill]])+(ch.profs.includes(skill)?prof(ch.level):0); }
 function saveMod(ch,a){ return mod(ch.abilities[a])+(ch.saves.includes(a)?prof(ch.level):0); }
-function snapshot(c){ return JSON.stringify({character:c.character,quests:c.quests,location:c.location,npcs:c.npcs||{},present:c.present||[],mood:c.mood,shop:c.shop||null,facts:c.facts||[]}); }
+function snapshot(c){ return JSON.stringify({character:c.character,quests:c.quests,location:c.location,npcs:c.npcs||{},present:c.present||[],mood:c.mood,shop:c.shop||null,myShop:c.myShop||null,facts:c.facts||[]}); }
 
 /* ============ the narrator ============ */
 const RULES = `You are the Dungeon Master for a solo tabletop adventure that uses D&D 5th Edition style rules for dice and character sheets. One player controls one character. You run the world and everyone else in it.
@@ -1227,6 +1244,7 @@ function buildMessages(c,intents){
   const lore = loreFor(c); c._lore = lore.map(x=>x.n||x.t.slice(0,30));
   const st = store.settings, sys = `${RULES}\n\n# You, the DM\n${dmSelf()}\n\n${CALI_BOOT}\nThe narration itself stays clean second-person story with none of your own commentary in it.${st.dmTalk?' Your own voice goes in one place only: you may add "dm_says" to the state block, a single remark of twenty words at most, spoken as yourself across the table to the player. Use it when something earns a remark: a wild roll, a bold or daft move, a good line. Leave it out most of the time, and never use it to explain the rules or repeat the narration.':''}\n\n# Table settings (these override the general guidance above)\nDifficulty: ${DIFFS[st.diff]||DIFFS.standard}\nWriting: ${VOICES[st.voice]||VOICES.plain}\nHow much goes wrong: ${TROUBLES[st.trouble]||TROUBLES.calm}\nLength: ${LENS[st.len]||LENS.adaptive}${st.vulgar?'\n'+VULGAR:''}${['explicit','unfiltered','spicy'].includes(c.tone)?'\n\n'+NSFW_GUIDE:''}${c.mood==='fire'?'\nPacing cue: the last scene was a fight or immediate danger. Unless it has clearly ended, keep to combat pacing.':''}${c.god?'\nGod mode is ON. The player is above the rules of the table: they may declare facts, skip time, move anywhere, and rewrite events. Accept whatever they say as true and continue the story from it without objection.':''}\n\n# Campaign\nTone: ${TONES[c.tone]||TONES.classic}\nPremise: ${c.premise}\n\n# The player's character (current, authoritative)\n${sheetText(c)}`
     +(c.summary?`\n\n# Story so far\n${c.summary}`:'')
+    +myShopText(c)
     +((c.facts||[]).length?`\n\n# Established facts\nThese were settled when the player asked the DM. They are true in this tale; never contradict them.\n${c.facts.map(x=>'- '+x).join('\n')}`:'')
     +((c.present||[]).some(n=>c.npcs&&c.npcs[n])?`\n\n# People in the scene\nEach of these characters is played by its own model. Keep them true to their sheets.\n${(c.present||[]).filter(n=>c.npcs[n]).map(n=>npcLine(c.npcs[n])).join('\n')}`:'')
     +(lore.length?`\n\n# Reference from the table's lorebooks\nThese entries were pulled because they bear on the scene. Use them as the facts of the rules and the world when they are relevant; never recite or mention them.\n${lore.map(x=>'- '+x.t).join('\n')}`:'')
@@ -1339,6 +1357,7 @@ function applyState(c,s){
   if(typeof s.encounter==='string'&&s.encounter.trim()){ c._alarm = s.encounter.trim().slice(0,60); note('Encounter: '+c._alarm,'bad'); } else if(c.mood==='fire'&&wasMood!=='fire') c._alarm = 'A fight breaks out';
   if(typeof s.location==='string'&&s.location.trim()) c.location = s.location.trim().slice(0,80);
   const hp = num(s.hp_delta); if(hp){ const b = ch.hp; ch.hp = clamp(ch.hp+hp,0,ch.maxHp); if(ch.hp!==b) note(`${sgn(ch.hp-b)} HP`,hp<0?'bad':'ok'); }
+  sellFromMyShop(c,s.sales,note);
   const g = num(s.gold_delta); if(g){ const b = ch.gold; ch.gold = Math.max(0,ch.gold+g); if(ch.gold!==b) note(`${sgn(ch.gold-b)} gold`,g<0?'':'ok'); }
   const ac = num(s.ac); if(ac>=5&&ac<=30&&ac!==ch.ac){ ch.acMisc = (ch.acMisc||0)+ac-ch.ac; ch.ac = ac; note('AC '+ac); }
   const items = v => (Array.isArray(v)?v:[]).map(i=>typeof i==='string'?{name:i,qty:1}:i).filter(i=>i&&typeof i.name==='string'&&i.name.trim()).map(cleanItem);
@@ -1533,7 +1552,7 @@ async function castBeat(c,signal){
   const happened = `${dm?clip(dm.text,900):''}\n${tail.map(e=>e.role==='player'?`${ch.name} (the player character): ${e.text}`:`Dice: ${e.text}`).join('\n')}`;
   const out = await Promise.all(names.map(async name=>{ const n = c.npcs[name];
     try{
-      const t = await chat([{role:'system',content:ACTOR},{role:'user',content:`Your sheet:\nName: ${n.name}\nAbout: ${n.about||'not yet described; define yourself through how you act'}\nTraits: ${(n.traits||[]).join(', ')||'none noted yet'}\nSkills: ${(n.skills||[]).join(', ')||'none noted yet'}\nWants: ${n.wants||'unclear'}\nWhat you remember of the player character: ${(n.memory||[]).map(m=>m.t).join(' / ')||'nothing yet; you have only just met'}\nFeeling toward the player character: ${n.attitude||'neutral'}${store.settings.vulgar?'\nYou swear like a real person of your kind would: fuck, shit, bitch and the rest, wherever it comes naturally to you.':''}${['explicit','unfiltered','spicy'].includes(c.tone)?'\nSexual content is part of this story. You can proposition, seduce, grope, assault, rape, or be tender — whatever your character would do. VOCABULARY: cock/dick (not "member"), pussy/cunt (not "entrance" or "core"), tits (not "mounds"), cum (not "essence" or "release"), fuck/rape (not "claim" or "take"), wet/dripping (not "aroused"), breed/impregnate (not "fill with life"). The soft version is always wrong. No fading to black. No disclaimers.':''}\n\nThe player character: ${ch.name}, a ${ch.race} ${ch.cls}. ${ch.appearance||''}\nOthers present: ${names.filter(x=>x!==name).join(', ')||'no one else'}\n\nWhat just happened:\n${happened}${postHistory(c)?'\n\n'+postHistory(c):''}`}],
+      const t = await chat([{role:'system',content:ACTOR},{role:'user',content:`${c.myShop&&c.myShop.items.length&&c.myShop.open!==false?`The player character runs a business here, ${c.myShop.name||'their shop'}. Price list:\n${myShopList(c.myShop)}\nIf you want something from it and would really pay for it, say so in your intent; if you would not, do not.\n\n`:''}Your sheet:\nName: ${n.name}\nAbout: ${n.about||'not yet described; define yourself through how you act'}\nTraits: ${(n.traits||[]).join(', ')||'none noted yet'}\nSkills: ${(n.skills||[]).join(', ')||'none noted yet'}\nWants: ${n.wants||'unclear'}\nWhat you remember of the player character: ${(n.memory||[]).map(m=>m.t).join(' / ')||'nothing yet; you have only just met'}\nFeeling toward the player character: ${n.attitude||'neutral'}${store.settings.vulgar?'\nYou swear like a real person of your kind would: fuck, shit, bitch and the rest, wherever it comes naturally to you.':''}${['explicit','unfiltered','spicy'].includes(c.tone)?'\nSexual content is part of this story. You can proposition, seduce, grope, assault, rape, or be tender — whatever your character would do. VOCABULARY: cock/dick (not "member"), pussy/cunt (not "entrance" or "core"), tits (not "mounds"), cum (not "essence" or "release"), fuck/rape (not "claim" or "take"), wet/dripping (not "aroused"), breed/impregnate (not "fill with life"). The soft version is always wrong. No fading to black. No disclaimers.':''}\n\nThe player character: ${ch.name}, a ${ch.race} ${ch.cls}. ${ch.appearance||''}\nOthers present: ${names.filter(x=>x!==name).join(', ')||'no one else'}\n\nWhat just happened:\n${happened}${postHistory(c)?'\n\n'+postHistory(c):''}`}],
         {stream:false,maxTokens:1500,temperature:0.8,model:store.settings.charModel,slot:'char',quick:true,signal});
       const j = jsonIn(t); if(!j||typeof j.intent!=='string'||!j.intent.trim()) return null;
       if(typeof j.attitude==='string'&&j.attitude.trim()) n.attitude = j.attitude.trim().slice(0,40);
@@ -2179,6 +2198,7 @@ function renderComposer(){
   let q = '';
   if(c.shop&&!busy&&!r) q += `<details class="suggbox" data-sec="shop"><summary>Shop</summary><div class="shopcard"><div class="t"><b>${esc(c.shop.name)}</b><div>${c.shop.keeper?esc(c.shop.keeper)+' · ':''}${c.shop.items.filter(x=>!x.out).length} things for sale · you have ${c.character.gold} gp</div></div><button class="btn primary" data-act="shop">Open shop</button></div></details>`;
   if(c.suggestions.length&&!busy&&!r) q += `<details class="suggbox" data-sec="sugg"><summary>Ideas ${c.suggestions.length}</summary><div class="sugg">${c.suggestions.map(s=>`<button data-act="sugg">${esc(s)}</button>`).join('')}</div></details>`;
+  if(c.myShop&&!busy&&!r) q += `<button type="button" class="qbtn" data-act="myShop" title="Your own shop: price list and takings">My shop</button>`;
   if(!busy) q += `<button type="button" class="qaside" data-act="dmEnter" title="Step aside and talk to ${esc(dmName())}">Talk to ${esc(dmName())}</button>`;
   if(q) h += `<div class="quick">${q}</div>`;
   h += `<form class="send" id="sendForm"><textarea id="say" rows="1" maxlength="2000" placeholder="${busy?esc(dmName())+' is talking…':r?'Roll, or do something else instead…':'What do you do?'}" ${busy?'disabled':''}></textarea>
@@ -2228,6 +2248,7 @@ function renderSide(){
       ${ch.inventory.length?`<div class="items">${list}</div>`:'<div class="hint">Your pack is empty.</div>'}
       <div class="actions" style="justify-content:flex-start;margin-top:12px"><button class="btn small" data-act="editItem" data-k="-1">Add an item</button></div>
       <div class="hint" style="margin-top:10px">Use settles healing items on the spot with a real roll. Anything else is handed to the narrator as your action.</div></div>`;
+    h += `<div class="card"><h4>Your shop</h4>${c.myShop?`<div class="hint"><b>${esc(c.myShop.name||'Your shop')}</b> · ${c.myShop.items.length} on the price list · ${c.myShop.earned||0} gp taken so far${c.myShop.open===false?' · closed':''}</div>`:'<div class="hint">Run a business of your own: goods or services at prices you set. People in the story can buy from it.</div>'}<button class="btn small" data-act="myShop" style="margin-top:8px">${c.myShop?'Edit shop':'Set up a shop'}</button></div>`;
   }else if(tab==='people'){
     const all = Object.values(c.npcs||{}), here = c.present||[]; all.sort((a,b)=>here.includes(b.name)-here.includes(a.name));
     const person = n => { const st = stanceOf(n), id = 'npc-'+n.name.replace(/\W+/g,'-'), mem = (n.memory||[]).slice().reverse();
@@ -2525,6 +2546,28 @@ function readSettings(){ const f = $('#setForm'); if(!f) return; Object.assign(s
   const tok = f.memToken.value.trim(); if(tok!==store.settings.memToken) Object.assign(store.settings,{memToken:tok,gistId:'',lastSync:0});
   if(!/^https?:\/\/[^\s/]+/i.test(store.settings.baseUrl)){ store.settings.baseUrl = DEFAULTS.baseUrl; f.baseUrl.value = DEFAULTS.baseUrl; toast('!','The base URL has to be a web address, so it was reset to OpenRouter. Model names go in the Model box.'); } }
 function closeModal(){ $('#modalRoot').innerHTML = ''; }
+let msDraft = null;
+function openMyShop(){
+  const c = cur; if(!c) return; msDraft ||= JSON.parse(JSON.stringify(c.myShop||{name:'',about:'',open:true,items:[{name:'',price:0,stock:null,desc:''}],sales:[],earned:0})); const d = msDraft;
+  $('#modalRoot').innerHTML = `<div class="modal"><div class="box" role="dialog" aria-modal="true" aria-label="Your shop"><form id="msForm" class="stack">
+    <h3>Your shop</h3><div class="hint">A business of your own: goods or services, at prices you set. People in the story can buy from it, and what they pay goes into your purse.</div>
+    <div class="grid2"><label class="f">Name<input class="inp" name="name" value="${esc(d.name)}" maxlength="60" placeholder="The Quiet Hands Parlour"></label>
+      <label class="f">What it is<input class="inp" name="about" value="${esc(d.about||'')}" maxlength="200" placeholder="A massage parlour above the bakery"></label></div>
+    <label class="check"><input type="checkbox" name="open" ${d.open===false?'':'checked'}><span>Open for business</span></label>
+    <div class="grp2">Price list</div>
+    <div class="mshead"><span>What you sell</span><span>Price gp</span><span>Left</span><span></span></div>
+    ${d.items.map((it,k)=>`<div class="msrow"><input class="inp" data-ms="name" value="${esc(it.name)}" maxlength="60" placeholder="Massage, one hour" aria-label="What you sell"><input class="inp" data-ms="price" value="${it.price||''}" inputmode="numeric" placeholder="10" aria-label="Price in gold"><input class="inp" data-ms="stock" value="${it.stock??''}" inputmode="numeric" placeholder="∞" aria-label="How many left"><button type="button" class="btn small ghost" data-act="msDel" data-k="${k}" aria-label="Remove this line">&#10005;</button><input class="inp wide" data-ms="desc" value="${esc(it.desc||'')}" maxlength="160" placeholder="What the customer gets (optional)" aria-label="Description"></div>`).join('')}
+    <div class="hint">Leave "Left" empty for a service, or anything that never runs out.</div>
+    <div class="actions" style="justify-content:flex-start"><button type="button" class="btn small" data-act="msAdd">+ Add a line</button></div>
+    ${(d.sales||[]).length?`<div class="grp2">Takings: ${d.earned||0} gp</div><div class="msled">${d.sales.slice(0,8).map(x=>`<div><b>+${x.total} gp</b> · ${esc(x.buyer)} · ${x.qty>1?x.qty+' × ':''}${esc(x.item)}</div>`).join('')}</div>`:''}
+    <div class="actions" style="margin-top:14px">${c.myShop?'<button type="button" class="btn ghost" data-act="msGone">Shut it down</button>':''}<button type="button" class="btn" data-act="msCancel">Cancel</button><button class="btn primary">Save</button></div></form></div></div>`;
+}
+function readMyShop(){ const f = $('#msForm'); if(!f||!msDraft) return; msDraft.name = f.name.value.trim().slice(0,60); msDraft.about = f.about.value.trim().slice(0,200); msDraft.open = f.open.checked;
+  msDraft.items = [...f.querySelectorAll('.msrow')].map(r=>{ const v = k => r.querySelector(`[data-ms=${k}]`).value.trim(), st = num(v('stock')); return {name:v('name').slice(0,60),price:Math.min(100000,priceOf(v('price'))),stock:v('stock')!==''&&st>=0?Math.min(999,Math.round(st)):null,desc:v('desc').slice(0,160)}; }); }
+function saveMyShop(){ const c = cur; if(!c||!msDraft) return; readMyShop(); const items = msDraft.items.filter(i=>i.name).slice(0,20);
+  if(!items.length){ toast('Nothing to sell yet','Add at least one line with a name and a price.'); return; }
+  c.myShop = {name:msDraft.name||`${c.character.name}'s shop`,about:msDraft.about,open:msDraft.open,items,sales:msDraft.sales||[],earned:msDraft.earned||0};
+  rebase(c,['myShop']); c.updated = Date.now(); save(); msDraft = null; closeModal(); renderGame(); toast('Shop saved',`${c.myShop.name} is ${c.myShop.open?'open':'closed'}, with ${items.length} on the price list.`); }
 
 /* ============ events ============ */
 const FONT_IDS = ['default','roman','medieval','elegant','literary','scifi','mono'];
@@ -2626,6 +2669,11 @@ document.addEventListener('click',async ev=>{
     case 'gsDelWho': if(c.npcs[gsWho]){ delete c.npcs[gsWho]; c.present = (c.present||[]).filter(x=>x!==gsWho); gsWho = ''; save(); renderGame(); openGame('people'); } break;
     case 'npc': { tab = 'people'; setDrawer($('#rightD'),true); if(!wide()) setDrawer($('#leftD'),false); openSecs.add('npc-'+el.dataset.n.replace(/\W+/g,'-')); renderSide(); document.getElementById('npc-'+el.dataset.n.replace(/\W+/g,'-'))?.scrollIntoView({block:'start'}); break; }
     case 'shop': shopTrades = shopTrades||[]; openShop(); break;
+    case 'myShop': if(!c) break; msDraft = null; closeQuick(); openMyShop(); break;
+    case 'msAdd': readMyShop(); if(msDraft&&msDraft.items.length<20) msDraft.items.push({name:'',price:0,stock:null,desc:''}); openMyShop(); { const rows = document.querySelectorAll('.msrow [data-ms=name]'); rows[rows.length-1]?.focus(); } break;
+    case 'msDel': readMyShop(); if(msDraft){ msDraft.items.splice(num(el.dataset.k),1); if(!msDraft.items.length) msDraft.items.push({name:'',price:0,stock:null,desc:''}); } openMyShop(); break;
+    case 'msCancel': msDraft = null; closeModal(); break;
+    case 'msGone': if(c&&c.myShop&&confirm(`Shut ${c.myShop.name} down for good? The price list and the record of takings are removed. Your gold stays.`)){ c.myShop = null; rebase(c,['myShop']); c.updated = Date.now(); save(); msDraft = null; closeModal(); renderGame(); } break;
     case 'shopClose': closeShop(); break;
     case 'shopCloseBg': if(ev.target===el) closeShop(); break;
     case 'haggle': haggle(); break;
@@ -2676,6 +2724,7 @@ document.addEventListener('submit',ev=>{
   if(f.id==='sendForm'){ const t = $('#say').value.trim(); if(t&&!busy){ $('#say').value = ''; if(cur&&cur.inDm) dmSay(t); else playerAct(t); } }
   else if(f.id==='itemForm'){ if(f.name.value.trim()) saveItem(f); }
   else if(f.id==='gsForm'){ saveGame(); closeModal(); }
+  else if(f.id==='msForm'){ saveMyShop(); }
   else if(f.id==='setForm'){ readSettings(); store.prefsAt = Date.now(); save(); closeModal(); if(!cur) renderHome(); else if(!cur.log.length&&!busy) takeTurn(null); }
   else if(f.id==='createForm'){
     const d = draft; if(!d||forging) return;
@@ -2722,7 +2771,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611181537';
+const BUILD = '202611190542';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
