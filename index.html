@@ -2083,30 +2083,158 @@ let draft = null, forging = false;
 /* ============ worlds ============ */
 // A world is made on its own, apart from any character: a name, a premise, where it opens, what is true there, its tone and its typeface.
 // Worlds live on the home page and can be edited there; a tale keeps its own copy, edited from Settings, World.
-const blankWorld = () => ({name:'',text:'',start:'',truths:'',tone:'classic',font:'auto',keep:true});
+const W_GENRES = ['Fantasy','Dark fantasy','Sword and sorcery','Fairytale','Historical','Steampunk','Western','Modern day','Urban fantasy','Horror','Post-apocalypse','Cyberpunk','Science fiction','Space opera'];
+const W_TECH = ['Stone and bronze','Iron age','Medieval','Renaissance','Age of sail','Industrial','Modern','Near future','Far future'];
+const W_MAGIC = ['None at all','A rumour, never seen','Rare and feared','Uncommon but real','Common, a trade like any other','Everywhere, in everything'];
+const W_SCALE = ['One town','One city','A region','A kingdom','A continent','A whole world','Many worlds'];
+const W_WONDERS = [
+  {id:'oldroads',name:'The old roads',text:'Someone long gone built roads, bridges and waystations that still stand and still work.'},
+  {id:'livingmagic',name:'Living magic',text:'Magic is a thing that grows, sleeps and answers, more weather than tool.'},
+  {id:'nearGods',name:'Gods who answer',text:'The powers above are real, close, and sometimes pick up when called.'},
+  {id:'beasts',name:'Speaking beasts',text:'Some animals talk, bargain and hold grudges like anyone else.'},
+  {id:'skyways',name:'Roads in the sky',text:'People cross the air as easily as the sea: ships, beasts, or something stranger.'},
+  {id:'relics',name:'Relics of a greater age',text:'Things made by hands better than any living still turn up, and still do what they were made for.'},
+  {id:'markets',name:'Markets without borders',text:'Trade goes everywhere. Anything can be bought somewhere, and news travels with it.'},
+  {id:'healing',name:'Mended bodies',text:'Wounds and sickness that would kill elsewhere can be put right here, for a price.'},
+  {id:'peace',name:'A long peace',text:'No living person remembers a real war. People plan decades ahead and mean it.'},
+  {id:'spirits',name:'Small spirits',text:'Hearths, wells, crossroads and machines each have something living in them that can be asked nicely.'},
+  {id:'libraries',name:'Nothing is forgotten',text:'Records are kept, everywhere, of everything. The answer exists if you can reach it.'},
+  {id:'bounty',name:'A generous land',text:'The soil, the sea or the machines give more than people need. Hunger is a choice someone makes for you.'},
+];
+const W_WOES = [
+  {id:'war',name:'War without end',text:'The fighting started before anyone was born and nobody remembers how to stop it.'},
+  {id:'plague',name:'The sickness',text:'Something is going through people, and the cure is rarer than the cause.'},
+  {id:'deadgods',name:'Silent heavens',text:'The gods are dead, gone, or not answering, and people noticed.'},
+  {id:'ironlaw',name:'Iron law',text:'Those in charge watch everything and forgive nothing. Papers, please.'},
+  {id:'gates',name:'Monsters at the gate',text:'Outside the walls belongs to something else, and the walls are getting older.'},
+  {id:'dying',name:'A dying land',text:'The sun, the soil or the water is failing a little more each year.'},
+  {id:'debt',name:'Everybody owes',text:'Debt runs the world. Most people are owned by someone, on paper or otherwise.'},
+  {id:'wildmagic',name:'Magic gone wrong',text:'Power leaks, twists and breeds where it was used carelessly.'},
+  {id:'usurper',name:'The wrong ruler',text:'Whoever sits at the top took the seat, and holds it by fear.'},
+  {id:'scarcity',name:'Never enough',text:'One thing everybody needs is running short, and people are already killing for it.'},
+  {id:'haunted',name:'The dead do not rest',text:'What dies here does not always stay down, or stay quiet.'},
+  {id:'secret',name:'A buried truth',text:'The history everyone was taught is a lie, and someone is paid to keep it that way.'},
+];
+const WSTEPS = ['The world','Setting','Peoples and powers','Wonders','Troubles','Places and people','Laws and opening','Review'];
+const blankWorld = () => ({name:'',genre:'Fantasy',text:'',tech:'Medieval',magic:'Uncommon but real',scale:'A region',land:'',peoples:'',powers:'',wonders:[],trouble:'',woes:[],dangers:'',places:'',people:'',money:'',forbidden:'',truths:'',start:'',tone:'classic',font:'auto'});
 const toneLabel = t => (TONE_LIST.find(x=>x[0]===t)||[])[1]||(t==='unfiltered'?'Unfiltered (adult)':'Classic heroic');
 const toneOpts = v => TONE_LIST.map(([k,l])=>`<option value="${k}" ${v===k?'selected':''}>${l}</option>`).join('')+`<option value="unfiltered" ${v==='unfiltered'?'selected':''}>Unfiltered (adult)</option>`;
 const fontOpts = v => [['auto','Fits the world (the narrator picks)'],['default','Plain (Inter)'],['roman','Old Roman (Times New Roman)'],['medieval','Medieval (Crimson Text)'],['elegant','Elegant (Cormorant Garamond)'],['literary','Literary (Lora)'],['scifi','Sci-fi (Comfortaa)'],['mono','Terminal (Space Mono)']].map(([k,l])=>`<option value="${k}" ${(v||'auto')===k?'selected':''}>${l}</option>`).join('');
-const cleanWorld = w => ({name:String(w.name||'').trim().slice(0,60),text:String(w.text||'').trim().slice(0,4000),start:String(w.start||'').trim().slice(0,160),truths:String(w.truths||'').split('\n').map(x=>x.trim().slice(0,300)).filter(Boolean).slice(0,30).join('\n'),tone:TONES[w.tone]||w.tone==='unfiltered'?w.tone:'classic',font:['auto',...FONT_IDS].includes(w.font)?w.font:'auto'});
-function worldPremise(w){ return `${w.name?w.name+'. ':''}${w.text}${w.start?`\nThe tale opens here: ${w.start}`:''}${w.truths?`\nTrue in this world, always:\n${w.truths.split('\n').map(x=>'- '+x).join('\n')}`:''}\nThis world was written by the player: keep to it faithfully, and fit this character into it.`; }
-// The fields are the same wherever a world is edited; `p` prefixes the field names.
+const linesOf = (v,n,len) => (Array.isArray(v)?v.join('\n'):String(v||'')).split('\n').map(x=>x.trim().replace(/^[-*•]\s*/,'').slice(0,len)).filter(Boolean).slice(0,n).join('\n');
+function cleanWorld(w){ const t = (k,n) => String(w[k]||'').trim().slice(0,n), b = blankWorld();
+  return {name:t('name',60),genre:t('genre',40)||b.genre,text:t('text',4000),tech:t('tech',40)||b.tech,magic:t('magic',60)||b.magic,scale:t('scale',40)||b.scale,land:t('land',200),peoples:t('peoples',900),powers:t('powers',900),
+    wonders:(Array.isArray(w.wonders)?w.wonders:[]).filter(x=>W_WONDERS.some(y=>y.id===x)),trouble:t('trouble',700),woes:(Array.isArray(w.woes)?w.woes:[]).filter(x=>W_WOES.some(y=>y.id===x)),dangers:t('dangers',500),
+    places:linesOf(w.places,12,240),people:linesOf(w.people,12,240),money:t('money',160),forbidden:t('forbidden',400),truths:linesOf(w.truths,30,300),start:t('start',200),
+    tone:TONES[w.tone]||w.tone==='unfiltered'?w.tone:'classic',font:['auto',...FONT_IDS].includes(w.font)?w.font:'auto'}; }
+// Everything the narrator is told about the world, built from its parts. Empty parts are left out.
+function worldPremise(w0){ const w = {...blankWorld(),...w0}, list = v => String(v||'').split('\n').filter(Boolean).map(x=>'- '+x).join('\n'), pick = (ids,arr) => arr.filter(x=>(ids||[]).includes(x.id)).map(x=>`- ${x.name}: ${x.text}`).join('\n');
+  return [`${w.name?w.name+'. ':''}${w.text}`,
+    `Kind of world: ${w.genre}. Technology: ${w.tech}. Magic: ${w.magic}. Scale: ${w.scale}.${w.land?` The land: ${w.land}`:''}`,
+    w.peoples&&`Who lives here:\n${w.peoples}`, w.powers&&`Who holds power:\n${w.powers}`,
+    pick(w.wonders,W_WONDERS)&&`Wonders of this world:\n${pick(w.wonders,W_WONDERS)}`,
+    w.trouble&&`The central trouble: ${w.trouble}`, pick(w.woes,W_WOES)&&`What is wrong with this world:\n${pick(w.woes,W_WOES)}`, w.dangers&&`What can hurt you here: ${w.dangers}`,
+    w.places&&`Places:\n${list(w.places)}`, w.people&&`People of note:\n${list(w.people)}`,
+    w.money&&`Money: ${w.money}`, w.forbidden&&`Forbidden here: ${w.forbidden}`, w.truths&&`True in this world, always:\n${list(w.truths)}`, w.start&&`The tale opens here: ${w.start}`,
+    'This world was written by the player: keep to it faithfully, and fit this character into it.'].filter(Boolean).join('\n'); }
+// The people of note in a world are known from the first scene of any tale set there.
+function seedPeople(w){ const out = {}; for(const l of String((w&&w.people)||'').split('\n')){ const m = /^([^:–—-]{2,50})\s*[:–—-]\s*(.+)$/.exec(l.trim()); if(!m) continue; const name = m[1].trim();
+    if(!okName(name)||isAddress(name)||Object.keys(out).length>=12) continue; out[name] = {name,about:m[2].trim().slice(0,240),traits:[],skills:[],wants:'',attitude:'neutral',memory:[]}; } return out; }
+// The short set of fields shown in Settings, World, inside a tale.
 const worldFields = (w,p) => `<label class="f">Name of the world<input class="inp" ${p}="name" value="${esc(w.name||'')}" maxlength="60" placeholder="The Salt Road"></label>
-    <label class="f">The premise<textarea class="inp" ${p}="text" maxlength="4000" style="min-height:150px" placeholder="What kind of place it is, what is going on, and where a newcomer walks into it. A few lines is enough; write more if you want the DM held to it.">${esc(w.text||'')}</textarea></label>
-    <label class="f">Where a tale opens (optional)<input class="inp" ${p}="start" value="${esc(w.start||'')}" maxlength="160" placeholder="The toll bridge at dusk, with the gate already shut"></label>
-    <label class="f">True in this world, always (optional, one per line)<textarea class="inp" ${p}="truths" maxlength="6000" style="min-height:90px" placeholder="Magic costs the caster a memory.&#10;Nobody alive has seen the sea.&#10;Coin is iron, not gold.">${esc(w.truths||'')}</textarea></label>`;
-let worldEdit = null;
-function openWorld(id){
-  const w = id&&store.worlds[id]?store.worlds[id]:blankWorld(); worldEdit = id||'';
-  $('#modalRoot').innerHTML = `<div class="modal"><div class="box" role="dialog" aria-modal="true" aria-label="World creation"><form id="worldForm" class="stack">
-    <h3>${id?'Edit world':'World creation'}</h3><div class="hint">A world stands on its own. Build it once, then start as many tales in it as you like, each with a character of its own.</div>
-    ${worldFields(w,'name').replace(/ name="(name|text|start|truths)"/g,' name="w_$1"')}
-    <div class="grid2"><label class="f">Tone<select class="inp" name="w_tone">${toneOpts(w.tone)}</select></label><label class="f">Typeface<select class="inp" name="w_font">${fontOpts(w.font)}</select></label></div>
-    <div class="actions" style="margin-top:14px"><button type="button" class="btn" data-act="worldCancel">Cancel</button><button class="btn primary">Save world</button></div></form></div></div>`;
+    <label class="f">The premise<textarea class="inp" ${p}="text" maxlength="4000" style="min-height:150px">${esc(w.text||'')}</textarea></label>
+    <label class="f">Where a tale opens<input class="inp" ${p}="start" value="${esc(w.start||'')}" maxlength="200"></label>
+    <label class="f">True in this world, always (one per line)<textarea class="inp" ${p}="truths" maxlength="6000" style="min-height:90px">${esc(w.truths||'')}</textarea></label>`;
+const nav = h => { if(location.hash.slice(1)===h) go(); else location.hash = h; };
+let wdraft = null, wforging = false;
+// target: {kind:'new'} a new world for the home page, {kind:'home',id} one already there, {kind:'tale',id} the copy a tale keeps. back: return to character creation afterwards.
+function startWorldWiz(target,back,seed){ const src = seed||(target.kind==='home'&&store.worlds[target.id])||(target.kind==='tale'&&store.campaigns[target.id]&&store.campaigns[target.id].world)||{};
+  const w = {...blankWorld(),...cleanWorld({...blankWorld(),...src})}; wdraft = {...w,step:0,seen:target.kind==='new'?0:WSTEPS.length-1,wish:'',msg:'',target,back:!!back,cGenre:W_GENRES.includes(w.genre)?'':w.genre}; if(wdraft.cGenre) wdraft.genre = '__custom';
+  nav('world'); }
+function leaveWorldWiz(savedId){ const d = wdraft; wdraft = null; if(!d) return nav('');
+  if(d.target.kind==='tale') return nav(d.target.id);
+  if(d.back&&draft){ if(savedId){ draft.camp = 'w:'+savedId; draft.tone = store.worlds[savedId].tone; } return nav('new'); } nav(''); }
+function renderWorld(){
+  if(!wdraft) return renderHome(); cur = null; chrome(false);
+  const d = wdraft, sel = (arr,v) => arr.map(k=>`<option ${k===v?'selected':''}>${esc(k)}</option>`).join(''), ta = (k,ph,h=90,max=900) => `<textarea class="inp" data-w="${k}" maxlength="${max}" style="min-height:${h}px" placeholder="${esc(ph)}">${esc(d[k])}</textarea>`;
+  const pick = (name,arr) => `<div class="hooks">${arr.map(h=>`<label class="hook"><input type="checkbox" name="${name}" value="${h.id}" ${d[name].includes(h.id)?'checked':''}><b>${esc(h.name)}</b><span>${esc(h.text)}</span></label>`).join('')}</div>`;
+  let body = '';
+  if(d.step===0) body = `<div class="panel"><h3>Let the model build it</h3>
+      <label class="f">Describe the world you want<textarea class="inp" data-w="wish" maxlength="600" placeholder="A drowned city where the rich live on the rooftops and everyone else rows. Or just: surprise me.">${esc(d.wish)}</textarea></label>
+      <div class="actions" style="justify-content:flex-start;margin-top:12px"><button type="button" class="btn primary" data-act="wForge" ${wforging?'disabled':''}>${wforging?'Building…':'Build my world'}</button></div>
+      <p class="hint" style="margin-bottom:0">The builder model fills in every step: the kind of world, its peoples and powers, its wonders and troubles, places, people and laws. You can change anything afterwards. Or skip this and write it by hand below.</p></div>
+    <div class="panel"><h3>The world</h3><div class="stack">
+      <div class="grid2"><label class="f">Name<input class="inp" data-w="name" value="${esc(d.name)}" maxlength="60" placeholder="The Salt Road"></label>
+        <label class="f">Kind of world<select class="inp" data-w="genre" data-wre="1">${sel(W_GENRES,d.genre)}<option value="__custom" ${d.genre==='__custom'?'selected':''}>Custom…</option></select></label></div>
+      ${d.genre==='__custom'?`<label class="f">Your own kind of world<input class="inp" data-w="cGenre" value="${esc(d.cGenre)}" maxlength="40" placeholder="Bronze-age noir"></label>`:''}
+      <label class="f">The premise${ta('text','What kind of place it is, what is going on right now, and where a newcomer walks into it. A few lines is enough; write more if you want the DM held to it.',150,4000)}</label></div></div>`;
+  else if(d.step===1) body = `<div class="panel"><h3>Setting</h3><div class="stack">
+      <div class="grid2"><label class="f">Technology<select class="inp" data-w="tech">${sel(W_TECH,d.tech)}</select></label><label class="f">Magic<select class="inp" data-w="magic">${sel(W_MAGIC,d.magic)}</select></label>
+        <label class="f">How much of it a tale covers<select class="inp" data-w="scale">${sel(W_SCALE,d.scale)}</select></label>
+        <label class="f">The land and its weather<input class="inp" data-w="land" value="${esc(d.land)}" maxlength="200" placeholder="Salt flats, dust storms, one river everyone fights over"></label></div>
+      <p class="hint" style="margin:0">These set what exists: what people carry, how far news travels, and whether a locked door stops a clever enough stranger.</p></div></div>`;
+  else if(d.step===2) body = `<div class="panel"><h3>Peoples and powers</h3><div class="stack">
+      <label class="f">Who lives here${ta('peoples','The peoples, kinds or classes of folk, and how they get on. A line each is plenty.')}</label>
+      <label class="f">Who holds power, and who wants it${ta('powers','Crowns, guilds, gangs, churches, companies, families. Who answers to whom, and who is waiting for a chance.')}</label></div></div>`;
+  else if(d.step===3) body = `<div class="panel"><h3>Wonders</h3><p class="hint">What is good, strange or marvellous about this world. Pick as many as fit, or none.</p>${pick('wonders',W_WONDERS)}</div>`;
+  else if(d.step===4) body = `<div class="panel"><h3>Troubles</h3><div class="stack">
+      <label class="f">The central trouble${ta('trouble','The one conflict everything else leans on. Who wants what, and why can they not both have it?',80,700)}</label>
+      <p class="hint" style="margin:0">What else is wrong with this world. Pick as many as fit.</p>${pick('woes',W_WOES)}
+      <label class="f">What can actually hurt someone here<input class="inp" data-w="dangers" value="${esc(d.dangers)}" maxlength="500" placeholder="Thirst, toll-wardens, and whatever lives under the flats"></label></div></div>`;
+  else if(d.step===5) body = `<div class="panel"><h3>Places and people</h3><div class="stack">
+      <label class="f">Places (one per line, as Name: what it is)${ta('places','Brine Gate: the only crossing, taxed by whoever holds it this year\nThe Wellhouse: a bank that deals in water',120,3000)}</label>
+      <label class="f">People of note (one per line, as Name: who they are and what they want)${ta('people','Odra Venn: toll-captain, tired, wants one quiet season\nThe Factor: nobody has seen her face; she buys wells',120,3000)}</label>
+      <p class="hint" style="margin:0">The people listed here are known from the first scene of any tale set in this world, each with a sheet of their own.</p></div></div>`;
+  else if(d.step===6) body = `<div class="panel"><h3>Laws and opening</h3><div class="stack">
+      <label class="f">True in this world, always (one per line)${ta('truths','Magic costs the caster a memory.\nNobody alive has seen the sea.',90,6000)}</label>
+      <div class="grid2"><label class="f">What people pay with<input class="inp" data-w="money" value="${esc(d.money)}" maxlength="160" placeholder="Iron coin, and water chits for anything that matters"></label>
+        <label class="f">What is forbidden<input class="inp" data-w="forbidden" value="${esc(d.forbidden)}" maxlength="400" placeholder="Digging a well without a charter"></label></div>
+      <label class="f">Where and when a tale opens<input class="inp" data-w="start" value="${esc(d.start)}" maxlength="200" placeholder="The toll bridge at dusk, with the gate already shut"></label>
+      <div class="grid2"><label class="f">Tone<select class="inp" data-w="tone">${toneOpts(d.tone)}</select></label><label class="f">Typeface<select class="inp" data-w="font">${fontOpts(d.font)}</select></label></div></div></div>`;
+  else { const w = cleanWorld({...d,genre:d.genre==='__custom'?d.cGenre:d.genre}), names = (ids,arr) => arr.filter(x=>ids.includes(x.id)).map(x=>x.name).join(', ')||'none', br = v => esc(v).replace(/\n/g,'<br>');
+    body = `<div class="review"><div class="card"><h4>The world</h4><b style="font-family:var(--display);font-size:24px">${esc(w.name||'Unnamed')}</b><div class="hint">${esc(w.genre)} · ${esc(toneLabel(w.tone))}</div><div class="hint" style="margin-top:8px;color:var(--text)">${br(w.text||'No premise yet.')}</div></div>
+      <div class="card"><h4>Setting</h4><div class="hint" style="color:var(--text)">Technology: ${esc(w.tech)}<br>Magic: ${esc(w.magic)}<br>Scale: ${esc(w.scale)}${w.land?'<br>'+esc(w.land):''}</div></div>
+      <div class="card"><h4>Peoples and powers</h4><div class="hint" style="color:var(--text)">${br(w.peoples||'Not described.')}<br><br>${br(w.powers||'Not described.')}</div></div>
+      <div class="card"><h4>Wonders and troubles</h4><div class="hint" style="color:var(--text)">Wonders: ${names(w.wonders,W_WONDERS)}<br>Troubles: ${names(w.woes,W_WOES)}${w.trouble?'<br><br>'+br(w.trouble):''}${w.dangers?'<br>Dangers: '+esc(w.dangers):''}</div></div>
+      <div class="card"><h4>Places and people</h4><div class="hint" style="color:var(--text)">${br(w.places||'No places listed.')}<br><br>${br(w.people||'No people listed.')}</div></div>
+      <div class="card"><h4>Laws and opening</h4><div class="hint" style="color:var(--text)">${br(w.truths||'No fixed truths.')}${w.money?'<br>Money: '+esc(w.money):''}${w.forbidden?'<br>Forbidden: '+esc(w.forbidden):''}${w.start?'<br><br>Opens: '+esc(w.start):''}</div></div></div>`; }
+  const last = d.step===WSTEPS.length-1;
+  main.innerHTML = `<div class="wrap"><h2 class="sec" style="margin-top:0;font-size:34px">World creation</h2>
+    <div class="steps">${WSTEPS.map((t,i)=>`<button type="button" data-act="wStep" data-k="${i}" class="${i===d.step?'on':i<=d.seen?'done':''}" ${i>d.seen?'disabled':''} ${i===d.step?'aria-current="step"':''}>${i+1}. ${t}</button>`).join('')}</div>
+    <form id="worldWiz">${body}
+      <div id="worldMsg" style="color:#ffb6a6;min-height:20px;margin-bottom:10px;text-align:right" role="alert">${esc(d.msg||'')}</div>
+      <div class="actions"><button type="button" class="btn ghost" data-act="${d.step?'wBack':'wCancel'}">${d.step?'Back':'Cancel'}</button>${d.seen===WSTEPS.length-1&&!last?'<button type="button" class="btn" data-act="wSave">Save now</button>':''}<button class="btn primary">${last?(d.target.kind==='tale'?'Save to this tale':d.back?'Save and go back to my character':'Save world'):'Next'}</button></div>
+    </form></div>`;
+  d.msg = '';
 }
-function saveWorldForm(){ const f = $('#worldForm'); if(!f) return; const w = cleanWorld({name:f.w_name.value,text:f.w_text.value,start:f.w_start.value,truths:f.w_truths.value,tone:f.w_tone.value,font:f.w_font.value});
-  if(!w.name||!w.text){ toast('Not yet','A world needs a name and at least a line of premise.'); return; }
-  const id = worldEdit||('w'+Date.now().toString(36)+rnd(1e6).toString(36)); store.worlds[id] = {...w,id,updated:Date.now()}; store.worldsAt = Date.now(); save(); worldEdit = null; closeModal();
-  if(draft&&location.hash==='#new'){ draft.camp = 'w:'+id; draft.tone = w.tone; renderCreate(); } else if(!cur) renderHome(); toast('World saved',w.name); }
+function saveWorldWiz(){ const d = wdraft; if(!d) return; const w = cleanWorld({...d,genre:d.genre==='__custom'?d.cGenre:d.genre});
+  if(!w.name||!w.text){ d.step = 0; d.msg = 'A world needs a name and at least a line of premise.'; renderWorld(); return; }
+  if(d.target.kind==='tale'){ const c = store.campaigns[d.target.id]; if(c){ c.world = w; c.premise = worldPremise(w); c.tone = w.tone; if(w.font==='auto') c.fontLock = false; else { c.font = w.font; c.fontLock = true; }
+      c.npcs ||= {}; for(const [k,n] of Object.entries(seedPeople(w))) if(!whoIs(c,k)&&Object.keys(c.npcs).length<40) c.npcs[k] = n; c.updated = Date.now(); save(); }
+    toast('World saved','This tale follows it from the next scene on.'); return leaveWorldWiz(); }
+  const id = d.target.id||('w'+Date.now().toString(36)+rnd(1e6).toString(36)); store.worlds[id] = {...w,id,updated:Date.now()}; store.worldsAt = Date.now(); save(); toast('World saved',w.name); leaveWorldWiz(id); }
+const FORGE_WORLD = () => `You design a world for a solo tabletop roleplaying game. Reply with JSON only, nothing outside it, in this form:
+{"name":"the world's name","genre":"one of: ${W_GENRES.join(', ')}; or two or three words of your own","premise":"60 to 110 words: what kind of place it is, what is going on right now, and where a newcomer walks into it","tech":"one of: ${W_TECH.join(', ')}","magic":"one of: ${W_MAGIC.join('; ')}","scale":"one of: ${W_SCALE.join(', ')}","land":"climate and terrain, one line","peoples":"who lives here and how they get on, two to four short lines","powers":"who holds power and who wants it, two to four short lines","wonders":["up to three ids from: ${W_WONDERS.map(x=>x.id+' ('+x.name+')').join(', ')}"],"trouble":"the one central conflict, in a sentence or two","woes":["up to three ids from: ${W_WOES.map(x=>x.id+' ('+x.name+')').join(', ')}"],"dangers":"what can actually hurt someone here, one line","places":["Name: what it is","three to five of these"],"people":["Name: who they are and what they want","three to five of these"],"money":"what people pay with","forbidden":"one thing that is against the law or custom here","truths":["three to five short facts that are always true here"],"start":"where and when a tale opens, one line","tone":"one of: ${TONE_LIST.map(x=>x[0]).join(', ')}"}
+Build it from the player's wish. Make it specific and unlike a stock setting, with names that belong to it. Fill every field, and keep each one short.`;
+async function forgeWorld(){
+  if(wforging||needKey()) return; const d = wdraft; wforging = true; d.msg = ''; renderWorld();
+  try{
+    const ask = [{role:'system',content:FORGE_WORLD()},{role:'user',content:`The player's wish: ${d.wish.trim()||'Surprise me with somewhere interesting.'}${d.name.trim()?`\nKeep the name: ${d.name.trim()}`:''}`}], room = Math.max(4000,Number(store.settings.maxTokens));
+    let out = await chat(ask,{stream:false,maxTokens:room,temperature:1,quick:true,model:store.settings.forgeModel}), j = jsonIn(out);
+    if(!j||!(j.premise||j.name)){ out = await chat([...ask,{role:'user',content:'Reply again with only the JSON object, starting with { and nothing before it. Keep every field short.'}],{stream:false,maxTokens:room,temperature:0.7,quick:true,model:store.settings.forgeModel}); j = jsonIn(out); }
+    if(!j||!(j.premise||j.name)) throw new Error(out.trim()?'The model answered, but not with a world it could be read from. Try again, or try a different model.':'The model sent back an empty reply. Try again, or raise "Max tokens per reply" in Models.');
+    const str = v => Array.isArray(v)?v.filter(x=>typeof x==='string').join('\n'):typeof v==='string'?v:'', one = (arr,v) => arr.find(x=>x.toLowerCase()===String(v||'').trim().toLowerCase());
+    if(str(j.name).trim()&&!d.name.trim()) d.name = str(j.name).trim().slice(0,60);
+    if(str(j.premise).trim()) d.text = str(j.premise).trim();
+    const g = str(j.genre).trim(); if(g){ if(one(W_GENRES,g)){ d.genre = one(W_GENRES,g); d.cGenre = ''; } else { d.genre = '__custom'; d.cGenre = g.slice(0,40); } }
+    d.tech = one(W_TECH,j.tech)||d.tech; d.magic = one(W_MAGIC,j.magic)||d.magic; d.scale = one(W_SCALE,j.scale)||d.scale;
+    for(const k of ['land','peoples','powers','trouble','dangers','places','people','money','forbidden','truths','start']) if(str(j[k]).trim()) d[k] = str(j[k]).trim();
+    const ids = (v,arr) => (Array.isArray(v)?v:[]).map(x=>String(x).trim().toLowerCase().split(/[\s(]/)[0]).map(x=>(arr.find(y=>y.id.toLowerCase()===x)||{}).id).filter(Boolean).slice(0,4);
+    if(ids(j.wonders,W_WONDERS).length) d.wonders = ids(j.wonders,W_WONDERS); if(ids(j.woes,W_WOES).length) d.woes = ids(j.woes,W_WOES);
+    if(TONES[j.tone]) d.tone = j.tone;
+    Object.assign(d,{...cleanWorld({...d,genre:d.genre==='__custom'?d.cGenre:d.genre}),genre:d.genre}); d.seen = WSTEPS.length-1;
+  }catch(e){ d.msg = e.message||'The model could not be reached.'; }
+  wforging = false; if(wdraft===d&&$('#worldWiz')) renderWorld();
+}
 function keepWorld(w){ const id = 'w'+Date.now().toString(36)+rnd(1e6).toString(36); store.worlds[id] = {...cleanWorld(w),id,updated:Date.now()}; store.worldsAt = Date.now(); return id; }
 const STEPS = ['Who you are','Attributes','Boons','Flaws','Story','World','Review'];
 const SURPRISE = 'Invent an original premise for this campaign, different from anything generic, and build it around this particular character: their race, class, background, backstory, boons, and flaws. Do not explain the premise up front; reveal it through the opening scene.';
@@ -2124,14 +2252,13 @@ const CAMPAIGNS = [
   {id:'court',title:'A Knife at Court',text:'Intrigue. You arrive at the duke\'s court as a nobody on the same night his heir is poisoned, and by morning half the hall has decided it was you.'},
   {id:'custom',title:'Write my own',text:'Describe your own setting, premise, or opening scene.'},
 ];
-function newDraft(){ const d = {step:0,seen:0,wish:'',name:'',race:'Human',cls:'Fighter',background:'Outlander',cBg:'',alignment:'True Neutral',appearance:'',backstory:'',camp:'surprise',cWorld:blankWorld(),tone:'classic',abilities:null,abTouched:false,boons:[],flaws:[],msg:'',
+function newDraft(){ const d = {step:0,seen:0,wish:'',name:'',race:'Human',cls:'Fighter',background:'Outlander',cBg:'',alignment:'True Neutral',appearance:'',backstory:'',camp:'surprise',tone:'classic',abilities:null,abTouched:false,boons:[],flaws:[],msg:'',
   cRace:{name:'',about:'',plus2:'str',plus1:'con'},cCls:{name:'',about:'',main:'str',second:'con',hd:8,armor:'light',skills:[],gear:[],feat:''}};
   d.abilities = presetFor(classDef(d)); return d; }
 const rollArray = () => Array.from({length:6},()=>{ const x = [rnd(6),rnd(6),rnd(6),rnd(6)].sort((a,b)=>a-b); return x[1]+x[2]+x[3]; });
 function placeStats(vals){ const prio = classDef(draft).prio, sorted = [...vals].sort((a,b)=>b-a); prio.forEach((a,i)=>{ draft.abilities[a] = sorted[i]; }); }
 // The world chosen in the wizard, as a title and text to show, plus the world itself when there is one.
-function pickedWorld(d){ if(d.camp==='custom') return {title:d.cWorld.name.trim()||'Your own world',text:d.cWorld.text.trim(),world:cleanWorld(d.cWorld)};
-  if(d.camp.startsWith('w:')&&store.worlds[d.camp.slice(2)]){ const w = store.worlds[d.camp.slice(2)]; return {title:w.name,text:w.text,world:cleanWorld(w),id:w.id}; }
+function pickedWorld(d){ if(d.camp.startsWith('w:')&&store.worlds[d.camp.slice(2)]){ const w = store.worlds[d.camp.slice(2)]; return {title:w.name,text:w.text,world:cleanWorld(w),id:w.id}; }
   const c = CAMPAIGNS.find(x=>x.id===d.camp)||CAMPAIGNS[0]; return {title:c.title,text:c.text,preset:c}; }
 function renderCreate(){
   cur = null; chrome(false); draft ||= newDraft();
@@ -2176,13 +2303,10 @@ function renderCreate(){
       <div class="actions" style="justify-content:flex-start;margin-top:12px"><button type="button" class="btn small" data-act="forgeStory" ${forging?'disabled':''}>${forging?'Writing…':'Write these for me'}</button></div></div>`;
   else if(d.step===5){ const mine = Object.values(store.worlds).sort((a,b)=>(b.updated||0)-(a.updated||0)), hook = (v,t,x) => `<label class="hook"><input type="radio" name="camp" value="${esc(v)}" ${d.camp===v?'checked':''}><b>${esc(t)}</b><span>${esc(x)}</span></label>`;
     body = `<div class="panel"><h3>Choose a world</h3>
-      <div class="hooks">${hook('surprise',CAMPAIGNS[0].title,CAMPAIGNS[0].text)}${hook('custom','Create a new world','Build a world of your own, right here: its premise, where it opens, and what is always true there.')}</div>
+      <div class="hooks">${hook('surprise',CAMPAIGNS[0].title,CAMPAIGNS[0].text)}<button type="button" class="hook" data-act="worldNewBack" style="text-align:left;font:inherit;color:inherit"><b>Create a new world</b><span>Build a world of your own, step by step or with the model's help, then come straight back here with it chosen.</span></button></div>
       ${mine.length?`<div class="grp2" style="margin:20px 0 10px">Your worlds</div><div class="hooks">${mine.map(w=>hook('w:'+w.id,w.name,w.text.slice(0,180)+(w.text.length>180?'…':''))).join('')}</div>`:''}
       <div class="grp2" style="margin:20px 0 10px">Ready-made worlds</div><div class="hooks">${CAMPAIGNS.slice(1,-1).map(h=>hook(h.id,h.title,h.text)).join('')}</div></div>
-      ${d.camp==='custom'?`<div class="panel"><h3>World creation</h3><div class="stack">${worldFields(d.cWorld,'data-d').replace(/ data-d="(name|text|start|truths)"/g,' data-d="cWorld.$1"')}
-        <label class="f" style="max-width:420px">Typeface<select class="inp" data-d="cWorld.font">${fontOpts(d.cWorld.font)}</select></label>
-        <label class="check"><input type="checkbox" name="keepWorld" ${d.cWorld.keep?'checked':''}><span>Keep this world on my home page, to edit or use again</span></label></div></div>`
-      :d.camp.startsWith('w:')&&store.worlds[d.camp.slice(2)]?`<div class="actions" style="justify-content:flex-start;margin:-6px 0 14px"><button type="button" class="btn small" data-act="worldEdit" data-id="${esc(d.camp.slice(2))}">Edit this world</button></div>`:''}
+      ${d.camp.startsWith('w:')&&store.worlds[d.camp.slice(2)]?`<div class="actions" style="justify-content:flex-start;margin:-6px 0 14px"><button type="button" class="btn small" data-act="worldEdit" data-id="${esc(d.camp.slice(2))}">Edit this world</button></div>`:''}
       <div class="panel"><label class="f" style="max-width:420px">Tone of this tale<select class="inp" data-d="tone">${toneOpts(d.tone)}</select></label></div>`; }
   else { const camp = pickedWorld(d);
     const ab = ABIL.map(a=>`${a.toUpperCase()} ${clamp(num(d.abilities[a])||10,3,18)+(race.bonus[a]||0)}`).join(' · '), names = (ids,arr) => arr.filter(x=>ids.includes(x.id)).map(x=>x.name).join(', ')||'none';
@@ -2559,7 +2683,7 @@ function openGame(tabName){
     ${c.world?worldFields(c.world,'name').replace(/ name="(name|text|start|truths)"/g,' name="w_$1"')
       :`<label class="f">The premise, as the DM was given it<textarea class="inp" name="premise" maxlength="6000" style="min-height:150px">${esc(c.premise||'')}</textarea></label>`}
     <label class="f" style="max-width:420px">Typeface of this tale<select class="inp" name="w_font">${fontOpts(c.fontLock?c.font:'auto')}</select></label>
-    <div class="actions" style="justify-content:flex-start"><button type="button" class="btn small" data-act="gsKeepWorld">${c.worldId&&store.worlds[c.worldId]?'Update this world on my home page too':'Save this world to my home page'}</button></div>
+    <div class="actions" style="justify-content:flex-start"><button type="button" class="btn small" data-act="gsWorldFull">${c.world?'Open the full world editor':'Build this out as a full world'}</button><button type="button" class="btn small" data-act="gsKeepWorld">${c.worldId&&store.worlds[c.worldId]?'Update this world on my home page too':'Save this world to my home page'}</button></div>
     <div class="hint">Changes here apply to this tale from the next scene on. Tone is on the Table tab.</div>
     <div class="grp2">Right now</div>
     <div class="grid2"><label class="f">Where you are<input class="inp" name="location" value="${esc(c.location||'')}" maxlength="80"></label>
@@ -2598,7 +2722,7 @@ function saveGame(){
       memory:f.memory.value.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,12).map(x=>({t:x.replace(/^\*\s*/,'').slice(0,140),k:x.startsWith('*')}))});
     c.npcs[name] = n; gsWho = name; c.present = c.present.filter(x=>x!==name); if(f.here.checked) c.present = [name,...c.present].slice(0,3); }
   else { c.title = f.title.value.trim().slice(0,60)||c.title;
-    if(c.world&&f.w_name){ const w = cleanWorld({name:f.w_name.value,text:f.w_text.value,start:f.w_start.value,truths:f.w_truths.value}); if(w.text){ c.world = {name:w.name,text:w.text,start:w.start,truths:w.truths}; c.premise = worldPremise(w); } }
+    if(c.world&&f.w_name){ const w = {name:f.w_name.value.trim(),text:f.w_text.value.trim(),start:f.w_start.value,truths:f.w_truths.value}; if(w.text){ c.world = cleanWorld({...c.world,name:w.name,text:w.text,start:w.start,truths:w.truths}); c.premise = worldPremise(c.world); } }
     else if(f.premise&&f.premise.value.trim()) c.premise = f.premise.value.trim().slice(0,6000);
     if(f.w_font){ if(f.w_font.value==='auto') c.fontLock = false; else { c.font = f.w_font.value; c.fontLock = true; } applyFont(); }
     c.location = f.location.value.trim().slice(0,80); c.mood = f.mood.value; c.summary = f.summary.value.trim(); c.facts = f.facts.value.split('\n').map(x=>x.trim().slice(0,340)).filter(Boolean).slice(0,60);
@@ -2687,7 +2811,7 @@ function guessFont(c){ const t = [c.title,c.premise,c.setting,c.tone,c.summary].
   if(/\brome\b|roman|legion|ancient|greek|sparta|empire of/.test(t)) return 'roman'; if(/gothic|vampire|court|noble|victorian|ballroom|romance/.test(t)) return 'elegant';
   if(/modern|office|city|apartment|school|college|slice|detective|noir|today/.test(t)) return 'literary'; return 'medieval'; }
 function applyFont(){ let f = store.settings.storyFont||'auto'; if(f==='auto') f = cur?(FONT_IDS.includes(cur.font)?cur.font:guessFont(cur)):'default'; document.body.dataset.font = f==='default'?'':f; }
-function go(){ applyFont(); const id = location.hash.slice(1); if(id==='new') return renderCreate(); if(store.campaigns[id]){ denied = null; selEntry = editEntry = -1; cur = store.campaigns[id]; upgrade(cur); store.last = id; saveLocal(); lastErr = null; main.innerHTML = ''; renderGame(); if(!cur.log.length) takeTurn(null); return; } renderHome(); }
+function go(){ applyFont(); const id = location.hash.slice(1); if(id==='new') return renderCreate(); if(id==='world'&&wdraft) return renderWorld(); if(store.campaigns[id]){ denied = null; selEntry = editEntry = -1; cur = store.campaigns[id]; upgrade(cur); store.last = id; saveLocal(); lastErr = null; main.innerHTML = ''; renderGame(); if(!cur.log.length) takeTurn(null); return; } renderHome(); }
 window.addEventListener('hashchange',()=>{ if(aborter) aborter.abort(); busy = false; go(); });
 
 document.addEventListener('click',async ev=>{
@@ -2702,11 +2826,18 @@ document.addEventListener('click',async ev=>{
     case 'home': location.hash = ''; if(!location.hash) go(); break;
     case 'create': draft = null; location.hash = 'new'; break;
     case 'createIn': { const w = store.worlds[el.dataset.id]; if(!w) break; draft = newDraft(); draft.camp = 'w:'+w.id; draft.tone = w.tone||'classic'; location.hash = 'new'; break; }
-    case 'worldNew': openWorld(null); break;
-    case 'worldEdit': openWorld(el.dataset.id); break;
-    case 'worldCancel': worldEdit = null; closeModal(); break;
+    case 'worldNew': startWorldWiz({kind:'new'}); break;
+    case 'worldNewBack': startWorldWiz({kind:'new'},true); break;
+    case 'worldEdit': startWorldWiz({kind:'home',id:el.dataset.id},!!draft&&location.hash==='#new'); break;
+    case 'wStep': wdraft.step = num(el.dataset.k); renderWorld(); main.scrollTop = 0; break;
+    case 'wBack': wdraft.step = Math.max(0,wdraft.step-1); renderWorld(); main.scrollTop = 0; break;
+    case 'wCancel': leaveWorldWiz(); break;
+    case 'wSave': saveWorldWiz(); break;
+    case 'wForge': forgeWorld(); break;
+    case 'gsWorldFull': { if(!c) break; saveGame(); closeModal(); const strip = t => String(t||'').replace(/\n(This (world|premise) was written by the player|Keep to this premise)[\s\S]*$/,'').trim();
+      startWorldWiz({kind:'tale',id:c.id},false,c.world||{name:c.title,text:strip(c.premise),tone:c.tone,font:c.fontLock?c.font:'auto'}); break; }
     case 'worldDel': { const w = store.worlds[el.dataset.id]; if(w&&confirm(`Delete the world "${w.name}"? Tales already started in it keep their own copy and are not touched.`)){ delete store.worlds[el.dataset.id]; store.worldsAt = Date.now(); save(); renderHome(); } break; }
-    case 'gsKeepWorld': { if(!c) break; saveGame(); const w = c.world||{name:c.title,text:String(c.premise||'').split('\n')[0]}; const full = {...w,tone:c.tone,font:c.fontLock?c.font:'auto'}, had = c.worldId&&store.worlds[c.worldId];
+    case 'gsKeepWorld': { if(!c) break; saveGame(); const w = c.world||{name:c.title,text:String(c.premise||'').split('\n')[0]}; if(!w.name) w.name = c.title; const full = {...w,tone:c.tone,font:c.fontLock?c.font:'auto'}, had = c.worldId&&store.worlds[c.worldId];
       if(had){ store.worlds[c.worldId] = {...cleanWorld(full),id:c.worldId,updated:Date.now()}; store.worldsAt = Date.now(); } else c.worldId = keepWorld(full);
       save(); openGame('world'); toast(had?'World updated':'World saved',had?'The copy on your home page now matches this tale.':'It is on your home page now, ready for another tale.'); break; }
     case 'open': if(cur&&cur.id===el.dataset.id&&!wide()) closeDrawers(); location.hash = el.dataset.id; break;
@@ -2843,7 +2974,10 @@ document.addEventListener('submit',ev=>{
   if(f.id==='sendForm'){ const t = $('#say').value.trim(); if(t&&!busy){ $('#say').value = ''; if(cur&&cur.inDm) dmSay(t); else playerAct(t); } }
   else if(f.id==='itemForm'){ if(f.name.value.trim()) saveItem(f); }
   else if(f.id==='gsForm'){ saveGame(); closeModal(); }
-  else if(f.id==='worldForm'){ saveWorldForm(); }
+  else if(f.id==='worldWiz'){ const d = wdraft; if(!d||wforging) return;
+    if(d.step===0&&(!d.name.trim()||!d.text.trim())){ d.msg = 'Give the world a name and a line or two of premise, or let the model build it.'; renderWorld(); return; }
+    if(d.step<WSTEPS.length-1){ d.step++; d.seen = Math.max(d.seen,d.step); renderWorld(); main.scrollTop = 0; return; }
+    saveWorldWiz(); }
   else if(f.id==='msForm'){ saveMyShop(); }
   else if(f.id==='setForm'){ readSettings(); store.prefsAt = Date.now(); save(); closeModal(); if(!cur) renderHome(); else if(!cur.log.length&&!busy) takeTurn(null); }
   else if(f.id==='createForm'){
@@ -2852,14 +2986,13 @@ document.addEventListener('submit',ev=>{
       if(d.race==='__custom'&&!d.cRace.name.trim()){ d.msg = 'Name your custom race.'; renderCreate(); return; }
       if(d.cls==='__custom'&&!d.cCls.name.trim()){ d.msg = 'Name your custom class.'; renderCreate(); return; } }
     if(d.step>=3&&d.boons.length>d.flaws.length){ d.step = 3; d.msg = 'Every boon is paid for with a flaw. Pick another flaw, or go back and give up a boon.'; renderCreate(); return; }
-    if(d.step===5&&d.camp==='custom'&&(!d.cWorld.name.trim()||!d.cWorld.text.trim())){ d.msg = 'Give your world a name and a line or two of premise, or pick one from the list.'; renderCreate(); return; }
     if(d.step<6){ d.step++; d.seen = Math.max(d.seen,d.step); renderCreate(); main.scrollTop = 0; return; }
     const pw = pickedWorld(d), w = pw.world||null;
     const character = newCharacter(d), id = 'c'+Date.now().toString(36)+rnd(1e6).toString(36);
-    let worldId = pw.id||''; if(d.camp==='custom'&&d.cWorld.keep&&w) worldId = keepWorld({...w,tone:d.tone});
+    const worldId = pw.id||'';
     store.campaigns[id] = {id,title:d.camp==='surprise'?`${character.name}'s tale`:pw.title.slice(0,60)||`${character.name}'s tale`,created:Date.now(),updated:Date.now(),tone:d.tone||'classic',character,
       premise:d.camp==='surprise'?SURPRISE:w?worldPremise(w):`${pw.title}. ${pw.text}\nKeep to this premise, and fit this particular character into it: their background, backstory, boons and flaws should matter.`,
-      world:w?{name:w.name,text:w.text,start:w.start,truths:w.truths}:null,worldId,...(w&&w.font!=='auto'?{font:w.font,fontLock:true}:{}),
+      world:w||null,worldId,npcs:seedPeople(w),...(w&&w.font!=='auto'?{font:w.font,fontLock:true}:{}),
       quests:[],location:'',summary:'',sumIdx:0,log:[],suggestions:[],pendingRoll:null};
     draft = null; save(); location.hash = id;
   }
@@ -2869,8 +3002,9 @@ document.addEventListener('change',ev=>{
   const t = ev.target;
   if(draft&&(t.name==='boons'||t.name==='flaws')&&t.form?.id==='createForm'){ const list = draft[t.name], k = list.indexOf(t.value);
     if(t.checked&&k<0&&list.length<2) list.push(t.value); else if(!t.checked&&k>=0) list.splice(k,1); renderCreate(); }
+  if(wdraft&&t.dataset.w&&t.tagName==='SELECT'){ wdraft[t.dataset.w] = t.value; if(t.dataset.wre) renderWorld(); }
+  if(wdraft&&(t.name==='wonders'||t.name==='woes')&&t.form?.id==='worldWiz'){ const list = wdraft[t.name], k = list.indexOf(t.value); if(t.checked&&k<0) list.push(t.value); else if(!t.checked&&k>=0) list.splice(k,1); }
   if(draft&&t.name==='camp'&&t.form?.id==='createForm'){ draft.camp = t.value; const w = t.value.startsWith('w:')&&store.worlds[t.value.slice(2)]; if(w&&w.tone) draft.tone = w.tone; renderCreate(); }
-  if(draft&&t.name==='keepWorld'&&t.form?.id==='createForm') draft.cWorld.keep = t.checked;
   if(draft&&t.dataset.d&&t.tagName==='SELECT'){ setDraft(t.dataset.d,t.value); if(t.dataset.re){ if(!draft.abTouched) draft.abilities = presetFor(classDef(draft)); renderCreate(); } }
   if(t.id==='packSort'){ store.ui.sort = t.value; saveLocal(); renderSide(); }
   if(t.id==='loreFile'&&t.files[0]){ const file = t.files[0]; file.text().then(txt=>{ saveGame(); const r = addBook(JSON.parse(txt),file.name.replace(/\.(lorebook\.)?json$/i,''));
@@ -2884,6 +3018,7 @@ document.addEventListener('change',ev=>{
 document.addEventListener('input',ev=>{
   const t0 = ev.target;
   if(draft&&t0.dataset.d&&t0.tagName!=='SELECT') setDraft(t0.dataset.d,t0.value);
+  if(wdraft&&t0.dataset.w&&t0.tagName!=='SELECT') wdraft[t0.dataset.w] = t0.value;
   if(draft&&t0.dataset.ab){ draft.abilities[t0.dataset.ab] = t0.value; draft.abTouched = true; const r = raceDef(draft).bonus[t0.dataset.ab]||0; $('#m_'+t0.dataset.ab).textContent = sgn(mod(clamp(num(t0.value)||10,3,18)+r))+(r?` (+${r})`:''); }
   if(ev.target.id==='say'){ const t = ev.target; t.style.height = 'auto'; t.style.height = Math.min(160,t.scrollHeight+2)+'px'; }
 });
@@ -2894,7 +3029,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611192231';
+const BUILD = '202611192241';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
