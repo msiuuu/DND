@@ -1127,6 +1127,18 @@ function sellFromMyShop(c,list,note){ const sp = c.myShop, ch = c.character; if(
 function isOwnShop(c,name,keeper){ const k = String(keeper||'').trim().toLowerCase(), n = String(name||'').trim().toLowerCase(), ch = c.character||{}, me = [ch.name,(store.settings.dmCalls||''),'you','the player','player','yourself','me'].map(x=>String(x||'').trim().toLowerCase()).filter(Boolean);
   return (!!k&&me.some(m=>k===m||(m.length>=3&&k.split(/[\s,]+/).includes(m))||(k.length>=3&&m.split(/\s+/).includes(k))))||(!!c.myShop&&!!n&&n===String(c.myShop.name||'').trim().toLowerCase()); }
 function adoptOwnShop(c,name,items){ if(c.myShop) return false; c.myShop = {name:String(name||'').slice(0,60)||`${c.character.name}'s shop`,about:'',open:true,items:items.slice(0,20).map(i=>({name:i.name,price:i.price,stock:null,desc:String(i.desc||'').slice(0,160)})),sales:[],earned:0}; return true; }
+// Finds a thing in the pack by the name someone used for it: exactly, then ignoring a plural, then as the one item whose name contains it (or that it contains).
+const packWords = n => String(n||'').toLowerCase().replace(/[^a-z0-9\s'-]/g,' ').replace(/\b(the|a|an|my|some|of)\b/g,' ').trim().replace(/\s+/g,' ');
+const single = n => n.replace(/(ies)$/,'y').replace(/([^s])s$/,'$1');
+function packFind(ch,name){ const inv = ch.inventory||[], k = packWords(name); if(!k) return -1;
+  let i = inv.findIndex(x=>x.name.toLowerCase()===String(name).trim().toLowerCase()); if(i>=0) return i;
+  i = inv.findIndex(x=>single(packWords(x.name))===single(k)); if(i>=0) return i;
+  const near = inv.map((x,j)=>[j,single(packWords(x.name))]).filter(([j,n])=>n.length>=3&&single(k).length>=3&&(n.includes(single(k))||single(k).includes(n))); return near.length===1?near[0][0]:-1; }
+// What the player's own words say leaves their hands. "sure" means it is gone whatever happens next (thrown, eaten, burnt); the rest depends on the scene (given, sold, offered).
+const PART_SURE = /\b(throw|throws|threw|toss|tosses|hurl|hurls|fling|flings|lob|lobs|drop|drops|eat|eats|ate|drink|drinks|drank|swallow|swallows|devour|chug|burn|burns|smash|smashes|shatter|pour|pours|spill|discard|ditch|dump|consume|use up|uses up|scatter|feed|feeds)\b/i;
+const PART_MAYBE = /\b(give|gives|gave|giving|hand|hands|handing|offer|offers|pass|passes|sell|sells|sold|pay|pays|paid|trade|trades|lend|lends|leave|leaves|slide|slides|slip|slips|gift|gifts|donate|plant|place|places|put|puts|bury|hide|hides|use|uses|using|apply|applies|light|lights|spend|spends|tip|tips|bribe|bribes)\b/i;
+function partsWith(c,text){ const t = ' '+packWords(text)+' ', sure = PART_SURE.test(text); if(!sure&&!PART_MAYBE.test(text)) return [];
+  return (c.character.inventory||[]).filter(it=>{ const n = single(packWords(it.name)); return n.length>=3&&new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(s|es)?\\b`).test(t); }).slice(0,4).map(it=>({name:it.name,sure})); }
 function upgrade(c){ const ch = c.character;
   // Clear out what an earlier version let through: "kid" as someone's nickname, or as an empty sheet of its own.
   for(const [k,n] of Object.entries(c.npcs||{})){ if(n.aka) n.aka = n.aka.filter(a=>!isAddress(a)); if(isAddress(n.name)&&!n.about&&!num(n.bond)&&!(n.memory||[]).length&&!(n.traits||[]).length){ delete c.npcs[k]; c.present = (c.present||[]).filter(x=>x!==k); } }
@@ -1289,9 +1301,9 @@ function buildMessages(c,intents){
   push('user',from?'(The adventure continues from the story so far.)':'Begin the adventure. Open with a scene that drops my character into the premise, makes clear where I am, and ends with a choice.');
   for(const e of c.log.slice(from)){
     if(e.role==='dm') push('assistant',e.text+'\n\n<state>\n'+JSON.stringify(e.state||{})+'\n</state>');
-    else if(e.role==='player') push('user',e.text+(e===lastAct&&e.sheet?`\n\n[Sheet check by the app, authoritative: ${e.sheet} Do not tell the player their character lacks it or cannot try.]`:'')+(e===lastEntry&&e.callRoll?`\n\n[App note, not written by the player: the dice gate judged that this needs a ${e.callRoll.label}${e.callRoll.dc?` against ${e.callRoll.damage?'AC':'DC'} ${e.callRoll.dc}`:''}. Narrate only the attempt, then end by telling the player to roll it. Do not narrate the outcome.]`:e===lastEntry&&e.noRoll?'\n\n[App note, not written by the player: the dice gate judged that this action needs no roll. Resolve it directly.]':''));
+    else if(e.role==='player') push('user',e.text+(e===lastAct&&e.parts&&e.parts.length?`\n\n[Pack check by the app: this action involves ${e.parts.map(x=>x.name).join(', ')} from the player's pack. Whatever leaves their hands in what you narrate (given, thrown, eaten, drunk, used up, sold, paid, left behind) MUST be listed in "items_remove" under exactly that name. What they still hold afterwards must not be listed.]`:'')+(e===lastAct&&e.sheet?`\n\n[Sheet check by the app, authoritative: ${e.sheet} Do not tell the player their character lacks it or cannot try.]`:'')+(e===lastEntry&&e.callRoll?`\n\n[App note, not written by the player: the dice gate judged that this needs a ${e.callRoll.label}${e.callRoll.dc?` against ${e.callRoll.damage?'AC':'DC'} ${e.callRoll.dc}`:''}. Narrate only the attempt, then end by telling the player to roll it. Do not narrate the outcome.]`:e===lastEntry&&e.noRoll?'\n\n[App note, not written by the player: the dice gate judged that this action needs no roll. Resolve it directly.]':''));
     else if(e.role==='roll') push('user','[Dice result from the app] '+e.text);
-    else if(e.role==='note') push('user',(e.who?'[App note: this was said aloud in the scene after the trade] ':'[App note, already applied to the character sheet] ')+e.text);
+    else if(e.role==='note') push('user',(e.who?'[App note: this was said aloud in the scene after the trade] ':/^Trade at /.test(e.text)?'[App note, already applied to the character sheet. This trade happened in the scene, in plain view: the shopkeeper and anyone present know exactly what the player bought and sold, and can remark on it, ask about it, or act on it.] ':'[App note, already applied to the character sheet] ')+e.text);
     else if(e.role==='aside') push('user',`[Out-of-story aside, already answered by the DM. It is not an action; do not narrate it.] The player asked: ${e.q}${e.roll?` (${e.roll})`:''} The DM answered: ${e.a}`);
   }
   if(out[out.length-1].role==='assistant') push('user','(Continue.)');
@@ -1395,7 +1407,7 @@ function applyState(c,s){
   const ac = num(s.ac); if(ac>=5&&ac<=30&&ac!==ch.ac){ ch.acMisc = (ch.acMisc||0)+ac-ch.ac; ch.ac = ac; note('AC '+ac); }
   const items = v => (Array.isArray(v)?v:[]).map(i=>typeof i==='string'?{name:i,qty:1}:i).filter(i=>i&&typeof i.name==='string'&&i.name.trim()).map(cleanItem);
   for(const it of items(s.items_add)){ addItem(ch,it); note(`+ ${it.name}${it.qty>1?' ×'+it.qty:''}`,'ok'); }
-  for(const it of items(s.items_remove)){ const k = ch.inventory.findIndex(x=>x.name.toLowerCase()===it.name.toLowerCase()); if(k<0) continue; ch.inventory[k].qty -= it.qty; if(ch.inventory[k].qty<=0) ch.inventory.splice(k,1); note(`− ${it.name}${it.qty>1?' ×'+it.qty:''}`); }
+  for(const it of items(s.items_remove)){ const k = packFind(ch,it.name); if(k<0) continue; it.name = ch.inventory[k].name; ch.inventory[k].qty -= it.qty; if(ch.inventory[k].qty<=0) ch.inventory.splice(k,1); note(`− ${it.name}${it.qty>1?' ×'+it.qty:''}`); }
   const strs = v => (Array.isArray(v)?v:[]).filter(x=>typeof x==='string'&&x.trim()).map(x=>x.trim().slice(0,160));
   for(const x of strs(s.conditions_add)) if(!ch.conditions.some(y=>y.toLowerCase()===x.toLowerCase())){ ch.conditions.push(x); note(x,'bad'); }
   for(const x of strs(s.conditions_remove)){ const k = ch.conditions.findIndex(y=>y.toLowerCase()===x.toLowerCase()); if(k>=0){ ch.conditions.splice(k,1); note('No longer '+x.toLowerCase(),'ok'); } }
@@ -1582,8 +1594,9 @@ Set "lasting" to true only for something you would never forget: a promise, a de
 "shift" is a whole number from -3 to 3 for how much what the player character just did changed how you feel about them. 0 means no real change, and that is the usual answer. 1 or -1 is a small warming or souring, 2 or -2 a clear change, and 3 or -3 only for something that changes everything between you.`;
 async function castBeat(c,signal){
   const names = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]).slice(0,3); if(!names.length) return [];
-  const ch = c.character, dm = lastOf(c,'dm'), tail = []; for(let i=c.log.length-1;i>=0&&c.log[i].role!=='dm';i--) if(c.log[i].role==='player'||c.log[i].role==='roll') tail.unshift(c.log[i]);
-  const happened = `${dm?clip(dm.text,900):''}\n${tail.map(e=>e.role==='player'?`${ch.name} (the player character): ${e.text}`:`Dice: ${e.text}`).join('\n')}`;
+  const ch = c.character, dm = lastOf(c,'dm'), tail = []; for(let i=c.log.length-1;i>=0&&c.log[i].role!=='dm';i--) if(c.log[i].role==='player'||c.log[i].role==='roll'||(c.log[i].role==='note'&&/^Trade at /.test(c.log[i].text))) tail.unshift(c.log[i]);
+  const sold = dm&&(dm.changes||[]).filter(n=>/ bought /.test(n.t)).map(n=>n.t.replace(/^\+\d+ gp: /,'')).join('; ');
+  const happened = `${dm?clip(dm.text,900):''}${sold?`\nSeen by everyone present: ${sold} from ${ch.name}'s own shop.`:''}\n${tail.map(e=>e.role==='player'?`${ch.name} (the player character): ${e.text}`:e.role==='note'?`Seen by everyone present: ${ch.name} ${e.text.replace(/^Trade at ([^:]+): /,'traded at $1: ').replace(/\s*Purse now.*$/,'')}`:`Dice: ${e.text}`).join('\n')}`;
   const out = await Promise.all(names.map(async name=>{ const n = c.npcs[name];
     try{
       const t = await chat([{role:'system',content:ACTOR},{role:'user',content:`${c.myShop&&c.myShop.items.length&&c.myShop.open!==false?`The player character runs a business here, ${c.myShop.name||'their shop'}. Price list:\n${myShopList(c.myShop)}\nIf you want something from it and would really pay for it, say so in your intent; if you would not, do not.\n\n`:''}Your sheet:\nName: ${n.name}\nAbout: ${n.about||'not yet described; define yourself through how you act'}\nTraits: ${(n.traits||[]).join(', ')||'none noted yet'}\nSkills: ${(n.skills||[]).join(', ')||'none noted yet'}\nWants: ${n.wants||'unclear'}\nWhat you remember of the player character: ${(n.memory||[]).map(m=>m.t).join(' / ')||'nothing yet; you have only just met'}\nFeeling toward the player character: ${n.attitude||'neutral'}${store.settings.vulgar?'\nYou swear like a real person of your kind would: fuck, shit, bitch and the rest, wherever it comes naturally to you.':''}${['explicit','unfiltered','spicy'].includes(c.tone)?'\nSexual content is part of this story. You can proposition, seduce, grope, assault, rape, or be tender — whatever your character would do. VOCABULARY: cock/dick (not "member"), pussy/cunt (not "entrance" or "core"), tits (not "mounds"), cum (not "essence" or "release"), fuck/rape (not "claim" or "take"), wet/dripping (not "aroused"), breed/impregnate (not "fill with life"). The soft version is always wrong. No fading to black. No disclaimers.':''}\n\nThe player character: ${ch.name}, a ${ch.race} ${ch.cls}. ${ch.appearance||''}\nOthers present: ${names.filter(x=>x!==name).join(', ')||'no one else'}\n\nWhat just happened:\n${happened}${postHistory(c)?'\n\n'+postHistory(c):''}`}],
@@ -1688,7 +1701,7 @@ const needKey = () => { const s = store.settings; if(!s.apiKey&&/openrouter\.ai/
 // A player's action goes to the dice gate first. A yes puts the roll card up and waits; a no goes straight to the story.
 async function playerAct(text,trusted,overrule,rollNow){
   if(busy||!cur||needKey()) return;
-  const c = cur, entry = {role:'player',text}; c.log.push(entry); denied = null;
+  const c = cur, entry = {role:'player',text}; const parts = partsWith(c,text); if(parts.length) entry.parts = parts; c.log.push(entry); denied = null;
   c.suggestions = []; c.pendingRoll = null; lastErr = null; busy = true; aborter = new AbortController(); save(); renderGame();
   setLive(trusted||!store.settings.useGuard?'Asking whether the dice are needed…':'Checking this against the scene…');
   let g = {ask:false,roll:null}, no = null, sheet = null, stopped = false;
@@ -1744,7 +1757,12 @@ async function takeTurn(entry){
   if(text){
     const pre = snapshot(c);
     { let kept = 0; for(let k=c.log.length-1;k>=0;k--) if(c.log[k].pre&&++kept>=KEEP_UNDO) delete c.log[k].pre; }
-    const called = c.log[c.log.length-1]; c._acted = shifts.map(x=>x.name); const changes = applyState(c,state); delete c._acted;
+    const called = c.log[c.log.length-1];
+    // If the player threw, ate or burnt something and the narrator forgot to take it off the sheet, the app does.
+    { const act = (()=>{ for(let i=c.log.length-1;i>=0&&c.log[i].role!=='dm';i--) if(c.log[i].role==='player') return c.log[i]; return null; })();
+      if(act&&act.parts&&!act.partsDone){ act.partsDone = true; const named = v => (Array.isArray(v)?v:[]).map(x=>typeof x==='string'?x:x&&x.name).filter(Boolean), gone = named(state.items_remove).map(n=>packFind(c.character,n)), back = named(state.items_add).map(n=>packFind(c.character,n));
+        for(const p of act.parts){ const k = packFind(c.character,p.name); if(p.sure&&k>=0&&!gone.includes(k)&&!back.includes(k)) state.items_remove = [...(Array.isArray(state.items_remove)?state.items_remove:[]),{name:p.name,qty:1}]; } } }
+    c._acted = shifts.map(x=>x.name); const changes = applyState(c,state); delete c._acted;
     for(const x of shifts){ const n = c.npcs&&c.npcs[x.name], r0 = n&&shiftBond(n,x.shift); if(r0) changes.push({...r0,rel:1}); }
     rels = changes.filter(x=>x.rel);
     if(called&&called.role==='player'&&called.callRoll){ c.pendingRoll = called.callRoll; c.suggestions = []; }
@@ -3037,7 +3055,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611201101';
+const BUILD = '202611201104';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
