@@ -358,6 +358,7 @@ details.card[open]>summary{margin-bottom:10px}
 .shop .item.out{opacity:.45}
 .pairbar{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:12.5px;color:var(--muted)}.pairbar b{color:var(--ember2)}
 .stat.picked,.skill.picked{border-color:var(--ember);background:color-mix(in srgb,var(--ember) 18%,transparent)}
+.cflag{margin-top:8px;font:12px var(--ui);color:var(--muted);opacity:.8}
 .says{margin-top:10px;padding:8px 12px;border-radius:12px 12px 12px 3px;background:var(--s2);border:1px solid var(--line);font-size:14.5px;line-height:1.5;width:fit-content;max-width:100%}
 .says b{color:var(--ember2);font-weight:600;margin-right:6px}
 .dmhead{max-width:760px;margin:0 auto 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 2px 6px;border-bottom:1px solid var(--line)}
@@ -1662,10 +1663,13 @@ async function continuity(c,text,state,intents,signal){
   const verdict = await timed([{role:'system',content:EDITOR_CHECK},{role:'user',content:brief}],{stream:false,temperature:0,maxTokens:300,model:store.settings.checkModel,slot:'check',quick:true},CHECK_MS);
   if(verdict===null) return 'skip';
   const v = verdict.trim().split('\n')[0]; if(!v||/^\W*ok\b/i.test(v)) return null;
-  const out = await timed([{role:'system',content:EDITOR},{role:'user',content:`${brief}\n\nA first read found this error: ${v.replace(/^\W*no\W*/i,'').slice(0,200)}`}],{stream:false,temperature:0.2,model:store.settings.checkModel,slot:'check',quick:true},FIX_MS);
-  if(out===null) return 'skip'; if(!out.trim()||/^\W*ok\b/i.test(out.trim())) return null;
-  const fixed = parseReply(out); if(fixed.text.length<text.length*0.4) return null;
-  if(!Object.keys(fixed.state).length) fixed.state = state; return fixed;
+  // The narration is never rewritten: what the narrator wrote is what the player reads. The error is shown as a note under the scene,
+  // and only the numbers in the state block may be put right.
+  const flag = v.replace(/^\W*no\W*/i,'').trim().slice(0,160); if(!flag) return null;
+  const out = await timed([{role:'system',content:'You correct the bookkeeping of a tabletop scene. You are given the facts, the narration, the state block that came with it, and an error someone found. Do not rewrite the narration. If the state block does not match what the narration says happened (hit points, gold, items, conditions, who is present, quests), reply with only the corrected state block as one JSON object. If the state block is already right, reply with exactly: OK'},
+    {role:'user',content:`${brief}\n\nThe error found: ${flag}`}],{stream:false,temperature:0,maxTokens:900,model:store.settings.checkModel,slot:'check',quick:true},FIX_MS);
+  const j = out&&!/^\W*ok\b/i.test(out.trim())?jsonIn(out.replace(/<\/?state>/g,'')):null;
+  return {flag,state:j&&typeof j==='object'&&!Array.isArray(j)&&Object.keys(j).length?{...state,...j}:null};
 }
 // Runs before the story sees an action. Refuses anything that skips ahead or rewrites the past, and offers real next steps instead.
 const GUARD = `You are the continuity guard for a solo D&D game. The player may only do something their character could actually attempt right now, from the current situation.
@@ -1763,7 +1767,7 @@ async function takeTurn(entry){
   c.suggestions = []; c.pendingRoll = null; lastErr = null; busy = true; aborter = new AbortController();
   save(); renderGame();
   const signal = aborter.signal; let shifts = [], rels = [];
-  let raw = '', raf = 0, text = '', state = {}, fixed = false, checked = false, live = setLive(`${dmName()} is thinking…`);
+  let raw = '', raf = 0, text = '', state = {}, fixed = false, checked = false, flag = '', live = setLive(`${dmName()} is thinking…`);
   try{
     let intents = [];
     const who = (c.present||[]).filter(n=>c.npcs&&c.npcs[n]).slice(0,3);
@@ -1780,7 +1784,7 @@ async function takeTurn(entry){
     ({text,state} = parseReply(raw));
     if(text&&s.useCheck&&c.log.length&&!calling&&!fight){
       live.innerHTML = lblDM()+md(text)+'<div class="tools thinking">…</div>'; scrollLog();
-      const f = await continuity(c,text,state,intents,signal); checked = f!=='skip'; if(f&&f!=='skip'){ text = f.text; state = f.state; fixed = true; }
+      const f = await continuity(c,text,state,intents,signal); checked = f!=='skip'; if(f&&f!=='skip'){ flag = f.flag; if(f.state){ state = f.state; fixed = true; } }
     }
   }catch(e){ if(e.name!=='AbortError'){ lastErr = e.message||String(e); text = ''; } else if(!text) ({text,state} = parseReply(raw)); }
   cancelAnimationFrame(raf); busy = false; aborter = null;
@@ -1799,7 +1803,7 @@ async function takeTurn(entry){
     rels = changes.filter(x=>x.rel);
     if(called&&called.role==='player'&&called.callRoll){ c.pendingRoll = called.callRoll; c.suggestions = []; }
     const says = store.settings.dmTalk&&typeof state.dm_says==='string'?state.dm_says.trim().slice(0,220):'';
-    c.log.push({role:'dm',text,state,changes,pre,...(checked?{ok:1}:{}),...(says?{says}:{})});
+    c.log.push({role:'dm',text,state,changes,pre,...(checked&&!flag?{ok:1}:{}),...(flag?{flag}:{}),...(says?{says}:{})});
     if(c._theft){ c.log.push({role:'note',theft:1,text:'Theft: '+c._theft}); delete c._theft; }
     c.updated = Date.now();
   }else if(!lastErr&&!signal.aborted) lastErr = raw?'The model replied with no narration. Try again, or pick a different model.':'The model returned an empty reply. Try again, raise max tokens in Models, or pick a different model.';
@@ -2457,7 +2461,7 @@ function renderLog(){
     if(e.role==='roll') return `<div ${open(i)}>${body?'':`<div class="bub">${DIE_SVG}<span>${esc(e.text)}</span></div>`}${tools(e,i)}</div>`;
     if(e.role==='note') return `<div ${open(i)}>${body?'':`<div class="bub">${e.who&&e.text===keeperText(e.who,e.line)?`<b class="kw">${markNames(e.who)}</b>“${esc(e.line)}”`:esc(e.text)}</div>`}${tools(e,i)}</div>`;
     if(e.role==='aside') return `<div ${open(i)}><div class="lbl">${esc(dmName())}, aside</div><div class="q">${esc(e.q)}</div>${body?'':md(e.a)}${e.roll?`<div class="r">${esc(e.roll)}</div>`:''}${tools(e,i)}</div>`;
-    return `<div ${open(i)}>${lblDM()}${body?'':md(e.text)}${chips(e.changes).length?`<div class="chg">${chips(e.changes).map(n=>`<span class="${n.k||''}">${esc(n.t)}${n.arrows?`<b class="arw">${n.arrows}</b>`:''}</span>`).join('')}</div>`:''}${e.ok||(e.changes||[]).some(n=>/^Continuity pass/.test(n.t))?'<span class="ok-mark" title="Continuity checked" aria-label="Continuity checked">&#10003;</span>':''}${e.says?`<div class="says"><b>${esc(dmName())}</b>${esc(e.says)}</div>`:''}${tools(e,i)}</div>`;
+    return `<div ${open(i)}>${lblDM()}${body?'':md(e.text)}${chips(e.changes).length?`<div class="chg">${chips(e.changes).map(n=>`<span class="${n.k||''}">${esc(n.t)}${n.arrows?`<b class="arw">${n.arrows}</b>`:''}</span>`).join('')}</div>`:''}${e.flag?`<div class="cflag" title="The continuity check noticed this. The scene was left exactly as written; use Redo on it if you want another take.">Check: ${esc(e.flag)}</div>`:''}${e.ok||(e.changes||[]).some(n=>/^Continuity pass/.test(n.t))?'<span class="ok-mark" title="Continuity checked" aria-label="Continuity checked">&#10003;</span>':''}${e.says?`<div class="says"><b>${esc(dmName())}</b>${esc(e.says)}</div>`:''}${tools(e,i)}</div>`;
   }).join('')+(lastErr?`<div class="e err"><span>${esc(lastErr)}</span><button class="btn small" data-act="retry">Try again</button><button class="btn small" data-act="settings">Models</button></div>`:'');
   if(selEntry<0) scrollLog(); else $('#log .e.sel')?.scrollIntoView({block:'nearest'});
 }
@@ -3106,7 +3110,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611201115';
+const BUILD = '202611201124';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
