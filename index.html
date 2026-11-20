@@ -1107,15 +1107,20 @@ const SERVICE_RE = /\b(service|services|massage|rubdown|lodging|room for the nig
 const BEING_RE = /\b(slave|servant|hireling|mercenary|sellsword|porter|bearer|bodyguard|squire|thrall|handmaid|maid|butler|horse|pony|mule|donkey|warhorse|stallion|mare|dog|hound|mastiff|hawk|falcon|raven|ox|camel|goat|pig|familiar)s?$/i;
 function kindOf(it){ if(it&&(it.kind==='service'||it.kind==='being'||it.kind==='goods')) return it.kind; const n = String((it&&it.name)||'').replace(/\([^)]*\)/g,'').trim();
   if(it&&(it.type==='weapon'||it.type==='armor'||it.type==='shield')) return 'goods'; return BEING_RE.test(n)?'being':SERVICE_RE.test(n)||/\b(bath|shave|meal here|bed)$/i.test(n)?'service':'goods'; }
+const PACK_DULL = new Set('piece pieces bit bits jar bottle flask bag sack pouch box set pair small large big old new fine good fresh hot cold half full red blue green black white silver gold golden iron steel wooden leather'.split(' '));
+const FOOD_RE = /\b(pie|pies|roll|rolls|bread|loaf|loaves|cake|cakes|bun|buns|pastry|pastries|tart|cheese|meat|sausage|sausages|jam|honey|apple|apples|fruit|stew|soup|ration|rations|jerky|fish|egg|eggs|wine|ale|beer|mead|milk|tea|sweet|sweets|candy|biscuit|biscuits|cookie|cookies|food|meal|snack|berries|nuts|ham|bacon|chicken|potato|potatoes|rice|noodles|dumpling|dumplings|chocolate|butter|juice|pudding|porridge|broth|skewer|skewers|sandwich|wrap|muffin|donut|doughnut|waffle|pancake|cream|spirits|whiskey|rum|brandy|cider)\b/i;
 // After a scene, a small model reads it against the things from the pack that it mentions and says what is gone: food other people ate, a rope left tied, a coin given away.
 async function packAudit(c,text,state,signal){ const ch = c.character, named = v => (Array.isArray(v)?v:[]).map(x=>typeof x==='string'?x:x&&x.name).filter(Boolean), gone = named(state.items_remove).map(n=>packFind(ch,n)), back = named(state.items_add).map(n=>packFind(ch,n));
-  const t = ' '+packWords(text)+' ', hits = (ch.inventory||[]).map((it,k)=>({it,k})).filter(({it,k})=>{ const n = single(packWords(it.name)); return n.length>=3&&!gone.includes(k)&&!back.includes(k)&&new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(s|es)?\\b`).test(t); }).slice(0,6);
+  // A scene rarely uses the name on the sheet: a "Sausage roll" is "the roll", a "Jar of cherry jam" is "the jam", and at a meal it is all just "the food".
+  const t = ' '+packWords(text)+' ', word = w => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(s|es)?\\b`).test(t), eating = /\b(eat|eats|ate|eaten|eating|bite|bites|bit|chew|chews|munch|devour|devours|swallow|swallows|drink|drinks|drank|sip|sips|gulp|feast|feasts|share|shares|shared|serve|serves|served|finish|finishes|finished|helps? (her|him|them)sel(f|ves)|tuck|taste|tastes|meal|food|plate|mouthful|crumbs)\b/i.test(text);
+  const hits = (ch.inventory||[]).map((it,k)=>({it,k})).filter(({it,k})=>{ if(gone.includes(k)||back.includes(k)) return false; const n = single(packWords(it.name)), ws = n.split(' ').filter(w=>w.length>=3&&!PACK_DULL.has(w));
+    return (n.length>=3&&word(n))||ws.some(word)||(eating&&FOOD_RE.test(it.name)); }).slice(0,8);
   if(!hits.length) return; let act = ''; for(let i=c.log.length-1;i>=0&&c.log[i].role!=='dm';i--) if(c.log[i].role==='player'){ act = c.log[i].text; break; }
-  const ac = new AbortController(), off = () => ac.abort(), tm = setTimeout(off,10000); signal?.addEventListener('abort',off); let out = '';
-  try{ out = await chat([{role:'system',content:'You keep the pack list for a tabletop game. You are given a scene and some things the player was carrying that the scene mentions. For each, say how many of it left the player\'s possession during this scene: eaten or drunk by anyone at all, given away, sold, thrown, used up, broken, lost, stolen, or left behind. Count only what the scene shows actually happening. If a thing is merely mentioned, looked at, held, worn, or offered and refused, its number is 0. Reply with JSON only, nothing else, like {"Meat pie":2,"Rope":0}, using exactly the names given.'},
+  const ac = new AbortController(), off = () => ac.abort(), tm = setTimeout(off,20000); signal?.addEventListener('abort',off); let out = '';
+  try{ out = await chat([{role:'system',content:'You keep the pack list for a tabletop game. You are given a scene and some things the player was carrying that the scene mentions. For each, say how many of it left the player\'s possession during this scene: eaten or drunk by anyone at all, given away, sold, thrown, used up, broken, lost, stolen, or left behind. Count only what the scene shows actually happening. The scene will often call a thing by a shorter or looser name than the one given (the pie, the roll, the food, the drink): work out which is meant. If a thing is merely mentioned, looked at, held, worn, or offered and refused, its number is 0. Reply with JSON only, nothing else, like {"Meat pie":2,"Rope":0}, using exactly the names given.'},
       {role:'user',content:`Carried: ${hits.map(h=>`${h.it.name} (has ${h.it.qty})`).join(', ')}\n\nThe player's action: ${act||'(none)'}\n\nThe scene:\n${text.replace(/<[^>]+>/g,' ').slice(-2500)}`}],{stream:false,temperature:0,maxTokens:300,model:store.settings.sheetModel,slot:'sheet',quick:true,signal:ac.signal}); }
-  catch(e){ if(signal?.aborted) throw e; return; } finally{ clearTimeout(tm); signal?.removeEventListener('abort',off); }
-  const j = jsonIn(out); if(!j||typeof j!=='object') return;
+  catch(e){ if(signal?.aborted) throw e; return ac.signal.aborted?'the pack-check model took too long':String(e.message||e).slice(0,110); } finally{ clearTimeout(tm); signal?.removeEventListener('abort',off); }
+  const j = jsonIn(out); if(!j||typeof j!=='object') return 'the pack-check model did not answer in a form that could be read';
   for(const h of hits){ const key = Object.keys(j).find(k=>k.toLowerCase()===h.it.name.toLowerCase()), n = key?clamp(Math.round(num(j[key])),0,h.it.qty):0; if(n>0) state.items_remove = [...(Array.isArray(state.items_remove)?state.items_remove:[]),{name:h.it.name,qty:n}]; } }
 // A price as the narrator may write it: a number, or words like "2 sp". Anything under a gold piece rounds up to one.
 function priceOf(v){ if(typeof v==='number') return Math.max(0,Math.round(v)); const m = /(\d+(?:\.\d+)?)\s*(pp|gp|sp|cp|gold|silver|copper|platinum)?/i.exec(String(v??'')); if(!m) return 0;
@@ -1793,12 +1798,13 @@ async function takeTurn(entry){
     const pre = snapshot(c);
     { let kept = 0; for(let k=c.log.length-1;k>=0;k--) if(c.log[k].pre&&++kept>=KEEP_UNDO) delete c.log[k].pre; }
     const called = c.log[c.log.length-1];
-    try{ await packAudit(c,text,state,signal); }catch(e){}
+    let auditErr = ''; try{ auditErr = await packAudit(c,text,state,signal)||''; }catch(e){}
     // If the player threw, ate or burnt something and the narrator forgot to take it off the sheet, the app does.
     { const act = (()=>{ for(let i=c.log.length-1;i>=0&&c.log[i].role!=='dm';i--) if(c.log[i].role==='player') return c.log[i]; return null; })();
       if(act&&act.parts&&!act.partsDone){ act.partsDone = true; const named = v => (Array.isArray(v)?v:[]).map(x=>typeof x==='string'?x:x&&x.name).filter(Boolean), gone = named(state.items_remove).map(n=>packFind(c.character,n)), back = named(state.items_add).map(n=>packFind(c.character,n));
         for(const p of act.parts){ const k = packFind(c.character,p.name); if(p.sure&&k>=0&&!gone.includes(k)&&!back.includes(k)) state.items_remove = [...(Array.isArray(state.items_remove)?state.items_remove:[]),{name:p.name,qty:1}]; } } }
     c._acted = shifts.map(x=>x.name); const changes = applyState(c,state); delete c._acted;
+    if(auditErr) changes.push({t:'Pack not checked: '+auditErr});
     for(const x of shifts){ const n = c.npcs&&c.npcs[x.name], r0 = n&&shiftBond(n,x.shift); if(r0) changes.push({...r0,rel:1}); }
     rels = changes.filter(x=>x.rel);
     if(called&&called.role==='player'&&called.callRoll){ c.pendingRoll = called.callRoll; c.suggestions = []; }
@@ -3110,7 +3116,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611201124';
+const BUILD = '202611201130';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
