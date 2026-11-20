@@ -1139,6 +1139,17 @@ const PART_SURE = /\b(throw|throws|threw|toss|tosses|hurl|hurls|fling|flings|lob
 const PART_MAYBE = /\b(give|gives|gave|giving|hand|hands|handing|offer|offers|pass|passes|sell|sells|sold|pay|pays|paid|trade|trades|lend|lends|leave|leaves|slide|slides|slip|slips|gift|gifts|donate|plant|place|places|put|puts|bury|hide|hides|use|uses|using|apply|applies|light|lights|spend|spends|tip|tips|bribe|bribes)\b/i;
 function partsWith(c,text){ const t = ' '+packWords(text)+' ', sure = PART_SURE.test(text); if(!sure&&!PART_MAYBE.test(text)) return [];
   return (c.character.inventory||[]).filter(it=>{ const n = single(packWords(it.name)); return n.length>=3&&new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(s|es)?\\b`).test(t); }).slice(0,4).map(it=>({name:it.name,sure})); }
+// A character tries to steal from the player. The narrator only reports the attempt; the player's Perception decides it, here.
+function resolveTheft(c,t,note){ if(!t||typeof t!=='object') return; const ch = c.character, by = String(t.by||'Someone').trim().slice(0,50)||'Someone', dc = clamp(num(t.dc)||12,6,22);
+  let what = '', take = null;
+  if(typeof t.item==='string'&&t.item.trim()){ const k = packFind(ch,t.item), sp = c.myShop, si = sp?sp.items.find(i=>single(packWords(i.name))===single(packWords(t.item))&&i.stock>0):null;
+    if(k>=0){ what = ch.inventory[k].name; take = () => { ch.inventory[k].qty -= 1; if(ch.inventory[k].qty<=0) ch.inventory.splice(k,1); refresh(ch); }; }
+    else if(si){ what = `${si.name} from your shop`; take = () => { si.stock -= 1; }; } }
+  else if(num(t.gold)>0){ const g = Math.min(ch.gold,Math.round(num(t.gold))); if(g>0){ what = `${g} gp`; take = () => { ch.gold -= g; }; } }
+  if(!take) return;
+  const bonus = skillMod(ch,'Perception'), pick = rnd(20), total = pick+bonus, seen = pick===20||(pick!==1&&total>=dc), roll = `Perception d20 rolled ${pick} ${sgn(bonus)} = ${total} against DC ${dc}.`;
+  if(seen){ note(`Caught ${by} stealing: ${what}`,'ok'); c._theft = `${by} tried to steal ${what} from the player. ${roll} The player noticed in time: nothing was taken, and ${by} is caught in the act.`; }
+  else { take(); note(`Stolen: ${what}`); c._theft = `${by} stole ${what} from the player. ${roll} The player did not notice; it is gone. They may discover the loss, and who did it, later.`; } }
 function upgrade(c){ const ch = c.character;
   // Clear out what an earlier version let through: "kid" as someone's nickname, or as an empty sheet of its own.
   for(const [k,n] of Object.entries(c.npcs||{})){ if(n.aka) n.aka = n.aka.filter(a=>!isAddress(a)); if(isAddress(n.name)&&!n.about&&!num(n.bond)&&!(n.memory||[]).length&&!(n.traits||[]).length){ delete c.npcs[k]; c.present = (c.present||[]).filter(x=>x!==k); } }
@@ -1227,6 +1238,7 @@ How to narrate:
   — **Name** : "Dialogue here." *brief action or expression.* "More dialogue if needed."
   Description and narration go in their own paragraphs, without the name prefix. This keeps speech visually distinct from prose. Each speaking character gets their own line with the name bold.
 - You may dress the page with markdown and simple HTML when a thing in the scene should look like what it is: a letter, a carved sign, a terminal readout, a spell, a song, a shop board. Markdown: bold, italics, ~~struck out~~, # headings, > quoted lines, lists, and --- for a rule. Tags: <span style="color:...; font-family:...; font-size:...">, <font>, <center>, <small>, <big>, <u>, <mark>, and <div style="border:1px solid ...; padding:..."> for a boxed note. Typefaces on offer: Times New Roman, Crimson Text, Cormorant Garamond, Lora, Georgia, Comfortaa, Space Mono, Courier New. Close every tag you open. Use it where it adds to the scene and leave ordinary narration plain; the app keeps every colour readable on its dark page, so never rely on dark or invisible text.
+- Theft works both ways. The player may steal from a person by saying so; that is a Sleight of Hand check, and on a success you hand over something that person would plausibly carry, through items_add or gold_delta, while on a failure the mark notices. (Stealing from a shop is rolled by the app; you are told the result.) People in the world may steal from the player too, when their own character, need and nerve would have them try. Never decide how that goes yourself: narrate only the attempt (a brush in the crowd, a hand near the pack) without saying whether it worked, and add "theft" to the state block, as {"by":"who","item":"the exact name of one thing in the player's pack, or on their shop's price list","dc":12} or {"by":"who","gold":5,"dc":12}, with "dc" from 8 for a clumsy try to 18 for an expert. The app rolls the player's Perception against it and reports what happened; carry on from that report next turn.
 - Always finish what you start: end on a complete sentence (or the deliberate cut of a combat beat), then give the state block. Never stop half-way through a thought.
 - What the player states is always an attempt, never a result. "I shoot the giant in the eye" means the character reaches for the bow, draws and looses at the eye; it does not mean the arrow lands. Where a step is genuinely in doubt, let it succeed or fail on the dice and the circumstances: the draw can be fumbled, the shot can miss, a hit can fail to do what was hoped. Do not grant the hoped-for result because it was named, and do not refuse the attempt because it was worded as a success. Steps that anyone could do without trouble simply happen.
 - Never decide what the player's character does, says, thinks, or feels. End each reply at a moment where the player chooses what to do next.
@@ -1303,7 +1315,7 @@ function buildMessages(c,intents){
     if(e.role==='dm') push('assistant',e.text+'\n\n<state>\n'+JSON.stringify(e.state||{})+'\n</state>');
     else if(e.role==='player') push('user',e.text+(e===lastAct&&e.parts&&e.parts.length?`\n\n[Pack check by the app: this action involves ${e.parts.map(x=>x.name).join(', ')} from the player's pack. Whatever leaves their hands in what you narrate (given, thrown, eaten, drunk, used up, sold, paid, left behind) MUST be listed in "items_remove" under exactly that name. What they still hold afterwards must not be listed.]`:'')+(e===lastAct&&e.sheet?`\n\n[Sheet check by the app, authoritative: ${e.sheet} Do not tell the player their character lacks it or cannot try.]`:'')+(e===lastEntry&&e.callRoll?`\n\n[App note, not written by the player: the dice gate judged that this needs a ${e.callRoll.label}${e.callRoll.dc?` against ${e.callRoll.damage?'AC':'DC'} ${e.callRoll.dc}`:''}. Narrate only the attempt, then end by telling the player to roll it. Do not narrate the outcome.]`:e===lastEntry&&e.noRoll?'\n\n[App note, not written by the player: the dice gate judged that this action needs no roll. Resolve it directly.]':''));
     else if(e.role==='roll') push('user','[Dice result from the app] '+e.text);
-    else if(e.role==='note') push('user',(e.who?'[App note: this was said aloud in the scene after the trade] ':/^Trade at /.test(e.text)?'[App note, already applied to the character sheet. This trade happened in the scene, in plain view: the shopkeeper and anyone present know exactly what the player bought and sold, and can remark on it, ask about it, or act on it.] ':'[App note, already applied to the character sheet] ')+e.text);
+    else if(e.role==='note') push('user',(e.who?'[App note: this was said aloud in the scene after the trade] ':/^Stealing at /.test(e.text)?'[App note, already applied to the character sheet. This was done unseen: the shopkeeper and everyone else do NOT know it happened unless the player gives it away.] ':/^Theft: /.test(e.text)?'[App note, already applied to the character sheet. The dice have settled this; narrate from it.] ':/^Trade at /.test(e.text)?'[App note, already applied to the character sheet. This trade happened in the scene, in plain view: the shopkeeper and anyone present know exactly what the player bought and sold, and can remark on it, ask about it, or act on it.] ':'[App note, already applied to the character sheet] ')+e.text);
     else if(e.role==='aside') push('user',`[Out-of-story aside, already answered by the DM. It is not an action; do not narrate it.] The player asked: ${e.q}${e.roll?` (${e.roll})`:''} The DM answered: ${e.a}`);
   }
   if(out[out.length-1].role==='assistant') push('user','(Continue.)');
@@ -1402,7 +1414,7 @@ function applyState(c,s){
   if(typeof s.encounter==='string'&&s.encounter.trim()){ c._alarm = s.encounter.trim().slice(0,60); note('Encounter: '+c._alarm,'bad'); } else if(c.mood==='fire'&&wasMood!=='fire') c._alarm = 'A fight breaks out';
   if(typeof s.location==='string'&&s.location.trim()) c.location = s.location.trim().slice(0,80);
   const hp = num(s.hp_delta); if(hp){ const b = ch.hp; ch.hp = clamp(ch.hp+hp,0,ch.maxHp); if(ch.hp!==b) note(`${sgn(ch.hp-b)} HP`,hp<0?'bad':'ok'); }
-  sellFromMyShop(c,s.sales,note);
+  sellFromMyShop(c,s.sales,note); resolveTheft(c,s.theft,note);
   const g = num(s.gold_delta); if(g){ const b = ch.gold; ch.gold = Math.max(0,ch.gold+g); if(ch.gold!==b) note(`${sgn(ch.gold-b)} gold`,g<0?'':'ok'); }
   const ac = num(s.ac); if(ac>=5&&ac<=30&&ac!==ch.ac){ ch.acMisc = (ch.acMisc||0)+ac-ch.ac; ch.ac = ac; note('AC '+ac); }
   const items = v => (Array.isArray(v)?v:[]).map(i=>typeof i==='string'?{name:i,qty:1}:i).filter(i=>i&&typeof i.name==='string'&&i.name.trim()).map(cleanItem);
@@ -1436,7 +1448,7 @@ function applyState(c,s){
       // The narrator repeats the shop each turn it stays open; what has been sold stays sold.
       if(same) for(const o of its){ const was = c.shop.items.find(x=>x.name.toLowerCase()===o.name.toLowerCase()); if(was&&(was.out||was.stock>0)){ o.stock = was.stock; if(was.out) o.out = true; } }
       if(its.length&&isOwnShop(c,name,sp.keeper)){ if(adoptOwnShop(c,name,its)) note('Your shop: '+name,'ok'); if(c.shop&&isOwnShop(c,c.shop.name,c.shop.keeper)) c.shop = null; }
-      else if(its.length){ c.shop = {name,keeper:String(sp.keeper||'').slice(0,50),items:its,mult:same?c.shop.mult:1,haggled:same?c.shop.haggled:false}; if(!same) note('Shop open: '+name,'ok'); } }
+      else if(its.length){ c.shop = {name,keeper:String(sp.keeper||'').slice(0,50),items:its,mult:same?c.shop.mult:1,haggled:same?c.shop.haggled:false,...(same&&c.shop.caught?{caught:true}:{}),...(same&&c.shop.heat?{heat:c.shop.heat}:{})}; if(!same) note('Shop open: '+name,'ok'); } }
     else c.shop = null; }
   if(Array.isArray(s.present)) c.present = strs(s.present).map(n=>sheetFor(n.slice(0,50))).filter(Boolean).map(x=>x.name).filter((n,i,a)=>a.indexOf(n)===i).slice(0,3);
   for(const b of (Array.isArray(s.bonds)?s.bonds:[])){ if(!b||typeof b.name!=='string') continue; const k = Object.keys(c.npcs).find(x=>x.toLowerCase()===b.name.trim().toLowerCase()||(c.npcs[x].aka||[]).some(a=>a.toLowerCase()===b.name.trim().toLowerCase()));
@@ -1599,7 +1611,7 @@ async function castBeat(c,signal){
   const happened = `${dm?clip(dm.text,900):''}${sold?`\nSeen by everyone present: ${sold} from ${ch.name}'s own shop.`:''}\n${tail.map(e=>e.role==='player'?`${ch.name} (the player character): ${e.text}`:e.role==='note'?`Seen by everyone present: ${ch.name} ${e.text.replace(/^Trade at ([^:]+): /,'traded at $1: ').replace(/\s*Purse now.*$/,'')}`:`Dice: ${e.text}`).join('\n')}`;
   const out = await Promise.all(names.map(async name=>{ const n = c.npcs[name];
     try{
-      const t = await chat([{role:'system',content:ACTOR},{role:'user',content:`${c.myShop&&c.myShop.items.length&&c.myShop.open!==false?`The player character runs a business here, ${c.myShop.name||'their shop'}. Price list:\n${myShopList(c.myShop)}\nIf you want something from it and would really pay for it, say so in your intent; if you would not, do not.\n\n`:''}Your sheet:\nName: ${n.name}\nAbout: ${n.about||'not yet described; define yourself through how you act'}\nTraits: ${(n.traits||[]).join(', ')||'none noted yet'}\nSkills: ${(n.skills||[]).join(', ')||'none noted yet'}\nWants: ${n.wants||'unclear'}\nWhat you remember of the player character: ${(n.memory||[]).map(m=>m.t).join(' / ')||'nothing yet; you have only just met'}\nFeeling toward the player character: ${n.attitude||'neutral'}${store.settings.vulgar?'\nYou swear like a real person of your kind would: fuck, shit, bitch and the rest, wherever it comes naturally to you.':''}${['explicit','unfiltered','spicy'].includes(c.tone)?'\nSexual content is part of this story. You can proposition, seduce, grope, assault, rape, or be tender — whatever your character would do. VOCABULARY: cock/dick (not "member"), pussy/cunt (not "entrance" or "core"), tits (not "mounds"), cum (not "essence" or "release"), fuck/rape (not "claim" or "take"), wet/dripping (not "aroused"), breed/impregnate (not "fill with life"). The soft version is always wrong. No fading to black. No disclaimers.':''}\n\nThe player character: ${ch.name}, a ${ch.race} ${ch.cls}. ${ch.appearance||''}\nOthers present: ${names.filter(x=>x!==name).join(', ')||'no one else'}\n\nWhat just happened:\n${happened}${postHistory(c)?'\n\n'+postHistory(c):''}`}],
+      const t = await chat([{role:'system',content:ACTOR},{role:'user',content:`If stealing from the player character is something you would really do, out of need, greed or spite, and you have the nerve for it here and now, say so plainly in your intent and name what you go for. They carry: ${(ch.inventory||[]).slice(0,8).map(i=>i.name).join(', ')||'nothing much'}, and a purse of ${ch.gold} gp. Most people never would.\n\n${c.myShop&&c.myShop.items.length&&c.myShop.open!==false?`The player character runs a business here, ${c.myShop.name||'their shop'}. Price list:\n${myShopList(c.myShop)}\nIf you want something from it and would really pay for it, say so in your intent; if you would not, do not.\n\n`:''}Your sheet:\nName: ${n.name}\nAbout: ${n.about||'not yet described; define yourself through how you act'}\nTraits: ${(n.traits||[]).join(', ')||'none noted yet'}\nSkills: ${(n.skills||[]).join(', ')||'none noted yet'}\nWants: ${n.wants||'unclear'}\nWhat you remember of the player character: ${(n.memory||[]).map(m=>m.t).join(' / ')||'nothing yet; you have only just met'}\nFeeling toward the player character: ${n.attitude||'neutral'}${store.settings.vulgar?'\nYou swear like a real person of your kind would: fuck, shit, bitch and the rest, wherever it comes naturally to you.':''}${['explicit','unfiltered','spicy'].includes(c.tone)?'\nSexual content is part of this story. You can proposition, seduce, grope, assault, rape, or be tender — whatever your character would do. VOCABULARY: cock/dick (not "member"), pussy/cunt (not "entrance" or "core"), tits (not "mounds"), cum (not "essence" or "release"), fuck/rape (not "claim" or "take"), wet/dripping (not "aroused"), breed/impregnate (not "fill with life"). The soft version is always wrong. No fading to black. No disclaimers.':''}\n\nThe player character: ${ch.name}, a ${ch.race} ${ch.cls}. ${ch.appearance||''}\nOthers present: ${names.filter(x=>x!==name).join(', ')||'no one else'}\n\nWhat just happened:\n${happened}${postHistory(c)?'\n\n'+postHistory(c):''}`}],
         {stream:false,maxTokens:1500,temperature:0.8,model:store.settings.charModel,slot:'char',quick:true,signal});
       const j = jsonIn(t); if(!j||typeof j.intent!=='string'||!j.intent.trim()) return null;
       if(typeof j.attitude==='string'&&j.attitude.trim()) n.attitude = j.attitude.trim().slice(0,40);
@@ -1768,6 +1780,7 @@ async function takeTurn(entry){
     if(called&&called.role==='player'&&called.callRoll){ c.pendingRoll = called.callRoll; c.suggestions = []; }
     const says = store.settings.dmTalk&&typeof state.dm_says==='string'?state.dm_says.trim().slice(0,220):'';
     c.log.push({role:'dm',text,state,changes,pre,...(checked?{ok:1}:{}),...(says?{says}:{})});
+    if(c._theft){ c.log.push({role:'note',theft:1,text:'Theft: '+c._theft}); delete c._theft; }
     c.updated = Date.now();
   }else if(!lastErr&&!signal.aborted) lastErr = raw?'The model replied with no narration. Try again, or pick a different model.':'The model returned an empty reply. Try again, raise max tokens in Models, or pick a different model.';
   save(); renderGame(); relPop(rels); if(c._alarm){ alarm(c._alarm==='A fight breaks out'?c._alarm:'Encounter: '+c._alarm); delete c._alarm; } if(text) summarize(c);
@@ -2508,7 +2521,7 @@ function renderSide(){
           ${n.wants?`<dt>Wants</dt><dd>${esc(n.wants)}</dd>`:''}
           ${(n.traits||[]).length?`<dt>Traits</dt><dd>${n.traits.map(esc).join(' · ')}</dd>`:''}
           ${(n.skills||[]).length?`<dt>Skilled at</dt><dd>${n.skills.map(esc).join(' · ')}</dd>`:''}
-          ${mem.length?`<dt>Remembers</dt><dd><ul>${mem.slice(0,4).map(m=>`<li class="${m.k?'lasting':''}">${esc(m.t)}</li>`).join('')}</ul>${mem.length>4?`<span class="hint">and ${mem.length-4} older</span>`:''}</dd>`:''}</dl>`,'st-'+st); };
+          ${mem.length?`<dt>Remembers</dt><dd><ul>${mem.slice(0,4).map(m=>`<li class="${m.k?'lasting':''}">${esc(m.t)}</li>`).join('')}</ul>${mem.length>4?`<span class="hint">and ${mem.length-4} older</span>`:''}</dd>`:''}</dl>${here.includes(n.name)?`<div class="actions" style="justify-content:flex-start;margin-top:8px"><button class="btn small ghost" data-act="pickPocket" data-n="${esc(n.name)}" ${busy?'disabled':''} title="Sleight of Hand ${sgn(skillMod(c.character,'Sleight of Hand'))}">Pick their pocket</button></div>`:''}`,'st-'+st); };
     const inScene = all.filter(n=>here.includes(n.name)), others = all.filter(n=>!here.includes(n.name));
     h += all.length?`${inScene.length?`<div class="dlabel">In the scene</div>${inScene.map(person).join('')}`:''}${others.length?`<div class="dlabel">Met or heard of</div>${others.map(person).join('')}`:''}
       <div class="legend" style="padding:6px 4px">${STANCES.map(k=>`<span class="st-${k}"><i class="dot"></i>${k[0].toUpperCase()+k.slice(1)}</span>`).join('')}</div>`
@@ -2539,10 +2552,10 @@ const sellValue = it => Math.max(1,Math.floor(worth(it)/2));
 function openShop(){
   const c = cur, sp = c&&c.shop; if(!sp) return; const ch = c.character; sp.items.forEach(shelf);
   $('#modalRoot').innerHTML = `<div class="modal shop" data-act="shopCloseBg"><div class="box" role="dialog" aria-modal="true" aria-label="${esc(sp.name)}">
-    <div class="head"><div><h3>${esc(sp.name)}</h3><div class="hint">${sp.keeper?`Kept by ${markNames(sp.keeper)}. `:''}${sp.mult<1?'Your haggling won a discount.':sp.mult>1?'Your haggling soured the keeper; prices are up.':'Prices in gold pieces.'}</div></div>
+    <div class="head"><div><h3>${esc(sp.name)}</h3><div class="hint">${sp.keeper?`Kept by ${markNames(sp.keeper)}. `:''}${sp.caught?'You were caught stealing here. You are being watched, and prices are up.':sp.mult<1?'Your haggling won a discount.':sp.mult>1?'Your haggling soured the keeper; prices are up.':'Prices in gold pieces.'}</div></div>
       <div class="purse">${ch.gold} gp</div></div>
     <div class="cols"><div><h4>For sale</h4><div class="items">${sp.items.length?sp.items.map((it,k)=>{ const pr = shopPrice(it); return `<div class="item${it.out?' out':''}"><b>${esc(it.name)}${it.out?'<em>sold out</em>':it.stock?`<em>${it.stock} left</em>`:''}</b>
-        <span class="acts"><span class="price">${pr} gp</span><button class="btn small primary" data-act="buy" data-k="${k}" ${pr>ch.gold||it.out?'disabled':''}>${it.out?'Gone':'Buy'}</button></span>${it.desc?`<small>${esc(it.desc)}</small>`:''}</div>`; }).join(''):'<div class="hint">Sold out.</div>'}</div></div>
+        <span class="acts"><span class="price">${pr} gp</span><button class="btn small ghost" data-act="steal" data-k="${k}" ${it.out||sp.caught?'disabled':''} title="Try to take it without paying: Sleight of Hand ${sgn(skillMod(ch,'Sleight of Hand'))} against DC ${stealDC(sp,it)}">Steal</button><button class="btn small primary" data-act="buy" data-k="${k}" ${pr>ch.gold||it.out?'disabled':''}>${it.out?'Gone':'Buy'}</button></span>${it.desc?`<small>${esc(it.desc)}</small>`:''}</div>`; }).join(''):'<div class="hint">Sold out.</div>'}</div></div>
       <div><h4>Your pack · sell</h4><div class="items">${ch.inventory.length?ch.inventory.map((it,k)=>`<div class="item"><b>${esc(it.name)}${it.qty>1?`<em>×${it.qty}</em>`:''}</b>
         <span class="acts"><span class="price">${sellValue(it)} gp</span><button class="btn small" data-act="sell" data-k="${k}">Sell</button></span></div>`).join(''):'<div class="hint">Nothing to sell.</div>'}</div></div></div>
     <div class="actions" style="margin-top:18px"><button class="btn ghost" data-act="haggle" ${sp.haggled?'disabled':''}>${sp.haggled?'Already haggled':'Haggle (Persuasion)'}</button><button class="btn primary" data-act="shopClose">Done</button></div></div></div>`;
@@ -2568,6 +2581,19 @@ async function keeperReact(c, trades){
   c.log.push({role:'note',who:keeper,line,text:keeperText(keeper,line)}); c.updated = Date.now(); save(); renderGame();
 }
 const keeperText = (who,line) => `${who}, as you leave: "${line}"`;
+// Lifting something off the shelf: Sleight of Hand against a number set by what the thing is worth, how big it is, and how often you have tried it here.
+const stealDC = (sp,it) => clamp(10+Math.min(8,Math.floor(shopPrice(it)/10))+(sp.heat||0)*2+(num(it.weight)>=5||/armou?r|mail|sword|axe|shield|bow|staff|barrel|crate/i.test(it.name)?3:0),8,25);
+async function stealItem(k){
+  const c = cur, sp = c.shop, it = sp&&sp.items[k]; if(!it||it.out||sp.caught||rolling||busy) return; const ch = c.character, bonus = skillMod(ch,'Sleight of Hand'), dc = stealDC(sp,it);
+  closeModal(); rolling = true; const opened = await openTray();
+  let pick; try{ pick = (await throwDice([{n:1,sides:20}]))[0][0]; }catch(e){ rolling = false; closeTray(opened); return; }
+  const total = pick+bonus, ok = pick===20||(pick!==1&&total>=dc), roll = `Sleight of Hand d20 rolled ${pick} ${sgn(bonus)} = ${total} against DC ${dc}${pick===20?' (natural 20!)':pick===1?' (natural 1)':''}.`; flare(pick);
+  if(ok){ const {stock,out,...rest} = it; addItem(ch,{...rest,qty:1}); refresh(ch); if(it.stock){ it.stock -= 1; if(it.stock<=0){ it.stock = 0; it.out = true; } } sp.heat = (sp.heat||0)+1;
+    const t = `Stealing at ${sp.name}: ${roll} You pocket the ${it.name} without anyone seeing.`; pushTray(total,t); c.log.push({role:'note',text:t}); save(); await sleep(1300); rolling = false; closeTray(opened); renderGame(); openShop(); return; }
+  sp.caught = true; sp.mult = Math.max(sp.mult||1,1.5); const keeper = sp.keeper&&whoIs(c,sp.keeper); if(keeper) shiftBond(keeper,-3);
+  const t = `Caught stealing at ${sp.name}: ${roll} ${sp.keeper||'The keeper'} catches the player with a hand on the ${it.name}. Nothing was taken. Narrate what ${sp.keeper||'the keeper'} does about it.`;
+  pushTray(total,t); save(); await sleep(1300); rolling = false; closeTray(opened); renderGame(); takeTurn({role:'roll',text:t});
+}
 async function haggle(){
   const c = cur, sp = c.shop; if(!sp||sp.haggled||rolling) return; const bonus = skillMod(c.character,'Persuasion');
   closeModal(); rolling = true; const opened = await openTray();
@@ -2952,6 +2978,8 @@ document.addEventListener('click',async ev=>{
     case 'shopClose': closeShop(); break;
     case 'shopCloseBg': if(ev.target===el) closeShop(); break;
     case 'haggle': haggle(); break;
+    case 'steal': stealItem(num(el.dataset.k)); break;
+    case 'pickPocket': { const n = c&&c.npcs&&c.npcs[el.dataset.n]; if(!n||busy) break; if(!wide()) closeDrawers(); playerAct(`I try to pick ${n.name}'s pocket without being noticed.`); break; }
     case 'buy': { const sp = c.shop, it = sp&&sp.items[num(el.dataset.k)]; if(!it) break; const pr = shopPrice(it); if(pr>c.character.gold||it.out) break;
       c.character.gold -= pr; const {stock,out,...rest} = it; addItem(c.character,{...rest,qty:1}); refresh(c.character); if(it.stock){ it.stock -= 1; if(it.stock<=0){ it.stock = 0; it.out = true; } }
       shopTrades.push(`bought ${it.name} for ${pr} gp`); save(); openShop(); break; }
@@ -3055,7 +3083,7 @@ document.addEventListener('keydown',ev=>{
 
 matchMedia('(min-width:901px)').addEventListener('change',()=>{ if($('#game')){ setDrawer($('#leftD'),wide()&&!!store.ui.left); setDrawer($('#rightD'),wide()&&!!store.ui.right); } });
 // Browsers keep a saved copy of the page for a while. Ask the site which version is current and offer to load it.
-const BUILD = '202611201104';
+const BUILD = '202611201109';
 async function checkVersion(){
   try{ const r = await fetch('version.txt?'+Date.now(),{cache:'no-store'}); if(!r.ok) return; const v = (await r.text()).trim();
     if(/^\d{12}$/.test(v)&&v>BUILD&&!busy&&!rolling) toast('↻','A newer version is ready.',{label:'Update',reload:v}); }catch(e){}
